@@ -420,7 +420,21 @@ function saveArc(){lsSet('sp_archive',JSON.stringify(archive));}
 function loadArc(){try{var r=lsGet('sp_archive');if(r)archive=JSON.parse(r);}catch(e){}}
 
 // FIREBASE
-function getCfg(){try{return JSON.parse(lsGet('sp_fbcfg'));}catch(e){return null;}}
+// Dane Firebase wbudowane w aplikacje
+var FIREBASE_CFG={
+  apiKey:"AIzaSyAPjqiHciLlp1pJzpZvZUvLgXSJydL15KA",
+  authDomain:"ryby-4bda7.firebaseapp.com",
+  databaseURL:"https://ryby-4bda7-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:"ryby-4bda7",
+  appId:"1:715555069677:web:d546234b845a8eb13076e4"
+};
+
+function getCfg(){
+  // Najpierw sprawdz czy uzytkownik nadpisal w zakladce Chmura
+  try{var c=JSON.parse(lsGet('sp_fbcfg'));if(c&&c.apiKey)return c;}catch(e){}
+  // Fallback: wbudowane dane
+  return FIREBASE_CFG;
+}
 
 function initFb(cfg){
   if(!cfg||!cfg.apiKey||!cfg.databaseURL){
@@ -1139,8 +1153,7 @@ function bootApp(){
   renderEditor();
   renderCart();
   var _cfg=getCfg();
-  if(_cfg){initFb(_cfg);}
-  else{setTimeout(function(){if(!fbReady)toast('Brak konfiguracji chmury - zakładka Chmura','#1278a8');},1500);}
+  initFb(_cfg);
 }
 
 // Sprawdz sesje przy starcie
