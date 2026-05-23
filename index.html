@@ -76,10 +76,13 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 #vl{padding:12px;background:var(--bg)}
 .ol{display:flex;flex-direction:column;gap:9px}
 .oc{background:var(--c);border-radius:var(--r);overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.25)}
-.och{padding:8px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.och.sp{background:linear-gradient(90deg,#0a2535,#0d4f75)}.och.sc{background:linear-gradient(90deg,#3a1800,#9a4500)}
-.och.sr{background:linear-gradient(90deg,#0a3318,#1a7a3a)}.och.sd{background:#2a3840}
-.ocn{font-family:'Playfair Display',serif;color:#fff;font-size:.95rem;font-weight:700}.oct{color:rgba(255,255,255,.5);font-size:.71rem}
+.och{padding:10px 12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.och.spending{background:linear-gradient(90deg,#0a2535,#0d4f75)}
+.och.scooking{background:linear-gradient(90deg,#3a1800,#9a4500)}
+.och.sready{background:linear-gradient(90deg,#0a3318,#1a7a3a)}
+.och.sdone{background:#2a3840}
+.ocn{font-family:'Playfair Display',serif;color:#fff;font-size:1.05rem;font-weight:900;letter-spacing:.01em}
+.oct{color:rgba(255,255,255,.5);font-size:.71rem}
 .spl{margin-left:auto;border-radius:16px;padding:3px 9px;font-size:.68rem;font-weight:900;text-transform:uppercase}
 .spl.pending{background:rgba(255,255,255,.18);color:#fff}.spl.cooking{background:var(--a);color:#fff}.spl.ready{background:var(--gr);color:#fff}.spl.done{background:#556;color:rgba(255,255,255,.7)}
 .ocb{padding:7px 12px}.olin{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.07)}.olin:last-child{border:none}
@@ -95,7 +98,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .dkt{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700}.dkc{color:rgba(255,255,255,.42);font-size:.93rem;font-weight:700}
 #vb .dkh{border-bottom:3px solid var(--s)}#vb .dkt{color:var(--s)}
 #vk .dkh{border-bottom:3px solid var(--a)}#vk .dkt{color:var(--a)}
-.tkg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;padding:13px;flex:1}
+.tkg{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;padding:11px;flex:1}
 .tkt{background:#0c1e2c;border-radius:12px;border:2px solid rgba(255,255,255,.07);overflow:hidden}
 .tkt.bn{border-color:var(--s)}.tkt.bd{opacity:.38;border-color:#334}
 .tkt.tp{border-color:rgba(255,255,255,.12)}.tkt.tc{border-color:var(--a)}.tkt.tr{border-color:var(--gr)}.tkt.to{border-color:var(--e)}
@@ -105,9 +108,9 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tksc{color:rgba(255,255,255,.35);font-size:.71rem}
 .tkb{padding:9px 12px}.tki{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}.tki:last-child{border:none}
 .tie{font-size:1.4rem}.tin{flex:1;color:#fff;font-weight:700;font-size:.88rem}
-.tiq{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.88rem;color:#fff}
+.tiq{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.15rem;color:#fff;flex-shrink:0}
 .tiq.fo{background:var(--a)}.tiq.dr{background:var(--s)}.tiq.sv{background:var(--gr)}
-.tknote{color:#666;font-size:.74rem;margin-top:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,.05)}
+.tknote{background:rgba(245,166,35,.15);border:1.5px solid rgba(245,166,35,.4);border-radius:8px;color:#ffd080;font-size:.82rem;font-weight:800;margin-top:7px;padding:6px 10px;line-height:1.4}
 .tkf{padding:7px 12px;display:flex;gap:6px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05)}
 .bt{flex:1;padding:9px;border-radius:8px;border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;cursor:pointer;touch-action:manipulation;min-height:38px;-webkit-tap-highlight-color:transparent}
 .bt:active{filter:brightness(1.15)}
@@ -681,7 +684,44 @@ document.getElementById('bsnd2').addEventListener('click',function(){
   doSend2();
 });
 
-// STATUSY
+// Event delegation dla przyciskow listy zamowien
+document.addEventListener('click',function(e){
+  var btn=e.target.closest('[data-action]');
+  if(!btn)return;
+  var action=btn.getAttribute('data-action');
+  var idsStr=btn.getAttribute('data-ids')||'';
+  var ids=idsStr?idsStr.split(','):[];
+  if(action==='grpstatus'){
+    var status=btn.getAttribute('data-status');
+    for(var i=0;i<ids.length;i++)setStatus(ids[i],status);
+  }
+  if(action==='markpaid'){
+    for(var i=0;i<ids.length;i++)setPaid(ids[i]);
+    toast('Zamowienie oplacone!','#27ae60');
+  }
+  if(action==='delgrp'){
+    for(var i=0;i<ids.length;i++)delOrder(ids[i]);
+  }
+});
+document.addEventListener('touchend',function(e){
+  var btn=e.target.closest('[data-action]');
+  if(!btn)return;
+  e.preventDefault();
+  var action=btn.getAttribute('data-action');
+  var idsStr=btn.getAttribute('data-ids')||'';
+  var ids=idsStr?idsStr.split(','):[];
+  if(action==='grpstatus'){
+    var status=btn.getAttribute('data-status');
+    for(var i=0;i<ids.length;i++)setStatus(ids[i],status);
+  }
+  if(action==='markpaid'){
+    for(var i=0;i<ids.length;i++)setPaid(ids[i]);
+    toast('Zamowienie oplacone!','#27ae60');
+  }
+  if(action==='delgrp'){
+    for(var i=0;i<ids.length;i++)delOrder(ids[i]);
+  }
+},{passive:false});
 function setStatus(id,status){
   if(orders[id]){orders[id].status=status;saveOrds();onData();}
   if(fbReady)fbBg(fbDB.ref('orders/'+id).update({status:status}));
@@ -707,21 +747,19 @@ function renderList(){
   var arr=Object.values(orders).sort(function(a,b){return b.ts-a.ts;});
   if(!arr.length){el.innerHTML='<div class="ni">Brak zamowien</div>';return;}
 
-  // Grupuj aktywne zamówienia z tego samego stolika (nie-done, złożone w ciągu 15 min od siebie)
+  // Grupuj zamówienia z tego samego stolika złożone w ciągu 15 min
   var grouped=[];
   var used={};
   for(var i=0;i<arr.length;i++){
     if(used[arr[i].id])continue;
     var o=arr[i];
-    // Szukaj innych zamówień na ten sam stolik, aktywnych, w ciągu 15 min
     var group=[o];
     if(o.status!=='done'){
       for(var j=i+1;j<arr.length;j++){
         var o2=arr[j];
         if(used[o2.id])continue;
         if(o2.status!=='done'&&o2.table===o.table&&Math.abs(o2.ts-o.ts)<15*60*1000){
-          group.push(o2);
-          used[o2.id]=true;
+          group.push(o2);used[o2.id]=true;
         }
       }
     }
@@ -732,11 +770,11 @@ function renderList(){
   el.innerHTML='';
   for(var g=0;g<grouped.length;g++){
     var grp=grouped[g];
-    // Status grupy = najważniejszy (pending > cooking > ready > done)
     var statPrio={pending:0,cooking:1,ready:2,done:3};
     var mainO=grp.reduce(function(a,b){return statPrio[a.status]<=statPrio[b.status]?a:b;});
     var isMerged=grp.length>1;
 
+    // Zbierz pozycje i sumę
     var allItems=[];
     var totalSum=0;
     var seqStr=grp.map(function(o){return '#'+o.seq;}).join(', ');
@@ -744,46 +782,64 @@ function renderList(){
     grp.forEach(function(o){
       totalSum+=o.total;
       o.items.forEach(function(it){
-        // Połącz te same pozycje
         var found=false;
         for(var k=0;k<allItems.length;k++){
           if(allItems[k].name===it.name){allItems[k].qty+=it.qty;found=true;break;}
         }
-        if(!found)allItems.push({emoji:it.emoji,name:it.name,qty:it.qty,price:it.price});
+        if(!found)allItems.push({emoji:it.emoji,name:it.name,qty:it.qty});
       });
     });
 
+    // Sprawdź czy jakiekolwiek zamówienie w grupie jest nieopłacone
+    // paid===false oznacza "na rachunek", paid===true lub paid===undefined = opłacone
+    var hasUnpaid=grp.some(function(o){return o.paid===false;});
+    var allPaid=grp.every(function(o){return o.paid!==false;});
+
+    // Przyciski statusu - uzywamy data-ids zamiast inline JSON
+    var idsStr=grp.map(function(o){return o.id;}).join(',');
     var nx='';
-    if(mainO.status==='pending')nx='<button class="ba bac" onclick="setGrpStatus('+JSON.stringify(grp.map(function(o){return o.id;}))+'\'cooking\')">Gotowanie</button>';
-    else if(mainO.status==='cooking')nx='<button class="ba bar" onclick="setGrpStatus('+JSON.stringify(grp.map(function(o){return o.id;}))+'\'ready\')">Gotowe</button>';
-    else if(mainO.status==='ready')nx='<button class="ba bad" onclick="setGrpStatus('+JSON.stringify(grp.map(function(o){return o.id;}))+'\'done\')">Wydane</button>';
+    if(mainO.status==='pending')      nx='<button class="ba bac" data-action="grpstatus" data-ids="'+idsStr+'" data-status="cooking">&#x1F525; Gotowanie</button>';
+    else if(mainO.status==='cooking') nx='<button class="ba bar" data-action="grpstatus" data-ids="'+idsStr+'" data-status="ready">&#x2705; Gotowe</button>';
+    else if(mainO.status==='ready')   nx='<button class="ba bad" data-action="grpstatus" data-ids="'+idsStr+'" data-status="done">&#x1F37D; Wydane</button>';
 
-    var delBtns='';
-    if(isMerged){
-      // przycisk usuń dla każdego
-      grp.forEach(function(o){delBtns+='<button class="ba badl" onclick="delOrder(\''+o.id+'\')">Usun #'+o.seq+'</button>';});
-    } else {
-      delBtns='<button class="ba badl" onclick="delOrder(\''+mainO.id+'\')">Usun</button>';
-    }
-
-    var rows='';
-    for(var k=0;k<allItems.length;k++){var it=allItems[k];rows+='<div class="olin"><span class="ole">'+it.emoji+'</span><span class="oln">'+esc(it.name)+'</span><span class="olq">x'+it.qty+'</span></div>';}
-
+    // Przycisk Oplacono
     var payBtn='';
-    if(grp.some(function(o){return o.paid===false;})){
-      var unpaidIds=grp.filter(function(o){return o.paid===false;}).map(function(o){return o.id;});
-      payBtn='<button class="ba" style="background:var(--gr);color:#fff;" onclick="markPaid('+JSON.stringify(unpaidIds)+')">&#x1F4B0; Oplacono</button>';
+    if(hasUnpaid){
+      var unpaidIdsStr=grp.filter(function(o){return o.paid===false;}).map(function(o){return o.id;}).join(',');
+      payBtn='<button class="ba" style="background:var(--gr);color:#fff;min-width:90px;" data-action="markpaid" data-ids="'+unpaidIdsStr+'">&#x1F4B0; Oplacono</button>';
     }
-    var unpaidBadge=(grp.some(function(o){return o.paid===false;}))?'<span class="unpaid-badge">NIEOPLACONE</span>':'';
+
+    // Jeden przycisk usuń dla całej grupy
+    var allIds=grp.map(function(o){return o.id;}).join(',');
+    var delBtns='<button class="ba badl" data-action="delgrp" data-ids="'+allIds+'">&#x1F5D1; Usun</button>';
+
+    // Znaczki
+    var mergedBadge=isMerged?'<span style="background:var(--s);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">POLACZONE</span>':'';
+    var paidBadge=hasUnpaid
+      ?'<span style="background:var(--e);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">NIEOPLACONE</span>'
+      :'<span style="background:var(--gr);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">OPLACONE</span>';
+
+    // Wiersze pozycji
+    var rows='';
+    for(var k=0;k<allItems.length;k++){
+      var it=allItems[k];
+      rows+='<div class="olin"><span class="ole">'+it.emoji+'</span><span class="oln">'+esc(it.name)+'</span><span class="olq">x'+it.qty+'</span></div>';
+    }
+
     var c=document.createElement('div');c.className='oc';
     c.innerHTML=
-      '<div class="och s'+mainO.status+'">'+
-        '<span class="ocn" style="font-size:1.1rem;font-weight:900;">STOLIK '+mainO.table+mergedBadge+unpaidBadge+'</span>'+
-        '<span class="oct">'+seqStr+' &bull; '+mainO.timeStr+'</span>'+
-        '<span class="spl '+mainO.status+'">'+SL[mainO.status]+'</span>'+
+      '<div class="och s'+mainO.status+'" style="min-height:52px;">'+
+        '<div style="display:flex;flex-direction:column;gap:2px;flex:1">'+
+          '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
+            '<span style="font-family:\'Playfair Display\',serif;color:#fff;font-size:1.3rem;font-weight:900;">&#x1F4CD; Stolik '+mainO.table+'</span>'+
+            mergedBadge+paidBadge+
+          '</div>'+
+          '<span style="color:rgba(255,255,255,.55);font-size:.72rem;">'+seqStr+' &bull; '+mainO.timeStr+'</span>'+
+        '</div>'+
+        '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
       '</div>'+
-      '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">'+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
-      '<div class="ocf">'+nx+payBtn+delBtns+'<span class="osb">'+totalSum.toFixed(2)+' zl</span></div>';
+      '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
+      '<div class="ocf" style="flex-wrap:wrap;gap:5px;">'+nx+payBtn+delBtns+'<span class="osb">'+totalSum.toFixed(2)+' zl</span></div>';
     el.appendChild(c);
   }
 }
@@ -811,7 +867,7 @@ function renderBar(){
     var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+='<div class="tki"><span class="tie">'+it.emoji+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span></div>';}
     var btn=done?'<span style="color:var(--gr);font-weight:800;font-size:.82rem;padding:6px">Wydane</span>':'<button class="bt btbar" onclick="setBarDone(\''+o.id+'\')">Wydano napoje</button>';
     var t=document.createElement('div');t.className='tkt '+(done?'bd':'bn');
-    t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">'+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
+    t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
     g.appendChild(t);
   }
 }
@@ -820,24 +876,61 @@ function renderBar(){
 function renderKitch(){
   var g=document.getElementById('kg');if(!g)return;
   var ds=dSet();var now=Date.now();
-  var act=Object.values(orders).filter(function(o){return o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});}).sort(function(a,b){return a.ts-b.ts;});
+  var act=Object.values(orders).filter(function(o){
+    return o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});
+  }).sort(function(a,b){return a.ts-b.ts;});
   if(!act.length){g.innerHTML='<div class="notk"><span>&#x1F634;</span>Brak aktywnych zamowien</div>';return;}
-  g.innerHTML='';
+
+  // Sprawdz czy DOM juz ma te bilety (unikaj pelnego re-renderu)
+  var existingIds={};
+  var existing=g.querySelectorAll('.tkt[data-oid]');
+  for(var e=0;e<existing.length;e++)existingIds[existing[e].getAttribute('data-oid')]=existing[e];
+
+  // Usun bilety ktorych juz nie ma
+  var actIds={};
+  for(var i=0;i<act.length;i++)actIds[act[i].id]=true;
+  for(var oid in existingIds){if(!actIds[oid])existingIds[oid].parentNode&&existingIds[oid].parentNode.removeChild(existingIds[oid]);}
+
   for(var i=0;i<act.length;i++){
     var o=act[i];
     var food=o.items.filter(function(i){return !ds.has(norm(i.name));});
-    var el=Math.floor((now-o.ts)/1000);
-    var m=Math.floor(el/60),s=el%60;
-    var tc=el<480?'warm':el<900?'hot':'over';
-    var cls=o.status==='cooking'?'tc':o.status==='ready'?'tr':el>=900?'to':'tp';
-    var btns='';
-    if(o.status==='pending')btns='<button class="bt btc" onclick="setStatus(\''+o.id+'\',\'cooking\')">Zaczynam</button>';
-    else if(o.status==='cooking')btns='<button class="bt btr" onclick="setStatus(\''+o.id+'\',\'ready\')">Gotowe!</button>';
-    else if(o.status==='ready')btns='<button class="bt btd" onclick="setStatus(\''+o.id+'\',\'done\')">Wydane</button>';
-    var rows='';for(var j=0;j<food.length;j++){var it=food[j];rows+='<div class="tki"><span class="tie">'+it.emoji+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq fo">'+it.qty+'</span></div>';}
-    var t=document.createElement('div');t.className='tkt '+cls;
-    t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div><div class="tksc">#'+o.seq+' '+o.timeStr+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">'+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btns+'</div>';
-    g.appendChild(t);
+    var el2=Math.floor((now-o.ts)/1000);
+    var m=Math.floor(el2/60),s=el2%60;
+    var tc=el2<480?'warm':el2<900?'hot':'over';
+    var cls='tkt '+(o.status==='cooking'?'tc':o.status==='ready'?'tr':el2>=900?'to':'tp');
+
+    if(existingIds[o.id]){
+      // Bilet juz istnieje — zaktualizuj tylko timer i klase
+      var tkt=existingIds[o.id];
+      tkt.className=cls;
+      var tmr=tkt.querySelector('.tktmr');
+      if(tmr){tmr.className='tktmr '+tc;tmr.textContent=m+':'+String(s).padStart(2,'0');}
+    } else {
+      // Nowy bilet — zbuduj HTML
+      var btns='';
+      if(o.status==='pending')     btns='<button class="bt btc" onclick="setStatus(\''+o.id+'\',\'cooking\')">Zaczynam</button>';
+      else if(o.status==='cooking')btns='<button class="bt btr" onclick="setStatus(\''+o.id+'\',\'ready\')">Gotowe!</button>';
+      else if(o.status==='ready')  btns='<button class="bt btd" onclick="setStatus(\''+o.id+'\',\'done\')">Wydane</button>';
+      var rows='';
+      for(var j=0;j<food.length;j++){
+        var it=food[j];
+        rows+='<div class="tki"><span class="tie">'+it.emoji+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq fo">'+it.qty+'</span></div>';
+      }
+      var t=document.createElement('div');
+      t.className=cls;
+      t.setAttribute('data-oid',o.id);
+      t.innerHTML=
+        '<div class="tkh">'+
+          '<span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span>'+
+          '<div class="tkm">'+
+            '<div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div>'+
+            '<div class="tksc">#'+o.seq+' '+o.timeStr+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div>'+
+        '<div class="tkf">'+btns+'</div>';
+      g.appendChild(t);
+    }
   }
 }
 
@@ -1063,10 +1156,29 @@ function testFb(){
 }
 
 // ZEGAR
+// Zegar + timery kuchni — co sekunde aktualizuje tylko tekst, bez re-renderu DOM
 setInterval(function(){
   var t=new Date().toLocaleTimeString('pl-PL');
   var k=document.getElementById('kclk');if(k)k.textContent=t;
   var b=document.getElementById('bclk');if(b)b.textContent=t;
+
+  // Aktualizuj timery biletow kuchennych bez pelnego re-renderu
+  if(curV==='k'){
+    var now=Date.now();
+    var tkts=document.querySelectorAll('#kg .tkt[data-oid]');
+    for(var i=0;i<tkts.length;i++){
+      var oid=tkts[i].getAttribute('data-oid');
+      var o=orders[oid];if(!o)continue;
+      var el2=Math.floor((now-o.ts)/1000);
+      var m=Math.floor(el2/60),s=el2%60;
+      var tc=el2<480?'warm':el2<900?'hot':'over';
+      var tmr=tkts[i].querySelector('.tktmr');
+      if(tmr){tmr.className='tktmr '+tc;tmr.textContent=m+':'+String(s).padStart(2,'0');}
+      // Zaktualizuj klas biletow (kolor ramki)
+      var newCls='tkt '+(o.status==='cooking'?'tc':o.status==='ready'?'tr':el2>=900?'to':'tp');
+      if(tkts[i].className!==newCls)tkts[i].className=newCls;
+    }
+  }
 },1000);
 
 // ═══════════════════════════════════════
