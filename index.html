@@ -861,9 +861,10 @@ document.addEventListener('touchend',function(e){
   handleDataAction(btn);
 },{passive:false});
 document.addEventListener('click',function(e){
-  if(Date.now()-_lastDelegateTouch<600)return;
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
+  // Ghost click guard tylko dla przyciskow z data-action
+  if(Date.now()-_lastDelegateTouch<600)return;
   handleDataAction(btn);
 });
 function setStatus(id,status){
@@ -1436,6 +1437,14 @@ function doChangePw(){
 document.getElementById('loginPw').addEventListener('keydown',function(e){
   if(e.key==='Enter')doLogin();
 });
+// Bezposredni listener na przycisk logowania - niezalezny od delegation
+var loginBtn=document.querySelector('.login-btn');
+if(loginBtn){
+  loginBtn.addEventListener('touchend',function(e){
+    e.preventDefault();
+    doLogin();
+  },{passive:false});
+}
 
 function clearAllOrders(){
   var count=Object.keys(orders).length;
