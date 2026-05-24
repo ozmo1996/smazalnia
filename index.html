@@ -46,6 +46,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .mc{background:var(--c);border-radius:var(--r);overflow:hidden;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25);position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .mc:active{opacity:.75}
 .mc-flash{opacity:.6;transform:scale(.96);transition:opacity .25s,transform .25s}
+.mc-unavail{opacity:.6;cursor:not-allowed;}
+.mc-unavail:active{opacity:.6;transform:none;}
 .mct{background:linear-gradient(135deg,#def0ff,#bfdfff);padding:18px 6px 12px;text-align:center;font-size:2.8rem;line-height:1}
 .mcb{padding:8px 10px 10px}.mcn{font-weight:800;font-size:.88rem;color:#0b1e28;line-height:1.2}.mcp{color:var(--s);font-weight:700;font-size:.82rem;margin-top:3px}
 .mcbg{position:absolute;top:5px;right:5px;font-size:.6rem;font-weight:900;padding:2px 6px;border-radius:6px;background:var(--e);color:#fff;text-transform:uppercase}
@@ -256,7 +258,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.6</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.8</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -655,15 +657,24 @@ function renderMG(id,items){
   g.innerHTML='';
   for(var i=0;i<items.length;i++){
     var item=items[i];
+    var unavail=!!item.unavailable;
     var c=document.createElement('div');
-    c.className='mc';
+    c.className='mc'+(unavail?' mc-unavail':'');
     c.setAttribute('data-item-id', item.id);
-    c.setAttribute('data-item-idx', String(i));
-    var bdg=item.badge?'<span class="mcbg '+(item.bc||'')+'">'+esc(item.badge)+'</span>':'';
-    c.innerHTML='<div class="mct">'+item.emoji+'</div><div class="mcb"><div class="mcn">'+esc(item.name)+'</div><div class="mcp">'+(+item.price).toFixed(2)+' zl</div></div>'+bdg;
-    (function(it){
-      c.addEventListener('click',function(){addCart(it,this);},{passive:true});
-    })(item);
+    var bdg=unavail
+      ?'<span class="mcbg" style="background:#888;">BRAK</span>'
+      :(item.badge?'<span class="mcbg '+(item.bc||'')+'">'+esc(item.badge)+'</span>':'');
+    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+item.emoji+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
+    (function(it,unav){
+      c.addEventListener('click',function(){
+        if(unav){
+          toast('❌ '+esc(it.name)+' - produkt niedostepny!','#e85c3a');
+          vib(80);
+          return;
+        }
+        addCart(it,this);
+      },{passive:true});
+    })(item,unavail);
     g.appendChild(c);
   }
 }
@@ -798,8 +809,9 @@ function handleDataAction(btn){
   if(action==='markpaid')  { for(var i=0;i<ids.length;i++)setPaid(ids[i]); toast('Zamowienie oplacone!','#27ae60'); return; }
   if(action==='delgrp')    { for(var i=0;i<ids.length;i++)delOrder(ids[i]); return; }
   if(action==='cancelgrp') { for(var i=0;i<ids.length;i++)cancelOrder(ids[i]); return; }
-  if(action==='clearorders'){ clearAllOrders(); return; }
+  if(action==='clearorders') { clearAllOrders(); return; }
   if(action==='clearorders2'){ clearAllOrders2(); return; }
+  if(action==='clearstats')  { confirmClearStats(); return; }
 }
 var _lastDelegateTouch=0;
 document.addEventListener('touchend',function(e){
@@ -1157,8 +1169,15 @@ function buildEdRow(sec,idx,item){
   var nm=document.createElement('input');nm.className='einp';nm.id='en-'+sec+'-'+idx;nm.value=item.name;nm.placeholder='Nazwa';
   var pr=document.createElement('input');pr.className='epri';pr.id='ep-'+sec+'-'+idx;pr.type='number';pr.value=item.price;pr.min=0;pr.step=0.5;
   var bg=document.createElement('select');bg.className='ebgs';bg.id='eb-'+sec+'-'+idx;
-  var bgopts=['','HIT','Nowe','Chef'];
-  for(var j=0;j<bgopts.length;j++){var o=document.createElement('option');o.value=bgopts[j];o.textContent=bgopts[j]||'Brak';if(item.badge===bgopts[j])o.selected=true;bg.appendChild(o);}
+  var bgopts=['dostepny','niedostepny'];
+  for(var j=0;j<bgopts.length;j++){
+    var o=document.createElement('option');
+    o.value=bgopts[j];
+    o.textContent=bgopts[j]==='dostepny'?'✅ Dostepny':'❌ Niedostepny';
+    var isUnavail=item.unavailable===true;
+    if((bgopts[j]==='niedostepny'&&isUnavail)||(bgopts[j]==='dostepny'&&!isUnavail))o.selected=true;
+    bg.appendChild(o);
+  }
   var dl=document.createElement('button');dl.className='bdel';dl.textContent='X';
   (function(s,i){dl.addEventListener('click',function(){collectEd();menu[s].splice(i,1);renderEditor();});})(sec,idx);
   row.appendChild(emb);row.appendChild(nm);row.appendChild(pr);row.appendChild(bg);row.appendChild(dl);
@@ -1174,7 +1193,7 @@ function collectEd(){
       var bg=document.getElementById('eb-'+sec+'-'+i);
       if(nm)menu[sec][i].name=nm.value.trim();
       if(pr)menu[sec][i].price=parseFloat(pr.value)||0;
-      if(bg){menu[sec][i].badge=bg.value;menu[sec][i].bc=bg.value==='HIT'?'popular':bg.value==='Nowe'?'new':bg.value==='Chef'?'chef':'';}
+      if(bg){menu[sec][i].unavailable=(bg.value==='niedostepny');menu[sec][i].badge='';menu[sec][i].bc='';}
     }
   }
 }
