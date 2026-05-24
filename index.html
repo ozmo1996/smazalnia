@@ -31,18 +31,21 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .fbd{width:8px;height:8px;border-radius:50%;background:#444;flex-shrink:0;margin-left:2px;align-self:center}
 .fbd.ok{background:var(--gr);box-shadow:0 0 5px var(--gr)}.fbd.er{background:var(--e)}
 .view{display:none!important}.view.on{display:block!important}
-#vb.on,#vk.on{display:flex!important;flex-direction:column}
+#vb.on,#vk.on{display:block!important}
 #vm.on{display:flex!important;flex-direction:column}
 #vo{padding:12px;background:var(--bg)}
 .tlbl{color:rgba(255,255,255,.5);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
 .tg{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:5px;margin-bottom:13px}
 .tb{aspect-ratio:1;border-radius:10px;border:2px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:rgba(255,255,255,.75);font-family:'Nunito',sans-serif;font-weight:900;font-size:.88rem;cursor:pointer;position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.tb.tb-special{background:rgba(18,120,168,.15);border-color:rgba(18,120,168,.4);color:#7ec8e3;font-weight:800;}
+.tb.tb-special.sel{background:var(--s);border-color:var(--s);color:#fff;}
 .tb.busy{border-color:var(--a);background:rgba(245,166,35,.15);color:var(--a)}.tb.busy::after{content:'';position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:var(--a)}
 .tb.sel{background:var(--a);border-color:var(--g);color:#fff}
 .sh{display:flex;align-items:center;gap:7px;color:rgba(255,255,255,.85);font-family:'Playfair Display',serif;font-size:.97rem;margin:13px 0 7px}.sh::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.1)}
 .mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:4px}
 .mc{background:var(--c);border-radius:var(--r);overflow:hidden;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25);position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .mc:active{opacity:.75}
+.mc-flash{opacity:.6;transform:scale(.96);transition:opacity .25s,transform .25s}
 .mct{background:linear-gradient(135deg,#def0ff,#bfdfff);padding:18px 6px 12px;text-align:center;font-size:2.8rem;line-height:1}
 .mcb{padding:8px 10px 10px}.mcn{font-weight:800;font-size:.88rem;color:#0b1e28;line-height:1.2}.mcp{color:var(--s);font-weight:700;font-size:.82rem;margin-top:3px}
 .mcbg{position:absolute;top:5px;right:5px;font-size:.6rem;font-weight:900;padding:2px 6px;border-radius:6px;background:var(--e);color:#fff;text-transform:uppercase}
@@ -93,8 +96,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .ba:active{filter:brightness(1.15)}
 .bac{background:var(--a);color:#fff}.bar{background:var(--gr);color:#fff}.bad{background:#778;color:#fff}.badl{background:rgba(232,92,58,.1);color:var(--e)}
 .osb{margin-left:auto;color:#aaa;font-size:.77rem}
-#vb,#vk{background:#060f17;min-height:100vh;justify-content:flex-start}
-.dkh{background:#000;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+#vb,#vk{background:#060f17;min-height:100vh}
+.dkh{background:#000;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
 .dkt{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700}.dkc{color:rgba(255,255,255,.42);font-size:.93rem;font-weight:700}
 #vb .dkh{border-bottom:3px solid var(--s)}#vb .dkt{color:var(--s)}
 #vk .dkh{border-bottom:3px solid var(--a)}#vk .dkt{color:var(--a)}
@@ -117,7 +120,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .bt{flex:1;padding:9px;border-radius:8px;border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;cursor:pointer;touch-action:manipulation;min-height:38px;-webkit-tap-highlight-color:transparent}
 .bt:active{filter:brightness(1.15)}
 .btc{background:var(--a);color:#fff}.btr{background:var(--gr);color:#fff}.btd{background:#556;color:#fff}.btbar{background:var(--s);color:#fff}
-.notk{grid-column:1/-1;text-align:center;padding:48px 20px;color:rgba(255,255,255,.17);font-size:.9rem}
+.notk{grid-column:1/-1;text-align:center;padding:20px;color:rgba(255,255,255,.17);font-size:.9rem}
 .notk span{font-size:3.4rem;display:block;margin-bottom:11px}
 #vs{padding:12px;background:var(--bg)}
 .sfr{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
@@ -253,7 +256,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.5</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -273,7 +276,13 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
   <div class="sh">Napoje</div><div class="mg" id="mg3"></div>
   <div class="op">
     <div class="oph"><span class="opht">Zamowienie</span><span class="ophs" id="ophs">wybierz stolik</span></div>
-    <div class="onr"><input class="on2" id="onote" placeholder="Uwagi (np. bez osci...)"></div>
+    <div class="onr" style="display:flex;gap:8px;align-items:center;">
+      <input class="on2" id="onote" placeholder="Uwagi (np. bez osci...)" style="flex:1">
+      <label id="wynos-lbl" style="display:flex;align-items:center;gap:5px;cursor:pointer;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;white-space:nowrap;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;" onclick="toggleWynos()">
+        <span id="wynos-icon" style="font-size:1.1rem;">&#x1F6CD;</span>
+        <span style="color:rgba(255,255,255,.7);font-size:.78rem;font-weight:800;" id="wynos-txt">Na wynos</span>
+      </label>
+    </div>
     <div class="czk-rate-row">
       <span class="czk-lbl">Kurs:</span>
       <span class="czk-lbl">1 PLN =</span>
@@ -290,7 +299,10 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
   <div style="height:22px"></div>
 </div>
 <div class="view" id="vl"><div style="padding:12px;background:var(--bg)">
-  <div class="sh" style="margin-top:4px">Wszystkie zamowienia</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;margin-bottom:4px;">
+    <div class="sh" style="margin:0;flex:1">Wszystkie zamowienia</div>
+    <button data-action="clearorders" style="background:rgba(232,92,58,.12);border:1.5px solid rgba(232,92,58,.3);color:var(--e);border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;touch-action:manipulation;white-space:nowrap;">&#x1F5D1; Usun wszystkie</button>
+  </div>
   <div class="ol" id="ordl"></div>
 </div></div>
 <div class="view" id="vb">
@@ -385,6 +397,7 @@ var orders={};
 var archive={};
 var cart={};
 var selTbl=null;
+var wynos=false;
 var ordSeq=parseInt(lsGet('sp_seq'))||1;
 var numT=parseInt(lsGet('sp_tbls'))||29;
 var curV='o';
@@ -545,24 +558,86 @@ function onData(){
 function renderTbls(){
   var g=document.getElementById('tg');
   var lbl=document.getElementById('tlbl');
-  if(lbl)lbl.textContent='Wybierz stolik (1-'+numT+')';
+  if(lbl)lbl.textContent='Wybierz stolik lub typ zamowienia:';
   var h='';
+
+  // Stoliki — porownuj typy konsekwentnie (zawsze liczba)
   for(var i=1;i<=numT;i++){
     var busy=false;
     var ks=Object.keys(orders);
     for(var j=0;j<ks.length;j++){
       var o=orders[ks[j]];
-      if(o.table===i&&o.status!=='done'){busy=true;break;}
+      if(+o.table===i&&o.status!=='done'){busy=true;break;}
     }
-    var sel=selTbl===i;
+    var sel=(+selTbl===i && typeof selTbl!=='string');
     h+='<button class="tb'+(busy?' busy':'')+(sel?' sel':'')+'" onclick="pickTbl('+i+')">'+i+'</button>';
   }
+
+  // Kafelek Odbior na koncu
+  var selO=(typeof selTbl==='string'&&selTbl.indexOf('odbior')===0);
+  h+='<button class="tb tb-special'+(selO?' sel':'')+'" onclick="showOdbiorPicker()" style="grid-column:span 2;aspect-ratio:auto;padding:8px 6px;font-size:.78rem;line-height:1.3;">&#x23F0; Odbior o godz.</button>';
   g.innerHTML=h;
 }
+
+function showOdbiorPicker(){
+  vib(10);
+  var existing=document.getElementById('odbiorModal');
+  if(existing)existing.parentNode.removeChild(existing);
+  // Domyslna godzina: aktualna + 30 min
+  var now=new Date();
+  now.setMinutes(now.getMinutes()+30);
+  var hh=String(now.getHours()).padStart(2,'0');
+  var mm=String(Math.ceil(now.getMinutes()/5)*5%60).padStart(2,'0');
+  var defTime=hh+':'+mm;
+
+  var modal=document.createElement('div');
+  modal.id='odbiorModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-size:2rem;margin-bottom:6px;">&#x23F0;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:14px;">Odbiór o godzinie</div>'+
+      '<input id="odbiorTime" type="time" value="'+defTime+'" style="width:100%;padding:12px;border-radius:9px;border:2px solid #ddd;font-family:Nunito,sans-serif;font-size:1.3rem;font-weight:700;text-align:center;outline:none;color:#0b1e28;margin-bottom:14px;">'+
+      '<button onclick="confirmOdbior()" style="width:100%;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#0d4a6a,#1278a8);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.95rem;cursor:pointer;margin-bottom:8px;">Potwierdz</button>'+
+      '<button onclick="document.getElementById(\'odbiorModal\').remove()" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(modal);
+  setTimeout(function(){var inp=document.getElementById('odbiorTime');if(inp)inp.focus();},100);
+}
+
+function confirmOdbior(){
+  var inp=document.getElementById('odbiorTime');
+  var time=inp?inp.value:'';
+  if(!time){return;}
+  var modal=document.getElementById('odbiorModal');
+  if(modal)modal.parentNode.removeChild(modal);
+  pickTbl('odbior:'+time);
+}
+
+function toggleWynos(){
+  vib(10);
+  wynos=!wynos;
+  var lbl=document.getElementById('wynos-lbl');
+  var txt=document.getElementById('wynos-txt');
+  if(wynos){
+    if(lbl){lbl.style.background='rgba(18,120,168,.3)';lbl.style.borderColor='var(--s)';}
+    if(txt)txt.style.color='#7ec8e3';
+  } else {
+    if(lbl){lbl.style.background='rgba(255,255,255,.07)';lbl.style.borderColor='rgba(255,255,255,.12)';}
+    if(txt)txt.style.color='rgba(255,255,255,.7)';
+  }
+}
+
 function pickTbl(n){
-  selTbl=n;
+  vib(10);
+  // Zawsze przechowuj numer stolika jako liczbe (nie string)
+  selTbl = (typeof n==='number') ? n : (isNaN(+n) ? n : +n);
   var el=document.getElementById('ophs');
-  if(el)el.textContent='Stolik '+n;
+  if(el){
+    if(selTbl==='wynos') el.textContent='Na wynos';
+    else if(typeof selTbl==='string'&&selTbl.indexOf('odbior')===0) el.textContent='Odbior o '+selTbl.split(':').slice(1).join(':');
+    else el.textContent='Stolik '+selTbl;
+  }
   renderTbls();
   updSend();
 }
@@ -582,24 +657,41 @@ function renderMG(id,items){
     var item=items[i];
     var c=document.createElement('div');
     c.className='mc';
+    c.setAttribute('data-item-id', item.id);
+    c.setAttribute('data-item-idx', String(i));
     var bdg=item.badge?'<span class="mcbg '+(item.bc||'')+'">'+esc(item.badge)+'</span>':'';
     c.innerHTML='<div class="mct">'+item.emoji+'</div><div class="mcb"><div class="mcn">'+esc(item.name)+'</div><div class="mcp">'+(+item.price).toFixed(2)+' zl</div></div>'+bdg;
     (function(it){
-      c.addEventListener('click',function(){addCart(it,c);});
+      c.addEventListener('click',function(){addCart(it,this);},{passive:true});
     })(item);
     g.appendChild(c);
   }
 }
 
 // KOSZYK
+function vib(ms){if(navigator.vibrate)navigator.vibrate(ms||10);}
+
 function addCart(item,el){
-  if(!selTbl){toast('Wybierz stolik!','#e85c3a');return;}
+  if(!selTbl){toast('Wybierz stolik!','#e85c3a');vib(50);return;}
+  vib(10);
   if(cart[item.id])cart[item.id].qty++;
-  else cart[item.id]=cloneObj(item);cart[item.id].qty=cart[item.id].qty||1;
-  el.style.opacity='.7';setTimeout(function(){el.style.opacity='';},280);
+  else{cart[item.id]=cloneObj(item);cart[item.id].qty=1;}
+  // Flash na konkretnym elemencie przez data-id zamiast referencji do node
+  var itemId=item.id;
+  flashCard(itemId);
   renderCart();updSend();
 }
+
+function flashCard(itemId){
+  // Znajdz kafelek po data-id — bezpieczne nawet po re-renderze
+  var cards=document.querySelectorAll('.mc[data-item-id="'+itemId+'"]');
+  for(var i=0;i<cards.length;i++){
+    cards[i].classList.add('mc-flash');
+    (function(card){setTimeout(function(){card.classList.remove('mc-flash');},250);})(cards[i]);
+  }
+}
 function chQty(id,d){
+  vib(10);
   if(!cart[id])return;
   cart[id].qty+=d;
   if(cart[id].qty<=0)delete cart[id];
@@ -653,19 +745,28 @@ function sendOrder(paid){
   for(var i=0;i<ks.length;i++)items.push(cart[ks[i]]);
   var tot=0;for(var i=0;i<items.length;i++)tot+=items[i].price*items[i].qty;
   var order={id:id,seq:ordSeq++,table:selTbl,items:items,total:tot,note:note,
-    status:'pending',paid:paid,barDone:false,
+    status:'pending',paid:paid,wynos:wynos,barDone:false,
     timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
     ts:Date.now()};
   lsSet('sp_seq',ordSeq);
   orders[id]=order;saveOrds();
   cart={};document.getElementById('onote').value='';
+  selTbl=null;
+  var ophs=document.getElementById('ophs');if(ophs)ophs.textContent='wybierz stolik';
+  // Reset wynos - bezposrednio bez toggleWynos zeby uniknac bledu logicznego
+  wynos=false;
+  var lblW=document.getElementById('wynos-lbl');var txtW=document.getElementById('wynos-txt');
+  if(lblW){lblW.style.background='rgba(255,255,255,.07)';lblW.style.borderColor='rgba(255,255,255,.12)';}
+  if(txtW)txtW.style.color='rgba(255,255,255,.7)';
   renderCart();renderTbls();
   if(paid){
     toast('Zamowienie #'+order.seq+' wyslane!');
+    vib([10,30,10]);
   } else {
     toast('Zamowienie #'+order.seq+' - NA RACHUNEK!','#e85c3a');
+    vib([10,30,10]);
   }
-  _send=false;updSend();
+  _send=false;updSend(); // reset przed Firebase call
   if(fbReady)fbBg(fbDB.ref('orders/'+id).set(order));
 }
 
@@ -696,7 +797,8 @@ function handleDataAction(btn){
   if(action==='grpstatus') { var st=btn.getAttribute('data-status'); for(var i=0;i<ids.length;i++)setStatus(ids[i],st); return; }
   if(action==='markpaid')  { for(var i=0;i<ids.length;i++)setPaid(ids[i]); toast('Zamowienie oplacone!','#27ae60'); return; }
   if(action==='delgrp')    { for(var i=0;i<ids.length;i++)delOrder(ids[i]); return; }
-  if(action==='clearstats'){ confirmClearStats(); return; }
+  if(action==='clearorders'){ clearAllOrders(); return; }
+  if(action==='clearorders2'){ clearAllOrders2(); return; }
 }
 var _lastDelegateTouch=0;
 document.addEventListener('touchend',function(e){
@@ -871,6 +973,10 @@ function renderKitch(){
   }).sort(function(a,b){return a.ts-b.ts;});
   if(!act.length){g.innerHTML='<div class="notk"><span>&#x1F634;</span>Brak aktywnych zamowien</div>';return;}
 
+  // Usun komunikat "Brak zamowien" jesli byl
+  var notkEl=g.querySelector('.notk');
+  if(notkEl)notkEl.parentNode.removeChild(notkEl);
+
   // Sprawdz czy DOM juz ma te bilety (unikaj pelnego re-renderu)
   var existingIds={};
   var existing=g.querySelectorAll('.tkt[data-oid]');
@@ -921,7 +1027,7 @@ function renderKitch(){
       t.setAttribute('data-oid',o.id);
       t.innerHTML=
         '<div class="tkh">'+
-          '<span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span>'+
+          '<span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+(o.wynos?'<span style="background:#1278a8;color:#fff;font-size:.6rem;font-weight:900;padding:2px 5px;border-radius:5px;margin-left:4px;">WYNOS</span>':'')+'</span>'+
           '<div class="tkm">'+
             '<div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div>'+
             '<div class="tksc">#'+o.seq+' '+o.timeStr+'</div>'+
@@ -1264,6 +1370,61 @@ function doChangePw(){
 document.getElementById('loginPw').addEventListener('keydown',function(e){
   if(e.key==='Enter')doLogin();
 });
+
+function clearAllOrders(){
+  var count=Object.keys(orders).length;
+  if(!count){toast('Brak zamowien do usuniecia','#778');return;}
+  // Pierwsze potwierdzenie — modal
+  var existing=document.getElementById('clearOrdModal');
+  if(existing)existing.parentNode.removeChild(existing);
+  var modal=document.createElement('div');
+  modal.id='clearOrdModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:340px;width:100%;text-align:center;">'+
+      '<div style="font-size:2.5rem;margin-bottom:8px;">&#x1F5D1;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">Usunac wszystkie zamowienia?</div>'+
+      '<div style="color:#666;font-size:.83rem;margin-bottom:16px;">Zostanie usuniete <b style="color:#e85c3a;">'+count+' zamowien</b> z listy. Trafią do archiwum i będą widoczne w statystykach.</div>'+
+      '<button data-action="clearorders2" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, usun wszystkie</button>'+
+      '<button onclick="document.getElementById(\'clearOrdModal\').remove()" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(modal);
+}
+
+function clearAllOrders2(){
+  // Drugie potwierdzenie
+  var modal1=document.getElementById('clearOrdModal');
+  if(modal1)modal1.parentNode.removeChild(modal1);
+  var modal=document.createElement('div');
+  modal.id='clearOrdModal2';
+  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:340px;width:100%;text-align:center;">'+
+      '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
+      '<div style="color:#666;font-size:.83rem;margin-bottom:16px;">To jest ostateczne potwierdzenie. Kliknij <b>Potwierdz usuwanie</b> aby kontynuowac.</div>'+
+      '<button onclick="doClrOrders()" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Potwierdz usuwanie</button>'+
+      '<button onclick="document.getElementById(\'clearOrdModal2\').remove()" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(modal);
+}
+
+function doClrOrders(){
+  var modal=document.getElementById('clearOrdModal2');
+  if(modal)modal.parentNode.removeChild(modal);
+  var count=Object.keys(orders).length;
+  // Przeniés wszystko do archiwum
+  var ks=Object.keys(orders);
+  for(var i=0;i<ks.length;i++){
+    archive[ks[i]]=orders[ks[i]];
+    if(fbReady)fbBg(fbDB.ref('archive/'+ks[i]).set(orders[ks[i]]));
+  }
+  saveArc();
+  orders={};saveOrds();
+  if(fbReady)fbBg(fbDB.ref('orders').remove());
+  onData();
+  toast('Usunieto '+count+' zamowien','#27ae60');
+}
 
 function confirmClearStats(){
   // Pokaz modal z polem hasla
