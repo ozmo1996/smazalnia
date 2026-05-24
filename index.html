@@ -393,36 +393,40 @@ var DEF={main:[
 ]};
 
 var EMOJIS=[
-  // Ryby i owoce morza
-  '&#x1F41F;','&#x1F420;','&#x1F421;','&#x1F988;','&#x1F990;','&#x1F991;','&#x1F99E;','&#x1F964;',
-  // Mieso i grill
-  '&#x1F356;','&#x1F357;','&#x1F969;','&#x1F953;','&#x1F354;','&#x1F32D;','&#x1F96A;','&#x1F9C6;',
-  // Zupy i dania
-  '&#x1F372;','&#x1F35C;','&#x1F35B;','&#x1F958;','&#x1F963;','&#x1FAD5;','&#x1F96B;',
-  // Warzywa i dodatki
-  '&#x1F345;','&#x1F957;','&#x1F954;','&#x1F35F;','&#x1F35E;','&#x1F9C4;','&#x1F9C5;','&#x1F336;','&#x1FAD1;','&#x1F966;','&#x1F955;','&#x1F952;','&#x1FAD8;',
-  // Sosy i przyprawy
-  '&#x1F9C2;','&#x1F9C8;','&#x1FAD9;','&#x1F9C7;',
-  // Pieczywo i nabiał
-  '&#x1F950;','&#x1F956;','&#x1F9C0;','&#x1F95A;','&#x1F373;',
+  // Ryby
+  '&#x1F41F;','&#x1F420;','&#x1F421;','&#x1F988;','&#x1F990;','&#x1F991;','&#x1F99E;',
+  // Mieso
+  '&#x1F356;','&#x1F357;','&#x1F969;','&#x1F953;','&#x1F354;','&#x1F32D;','&#x1F96A;',
+  // Zupy i gorące dania
+  '&#x1F372;','&#x1F35C;','&#x1F35B;','&#x1F963;','&#x1FAD5;',
+  // Warzywa i salatki
+  '&#x1F345;','&#x1F957;','&#x1F954;','&#x1F955;','&#x1F966;','&#x1F952;','&#x1F9C5;','&#x1F336;','&#x1FAD1;','&#x1F346;',
+  // Frytki, pieczywo, dodatki
+  '&#x1F35F;','&#x1F35E;','&#x1F950;','&#x1F956;','&#x1F9C0;','&#x1F95A;','&#x1F373;',
+  // Sosy w saszetkach / słoiczkach — majonez, ketchup, musztarda, sos
+  '&#x1F9C2;','&#x1FAD9;','&#x1F9C8;','&#x1FAD8;',
   // Owoce
-  '&#x1F34B;','&#x1F34E;','&#x1F34A;','&#x1F347;','&#x1F353;','&#x1F34D;','&#x1F96D;','&#x1F351;','&#x1F352;',
-  // Kawa i herbata
-  '&#x2615;','&#x1F375;','&#x1FAD6;','&#x1F9CB;','&#x1F9C9;',
-  // Napoje zimne i soki
-  '&#x1F4A7;','&#x1F9C3;','&#x1F9C9;','&#x1F9C6;','&#x1F376;','&#x1F9C4;',
-  // Piwa i alkohole (Zywiec Zubr Sowiec)
-  '&#x1F37A;','&#x1F37B;','&#x1F942;','&#x1F377;','&#x1F378;','&#x1F379;','&#x1F376;','&#x1FAD7;',
-  // Woda i napoje gazowane
-  '&#x1F9CA;','&#x1F9C9;','&#x1F964;','&#x1F6B0;',
-  // Slodycze i desery
-  '&#x1F370;','&#x1F382;','&#x1F369;','&#x1F36A;','&#x1F36B;','&#x1F36C;','&#x1F36D;','&#x1F36E;','&#x1F9C1;','&#x1F967;','&#x1FAD0;',
+  '&#x1F34B;','&#x1F34E;','&#x1F34A;','&#x1F347;','&#x1F353;','&#x1F34D;','&#x1F351;','&#x1F352;',
+  // Kawa — filiżanka, ekspres, kawa mrożona, cappuccino
+  '&#x2615;','&#x1FAD6;','&#x1F9CB;','&#x1F9C9;',
+  // Herbata — kubek, czajnik
+  '&#x1F375;','&#x1FAB5;',
+  // Woda — butelka wody, szklanka, kroplówka
+  '&#x1F4A7;','&#x1F9CA;','&#x1FAD7;',
+  // Soki i napoje — szklanka z sokiem, koktajl owocowy
+  '&#x1F964;','&#x1F9C3;',
+  // Piwo — kufel, butelka piwa (Żywiec/Żubr/Sowiec = ta sama butelka)
+  '&#x1F37A;','&#x1F37B;',
+  // Alkohole — butelka wina, kieliszek, szampan, shot, drink z parasolką
+  '&#x1F377;','&#x1F942;','&#x1F378;','&#x1F379;','&#x1F376;',
+  // Cola, napoje gazowane — puszka, kubek z lodami
+  '&#x1F9C9;','&#x1F968;',
+  // Desery i słodycze
+  '&#x1F370;','&#x1F382;','&#x1F369;','&#x1F36A;','&#x1F36B;','&#x1F9C1;','&#x1F967;',
   // Lody
-  '&#x1F368;','&#x1F366;','&#x1F367;',
-  // Majonez ketchup musztarda
-  '&#x1F9C2;','&#x1FAD9;','&#x1F9C8;',
-  // Inne
-  '&#x1F33F;','&#x2728;','&#x1F4A8;','&#x26F0;','&#x1F9C4;','&#x1F346;','&#x1F9C5;','&#x1FAD2;','&#x1F959;','&#x1F95D;','&#x1F9C7;','&#x1F9C6;'
+  '&#x1F366;','&#x1F367;','&#x1F368;',
+  // Inne przydatne
+  '&#x1F33F;','&#x2728;','&#x1F9C4;','&#x1F9C6;','&#x1FAD0;','&#x1F959;','&#x1F95D;'
 ];
 
 var menu=cloneObj(DEF);
