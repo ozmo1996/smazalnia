@@ -256,7 +256,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.5</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.6</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -797,6 +797,7 @@ function handleDataAction(btn){
   if(action==='grpstatus') { var st=btn.getAttribute('data-status'); for(var i=0;i<ids.length;i++)setStatus(ids[i],st); return; }
   if(action==='markpaid')  { for(var i=0;i<ids.length;i++)setPaid(ids[i]); toast('Zamowienie oplacone!','#27ae60'); return; }
   if(action==='delgrp')    { for(var i=0;i<ids.length;i++)delOrder(ids[i]); return; }
+  if(action==='cancelgrp') { for(var i=0;i<ids.length;i++)cancelOrder(ids[i]); return; }
   if(action==='clearorders'){ clearAllOrders(); return; }
   if(action==='clearorders2'){ clearAllOrders2(); return; }
 }
@@ -830,6 +831,12 @@ function delOrder(id){
   if(orders[id]){archive[id]=orders[id];saveArc();if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id]));}
   delete orders[id];saveOrds();onData();
   if(fbReady)fbBg(fbDB.ref('orders/'+id).remove());
+}
+function cancelOrder(id){
+  // Anuluj bez archiwizacji - znika ze statystyk
+  delete orders[id];saveOrds();onData();
+  if(fbReady)fbBg(fbDB.ref('orders/'+id).remove());
+  toast('Zamowienie anulowane','#778');
 }
 
 // LISTA
@@ -928,6 +935,7 @@ function renderList(){
           '</div>'+
           '<span style="color:rgba(255,255,255,.55);font-size:.72rem;">'+seqStr+' &bull; '+mainO.timeStr+'</span>'+
         '</div>'+
+        '<button data-action="cancelgrp" data-ids="'+allIds+'" style="background:rgba(0,0,0,.25);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:5px 10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;touch-action:manipulation;flex-shrink:0;white-space:nowrap;">&#x274C; Anuluj</button>'+
         '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
       '</div>'+
       '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
