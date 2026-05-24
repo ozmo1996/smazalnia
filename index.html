@@ -244,21 +244,21 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
       <button class="login-eye" id="loginEye" onclick="togglePwVis()">&#x1F441;</button>
     </div>
     <div class="login-err" id="loginErr"></div>
-    <button class="login-btn" onclick="doLogin()">Zaloguj sie</button>
-    <button class="login-change" onclick="toggleChangePw()">Zmien haslo</button>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Zaloguj sie</button>
+    <button class="login-change" id="loginChangeBtn" onclick="toggleChangePw()">Zmien haslo</button>
     <div class="chpw-box" id="chpwBox">
       <div class="chpw-title">Zmiana hasla (wymagane stare haslo)</div>
       <input class="chpw-inp" id="chpwOld" type="password" placeholder="Stare haslo">
       <input class="chpw-inp" id="chpwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)">
       <input class="chpw-inp" id="chpwNew2" type="password" placeholder="Powtorz nowe haslo">
-      <button class="chpw-btn" onclick="doChangePw()">Zapisz nowe haslo</button>
+      <button class="chpw-btn" id="chpwSaveBtn" onclick="doChangePw()">Zapisz nowe haslo</button>
     </div>
   </div>
 </div>
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v2.0</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.9</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -578,7 +578,7 @@ function gv(name){
   if(name==='l')renderList();
   if(name==='b')renderBar();
   if(name==='k')renderKitch();
-  if(name==='s'){ showStatsPwGate(); return; }
+  if(name==='s')renderStats();
   if(name==='m'){renderEditor();var el=document.getElementById('tnd');if(el)el.textContent=numT;}
   if(name==='c')renderCloud();
 }
@@ -846,8 +846,6 @@ function handleDataAction(btn){
   if(action==='cancelgrp') { for(var i=0;i<ids.length;i++)cancelOrder(ids[i]); return; }
   if(action==='clearorders') { clearAllOrders(); return; }
   if(action==='clearorders2'){ clearAllOrders2(); return; }
-  if(action==='confirmStatsPw'){ confirmStatsPw(); return; }
-  if(action==='closeStatsPw')  { var ms=document.getElementById('statsPwModal');if(ms)ms.remove(); return; }
   if(action==='clearstats')    { confirmClearStats(); return; }
   if(action==='doClrStats')    { doClrStats(); return; }
   if(action==='closeClrStats') { var m=document.getElementById('clearStatsModal');if(m)m.remove(); return; }
@@ -1407,8 +1405,9 @@ function doLogin(){
 function togglePwVis(){
   var inp=document.getElementById('loginPw');
   var eye=document.getElementById('loginEye');
-  if(inp.type==='password'){inp.type='text';eye.style.opacity='1';}
-  else{inp.type='password';eye.style.opacity='.4';}
+  if(!inp)return;
+  if(inp.type==='password'){inp.type='text';if(eye)eye.style.opacity='1';}
+  else{inp.type='password';if(eye)eye.style.opacity='.4';}
 }
 
 function toggleChangePw(){
@@ -1433,18 +1432,9 @@ function doChangePw(){
   toast('Haslo zostalo zmienione!','#27ae60');
 }
 
-// Enter w polu hasla = loguj
 document.getElementById('loginPw').addEventListener('keydown',function(e){
   if(e.key==='Enter')doLogin();
 });
-// Bezposredni listener na przycisk logowania - niezalezny od delegation
-var loginBtn=document.querySelector('.login-btn');
-if(loginBtn){
-  loginBtn.addEventListener('touchend',function(e){
-    e.preventDefault();
-    doLogin();
-  },{passive:false});
-}
 
 function clearAllOrders(){
   var count=Object.keys(orders).length;
@@ -1501,53 +1491,7 @@ function doClrOrders(){
   toast('Usunieto '+count+' zamowien','#27ae60');
 }
 
-function showStatsPwGate(){
-  var existing=document.getElementById('statsPwModal');
-  if(existing)existing.parentNode.removeChild(existing);
-  var modal=document.createElement('div');
-  modal.id='statsPwModal';
-  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
-  modal.innerHTML=
-    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
-      '<div style="font-size:2rem;margin-bottom:6px;">&#x1F4CA;</div>'+
-      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:12px;">Statystyki</div>'+
-      '<input id="statsPwInp" type="password" placeholder="Wpisz haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
-      '<div id="statsPwErr" style="color:#e85c3a;font-size:.8rem;font-weight:800;min-height:18px;margin-bottom:8px;"></div>'+
-      '<button data-action="confirmStatsPw" style="width:100%;padding:11px;border-radius:9px;border:none;background:linear-gradient(135deg,#0d4a6a,#1278a8);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Wejdz</button>'+
-      '<button data-action="closeStatsPw" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
-    '</div>';
-  document.body.appendChild(modal);
-  setTimeout(function(){
-    var inp=document.getElementById('statsPwInp');
-    if(inp){
-      inp.focus();
-      inp.addEventListener('keydown',function(e){if(e.key==='Enter')confirmStatsPw();});
-    }
-  },100);
-}
-
-function confirmStatsPw(){
-  var inp=document.getElementById('statsPwInp');
-  var err=document.getElementById('statsPwErr');
-  if(!inp)return;
-  if(inp.value!==getStoredPw()){
-    if(err)err.textContent='Nieprawidlowe haslo';
-    inp.value='';
-    vib(50);
-    return;
-  }
-  var modal=document.getElementById('statsPwModal');
-  if(modal)modal.remove();
-  // Teraz otwórz statystyki
-  curV='s';
-  VL.forEach(function(n){
-    var v=document.getElementById('v'+n);
-    var nb=document.getElementById('nb-'+n);
-    if(v){if(n==='s')v.classList.add('on');else v.classList.remove('on');}
-    if(nb){if(n==='s')nb.classList.add('on');else nb.classList.remove('on');}
-  });
-  renderStats();
-}
+function confirmClearStats(){
   var existing=document.getElementById('clearStatsModal');
   if(existing)existing.parentNode.removeChild(existing);
   var modal=document.createElement('div');
