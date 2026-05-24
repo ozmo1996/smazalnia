@@ -258,7 +258,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.8</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.9</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -392,7 +392,38 @@ var DEF={main:[
   {id:'d6',name:'Kawa',e:'cof',emoji:'&#x2615;',price:9,badge:'',bc:''}
 ]};
 
-var EMOJIS=['&#x1F41F;','&#x1F420;','&#x1F421;','&#x1F988;','&#x1F990;','&#x1F991;','&#x1F345;','&#x1F957;','&#x1F954;','&#x1F35F;','&#x1F35E;','&#x1F9C4;','&#x1F372;','&#x1F356;','&#x1F357;','&#x1F33F;','&#x2728;','&#x1F4A8;','&#x26F0;','&#x1F336;','&#x1F34B;','&#x1F4A7;','&#x1F34E;','&#x1F34A;','&#x1F347;','&#x1F353;','&#x2615;','&#x1F375;','&#x1F9B4;','&#x1F9C3;','&#x1F37A;','&#x1F37B;','&#x1F942;','&#x1F377;','&#x1F9CB;','&#x1F370;','&#x1F382;','&#x1F369;','&#x1F36A;','&#x1F35C;','&#x1F372;'];
+var EMOJIS=[
+  // Ryby i owoce morza
+  '&#x1F41F;','&#x1F420;','&#x1F421;','&#x1F988;','&#x1F990;','&#x1F991;','&#x1F99E;','&#x1F964;',
+  // Mieso i grill
+  '&#x1F356;','&#x1F357;','&#x1F969;','&#x1F953;','&#x1F354;','&#x1F32D;','&#x1F96A;','&#x1F9C6;',
+  // Zupy i dania
+  '&#x1F372;','&#x1F35C;','&#x1F35B;','&#x1F958;','&#x1F963;','&#x1FAD5;','&#x1F96B;',
+  // Warzywa i dodatki
+  '&#x1F345;','&#x1F957;','&#x1F954;','&#x1F35F;','&#x1F35E;','&#x1F9C4;','&#x1F9C5;','&#x1F336;','&#x1FAD1;','&#x1F966;','&#x1F955;','&#x1F952;','&#x1FAD8;',
+  // Sosy i przyprawy
+  '&#x1F9C2;','&#x1F9C8;','&#x1FAD9;','&#x1F9C7;',
+  // Pieczywo i nabiał
+  '&#x1F950;','&#x1F956;','&#x1F9C0;','&#x1F95A;','&#x1F373;',
+  // Owoce
+  '&#x1F34B;','&#x1F34E;','&#x1F34A;','&#x1F347;','&#x1F353;','&#x1F34D;','&#x1F96D;','&#x1F351;','&#x1F352;',
+  // Kawa i herbata
+  '&#x2615;','&#x1F375;','&#x1FAD6;','&#x1F9CB;','&#x1F9C9;',
+  // Napoje zimne i soki
+  '&#x1F4A7;','&#x1F9C3;','&#x1F9C9;','&#x1F9C6;','&#x1F376;','&#x1F9C4;',
+  // Piwa i alkohole (Zywiec Zubr Sowiec)
+  '&#x1F37A;','&#x1F37B;','&#x1F942;','&#x1F377;','&#x1F378;','&#x1F379;','&#x1F376;','&#x1FAD7;',
+  // Woda i napoje gazowane
+  '&#x1F9CA;','&#x1F9C9;','&#x1F964;','&#x1F6B0;',
+  // Slodycze i desery
+  '&#x1F370;','&#x1F382;','&#x1F369;','&#x1F36A;','&#x1F36B;','&#x1F36C;','&#x1F36D;','&#x1F36E;','&#x1F9C1;','&#x1F967;','&#x1FAD0;',
+  // Lody
+  '&#x1F368;','&#x1F366;','&#x1F367;',
+  // Majonez ketchup musztarda
+  '&#x1F9C2;','&#x1FAD9;','&#x1F9C8;',
+  // Inne
+  '&#x1F33F;','&#x2728;','&#x1F4A8;','&#x26F0;','&#x1F9C4;','&#x1F346;','&#x1F9C5;','&#x1FAD2;','&#x1F959;','&#x1F95D;','&#x1F9C7;','&#x1F9C6;'
+];
 
 var menu=cloneObj(DEF);
 var orders={};
