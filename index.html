@@ -108,9 +108,28 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .kcnt-num{font-family:'Playfair Display',serif;font-size:1.3rem;font-weight:700;color:#fff;line-height:1;}
 .kcnt-lbl{font-size:.65rem;font-weight:800;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.05em;}
 .kcnt.cooking{border-color:var(--a);background:rgba(245,166,35,.12);}
-.kcnt.cooking .kcnt-num{color:var(--a);}grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;padding:8px;align-content:start;align-items:start;align-self:start}
-@media(min-width:500px){.tkg{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
-@media(min-width:900px){.tkg{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}}
+.kcnt.cooking .kcnt-num{color:var(--a);}
+
+/* UKŁAD ZAMÓWIEŃ KUCHNI/BARU */
+.tkg{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  gap:10px;
+  padding:10px;
+  align-items:start;
+}
+
+@media(min-width:1200px){
+  .tkg{
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  }
+}
+
+@media(min-width:1600px){
+  .tkg{
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  }
+}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
 .tkt.tw .tkh{background:rgba(0,0,0,.25);}
 .tkt.tw .tktbl{color:#4ade80;}
@@ -198,8 +217,58 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .stock-btn{width:38px;height:38px;border-radius:9px;border:none;background:var(--s);color:#fff;font-size:1.3rem;font-weight:900;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;}
 .stock-btn:active{filter:brightness(1.2)}
 .stock-btn.minus{background:#e0e0e0;color:#555;}
-.stock-inp{width:64px;padding:7px 6px;border-radius:9px;border:1.5px solid #ddd;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:900;color:#0b1e28;text-align:center;outline:none;}
-.stock-inp:focus{border-color:var(--s)}
+.stock-inp{
+width:90px;
+height:54px;
+padding:7px 8px;
+border-radius:12px;
+border:2px solid #ddd;
+font-family:'Nunito',sans-serif;
+font-size:1.35rem;
+font-weight:900;
+color:#0b1e28;
+text-align:center;
+outline:none;
+-webkit-appearance:none;
+appearance:none;
+touch-action:manipulation;
+}
+
+.stock-inp:focus{
+border-color:var(--s);
+box-shadow:0 0 0 4px rgba(18,120,168,.15);
+transform:scale(1.03);
+}
+
+.stock-item{
+padding:14px 16px;
+}
+
+.stock-controls{
+gap:10px;
+}
+
+.stock-btn{
+width:52px;
+height:52px;
+font-size:1.7rem;
+border-radius:12px;
+}
+
+.stock-btn.plus10{
+background:var(--a);
+font-size:1rem;
+font-weight:900;
+width:64px;
+}
+
+.stock-btn.minus10{
+background:#bbb;
+color:#222;
+font-size:1rem;
+font-weight:900;
+width:64px;
+}
 
 .cst{border-radius:11px;padding:11px 14px;display:flex;align-items:center;gap:10px;font-weight:700;font-size:.85rem;margin-bottom:12px}
 .cst.ok{background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);color:#1a8a45}
@@ -600,11 +669,14 @@ function subAll(){
     if(v){stock=v;saveStock();}
     if(curV==='w')renderStock();
   });
+
+  fbDB.ref('config').on('value',function(snap){
     var v=snap.val();
     if(v&&v.numT&&parseInt(v.numT)!==numT){
       numT=parseInt(v.numT);
       lsSet('sp_tbls',numT);
-      var el=document.getElementById('tnd');if(el)el.textContent=numT;
+      var el=document.getElementById('tnd');
+      if(el)el.textContent=numT;
       renderTbls();
     }
   });
