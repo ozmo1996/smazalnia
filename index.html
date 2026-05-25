@@ -415,6 +415,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 // Lokalne storage
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function cloneObj(o){return JSON.parse(JSON.stringify(o));}
+function mkDID(){var d=Math.random().toString(36).slice(2,6);lsSet('sp_did',d);return d;}
 // ═══════════════════════════════════════
 var DEF={main:[
   {id:'m1',name:'Pstrag smazony',e:'fish',emoji:'&#x1F41F;',price:42,badge:'HIT',bc:'popular'},
@@ -1818,19 +1820,27 @@ function checkSession(){
 // BOOT (wywolywany po zalogowaniu)
 // ═══════════════════════════════════════
 function bootApp(){
+  console.log('bootApp: start');
   loadOrds();
+  console.log('bootApp: loadOrds OK');
   loadArc();
   loadStock();
+  console.log('bootApp: loadStock OK');
   var _mc=lsGet('sp_menu');
   if(_mc){try{menu=JSON.parse(_mc);}catch(e){menu=cloneObj(DEF);}}
   else{menu=cloneObj(DEF);}
+  console.log('bootApp: menu OK, main items:', menu.main?menu.main.length:0);
   var _td=document.getElementById('tnd');if(_td)_td.textContent=numT;
   renderTbls();
+  console.log('bootApp: renderTbls OK');
   renderMGs();
+  console.log('bootApp: renderMGs OK');
   renderEditor();
   renderCart();
+  console.log('bootApp: renderCart OK');
   var _cfg=getCfg();
   initFb(_cfg);
+  console.log('bootApp: initFb called');
 }
 
 // Sprawdz sesje przy starcie
