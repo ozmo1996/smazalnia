@@ -501,11 +501,7 @@ var PROFILE_META={
 };
 var activeProfileId='sp';
 function prof(){return PROFILE_META[activeProfileId]||PROFILE_META.sp;}
-function lsKey(k){
-  if(k.indexOf('sp_')!==0)return k;
-  var p=prof().prefix;
-  return p==='sp'?k:p+'_'+k.slice(3);
-}
+function lsKey(k){return k;} // sp prefix zawsze
 function lsGet(k){try{return localStorage.getItem(lsKey(k));}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
 function cloneObj(o){return JSON.parse(JSON.stringify(o));}
@@ -534,28 +530,6 @@ var DEF={main:[
   {id:'d6',name:'Kawa',e:'cof',emoji:'&#x2615;',price:9,badge:'',bc:''}
 ]};
 
-var ASIAN_DEF={main:[
-  {id:'a1',name:'Pad Thai',e:'noodles',emoji:'&#x1F35C;',price:36,badge:'HIT',bc:'popular'},
-  {id:'a2',name:'Ramen shoyu',e:'ramen',emoji:'&#x1F35C;',price:39,badge:'',bc:''},
-  {id:'a3',name:'Kurczak teriyaki',e:'chicken',emoji:'&#x1F357;',price:34,badge:'',bc:''},
-  {id:'a4',name:'Kaczka po pekinsku',e:'duck',emoji:'&#x1F986;',price:46,badge:'Chef',bc:'chef'},
-  {id:'a5',name:'Curry kokosowe',e:'curry',emoji:'&#x1F35B;',price:35,badge:'',bc:''},
-  {id:'a6',name:'Bao z wieprzowina',e:'bao',emoji:'&#x1F95F;',price:32,badge:'Nowe',bc:'new'}
-],sides:[
-  {id:'as1',name:'Ryż jasminowy',e:'rice',emoji:'&#x1F35A;',price:8,badge:'',bc:''},
-  {id:'as2',name:'Makaron ryzowy',e:'noodles',emoji:'&#x1F35C;',price:10,badge:'',bc:''},
-  {id:'as3',name:'Kimchi',e:'kimchi',emoji:'&#x1FAD9;',price:12,badge:'',bc:''},
-  {id:'as4',name:'Spring rolls',e:'roll',emoji:'&#x1F959;',price:16,badge:'',bc:''},
-  {id:'as5',name:'Edamame',e:'beans',emoji:'&#x1FADB;',price:14,badge:'',bc:''},
-  {id:'as6',name:'Sos slodko-ostry',e:'sauce',emoji:'&#x1F336;',price:4,badge:'',bc:''}
-],drinks:[
-  {id:'ad1',name:'Zielona herbata',e:'tea',emoji:'&#x1F375;',price:8,badge:'',bc:''},
-  {id:'ad2',name:'Bubble tea',e:'bubble',emoji:'&#x1F9CB;',price:18,badge:'',bc:''},
-  {id:'ad3',name:'Lemoniada yuzu',e:'yuzu',emoji:'&#x1F34B;',price:14,badge:'',bc:''},
-  {id:'ad4',name:'Woda',e:'water',emoji:'&#x1F4A7;',price:5,badge:'',bc:''},
-  {id:'ad5',name:'Piwo azjatyckie',e:'beer',emoji:'&#x1F37A;',price:15,badge:'',bc:''},
-  {id:'ad6',name:'Cola',e:'cola',emoji:'&#x1F964;',price:9,badge:'',bc:''}
-]};
 
 var EMOJIS=[
   // Ryby
@@ -615,10 +589,6 @@ var fbDB=null;
 var _send=false;
 var _lth=0;
 var _la=0;
-
-function defaultMenuForProfile(){
-  return activeProfileId==='ztm'?cloneObj(ASIAN_DEF):cloneObj(DEF);
-}
 function applyProfileUI(){
   var p=prof();
   document.title=p.name;
@@ -1286,14 +1256,6 @@ function renderList(){
   }
 }
 
-// Zmień status całej grupy
-function setGrpStatus(ids,status){
-  for(var i=0;i<ids.length;i++)setStatus(ids[i],status);
-}
-function markPaid(ids){
-  for(var i=0;i<ids.length;i++)setPaid(ids[i]);
-  toast('Zamowienie oplacone!','#27ae60');
-}
 
 // BAR
 function renderBar(){
@@ -1546,15 +1508,6 @@ function stepStock(name,d,btn){
   vib(10);
 }
 
-function chStock(name,d){
-  if(!stock[name])return;
-  stock[name].current=Math.max(0,(stock[name].current||0)+d);
-  if(!stock[name].init)stock[name].init=stock[name].current;
-  saveStock();
-  if(fbReady)fbBg(fbDB.ref('stock').set(stock));
-  renderStock();
-  vib(10);
-}
 
 function applyStock(src,name){
   var box=src&&src.parentNode;
@@ -2083,13 +2036,13 @@ function bootApp(){
   ordSeq=parseInt(lsGet('sp_seq'))||1;
   numT=parseInt(lsGet('sp_tbls'))||29;
   DID=lsGet('sp_did')||mkDID();
-  menu=defaultMenuForProfile();
+  menu=cloneObj(DEF);
   loadOrds();
   loadArc();
   loadStock();
   var _mc=lsGet('sp_menu');
   if(_mc){try{menu=JSON.parse(_mc);}catch(e){menu=cloneObj(DEF);}}
-  else{menu=defaultMenuForProfile();}
+  else{menu=cloneObj(DEF);}
   restorePhoneBackup();
   ensureStock();
   var _td=document.getElementById('tnd');if(_td)_td.textContent=numT;

@@ -496,7 +496,6 @@ function rawGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function rawSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 function rawRemove(k){try{localStorage.removeItem(k);}catch(e){}}
 var PROFILE_META={
-  sp:{prefix:'sp',name:'Smazalnia Pstraga',short:'Smazalnia',logoTop:'Smazalnia',logoEm:'Pstraga',emoji:'&#x1F41F;',cloud:true},
   ztm:{prefix:'ztm',name:'Zakręt to My',short:'Zakręt',logoTop:'Zakręt',logoEm:'to My',emoji:'&#x1F35C;',cloud:false}
 };
 var activeProfileId='ztm';
@@ -510,28 +509,7 @@ function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
 function cloneObj(o){return JSON.parse(JSON.stringify(o));}
 function mkDID(){var d=Math.random().toString(36).slice(2,6);lsSet('sp_did',d);return d;}
 // ═══════════════════════════════════════
-var DEF={main:[
-  {id:'m1',name:'Pstrag smazony',e:'fish',emoji:'&#x1F41F;',price:42,badge:'HIT',bc:'popular'},
-  {id:'m2',name:'Pstrag pieczony',e:'herb',emoji:'&#x1F33F;',price:46,badge:'',bc:''},
-  {id:'m3',name:'Pstrag w migdalach',e:'spark',emoji:'&#x2728;',price:48,badge:'Chef',bc:'chef'},
-  {id:'m4',name:'Pstrag wedzony',e:'dash',emoji:'&#x1F4A8;',price:38,badge:'',bc:''},
-  {id:'m5',name:'Pstrag po goralsku',e:'mount',emoji:'&#x26F0;',price:44,badge:'',bc:''},
-  {id:'m6',name:'Pstrag w pomidorach',e:'tom',emoji:'&#x1F345;',price:43,badge:'',bc:''}
-],sides:[
-  {id:'s1',name:'Frytki',e:'fri',emoji:'&#x1F35F;',price:10,badge:'',bc:''},
-  {id:'s2',name:'Surowka coleslaw',e:'sal',emoji:'&#x1F957;',price:9,badge:'',bc:''},
-  {id:'s3',name:'Ziemniaki pieczone',e:'pot',emoji:'&#x1F954;',price:11,badge:'',bc:''},
-  {id:'s4',name:'Pieczywo wiejskie',e:'br',emoji:'&#x1F35E;',price:6,badge:'',bc:''},
-  {id:'s5',name:'Sos czosnkowy',e:'garl',emoji:'&#x1F9C4;',price:4,badge:'',bc:''},
-  {id:'s6',name:'Zupa rybna',e:'stew',emoji:'&#x1F372;',price:16,badge:'Nowe',bc:'new'}
-],drinks:[
-  {id:'d1',name:'Woda 0,5l',e:'drop',emoji:'&#x1F4A7;',price:5,badge:'',bc:''},
-  {id:'d2',name:'Sok jablkowy',e:'apl',emoji:'&#x1F34E;',price:8,badge:'',bc:''},
-  {id:'d3',name:'Piwo rzemieslnicze',e:'beer',emoji:'&#x1F37A;',price:14,badge:'',bc:''},
-  {id:'d4',name:'Herbata',e:'tea',emoji:'&#x1F375;',price:7,badge:'',bc:''},
-  {id:'d5',name:'Lemoniada domowa',e:'lem',emoji:'&#x1F34B;',price:10,badge:'',bc:''},
-  {id:'d6',name:'Kawa',e:'cof',emoji:'&#x2615;',price:9,badge:'',bc:''}
-]};
+
 
 var ASIAN_DEF={main:[
   {id:'a1',name:'Pad Thai',e:'noodles',emoji:'&#x1F35C;',price:36,badge:'HIT',bc:'popular'},
@@ -615,7 +593,7 @@ var _send=false;
 var _lth=0;
 var _la=0;
 
-function defaultMenuForProfile(){
+function cloneObj(ASIAN_DEF){
   return activeProfileId==='ztm'?cloneObj(ASIAN_DEF):cloneObj(DEF);
 }
 function applyProfileUI(){
@@ -1286,13 +1264,6 @@ function renderList(){
 }
 
 // Zmień status całej grupy
-function setGrpStatus(ids,status){
-  for(var i=0;i<ids.length;i++)setStatus(ids[i],status);
-}
-function markPaid(ids){
-  for(var i=0;i<ids.length;i++)setPaid(ids[i]);
-  toast('Zamowienie oplacone!','#27ae60');
-}
 
 // BAR
 function renderBar(){
@@ -1533,15 +1504,6 @@ function renderStock(){
   wrap.innerHTML=html;
 }
 
-function chStock(name,d){
-  if(!stock[name])return;
-  stock[name].current=Math.max(0,(stock[name].current||0)+d);
-  if(!stock[name].init)stock[name].init=stock[name].current;
-  saveStock();
-  if(fbReady)fbBg(fbDB.ref('stock').set(stock));
-  renderStock();
-  vib(10);
-}
 
 function applyStock(src,name){
   var box=src&&src.parentNode;
@@ -2067,7 +2029,7 @@ function bootApp(){
   ordSeq=parseInt(lsGet('sp_seq'))||1;
   numT=parseInt(lsGet('sp_tbls'))||29;
   DID=lsGet('sp_did')||mkDID();
-  menu=defaultMenuForProfile();
+  menu=cloneObj(ASIAN_DEF);
   loadOrds();
   loadArc();
   loadStock();
