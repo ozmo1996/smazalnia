@@ -13,84 +13,7 @@
 <link rel="manifest" id="pwa-manifest">
 <link rel="apple-touch-icon" id="pwa-icon">
 <title>Smazalnia Pstraga</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
-<!-- Login - osobny skrypt, niezalezny od Firebase -->
-<script>
-(function(){
-  var DP='smazalnia2024';
-  function lg(k){try{return localStorage.getItem(k);}catch(e){return null;}}
-  function ls(k,v){try{localStorage.setItem(k,v);}catch(e){}}
-
-  window.getStoredPw=function(){return lg('sp_pw')||DP;};
-
-  window.doLogin=function(){
-    var pw=document.getElementById('loginPw').value;
-    var err=document.getElementById('loginErr');
-    if(!pw){if(err)err.textContent='Wprowadz haslo';return;}
-    if(pw===window.getStoredPw()){
-      ls('sp_session',String(Date.now()+43200000));
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      if(err)err.textContent='';
-      if(typeof bootApp==='function')bootApp();
-    } else {
-      if(err)err.textContent='Nieprawidlowe haslo';
-      document.getElementById('loginPw').value='';
-    }
-  };
-
-  window.togglePwVis=function(){
-    var i=document.getElementById('loginPw');
-    var e=document.getElementById('loginEye');
-    if(!i)return;
-    i.type=(i.type==='password')?'text':'password';
-    if(e)e.textContent=(i.type==='text')?'\uD83D\uDE48':'\uD83D\uDC41';
-  };
-
-  window.toggleChangePw=function(){
-    var b=document.getElementById('chpwBox');
-    if(b)b.style.display=(b.style.display==='block')?'none':'block';
-  };
-
-  window.doChangePw=function(){
-    var o=document.getElementById('chpwOld').value;
-    var n1=document.getElementById('chpwNew').value;
-    var n2=document.getElementById('chpwNew2').value;
-    var err=document.getElementById('loginErr');
-    if(o!==window.getStoredPw()){if(err)err.textContent='Stare haslo nieprawidlowe';return;}
-    if(n1.length<4){if(err)err.textContent='Min. 4 znaki';return;}
-    if(n1!==n2){if(err)err.textContent='Hasla rozne';return;}
-    ls('sp_pw',n1);
-    ['chpwOld','chpwNew','chpwNew2'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-    var b=document.getElementById('chpwBox');if(b)b.style.display='none';
-    if(err)err.textContent='Haslo zmienione!';
-  };
-
-  // Listenery - proste i bezposrednie
-  var btn=document.getElementById('loginBtn');
-  if(btn){
-    btn.onclick=function(){window.doLogin();};
-  }
-  var eye=document.getElementById('loginEye');
-  if(eye){
-    eye.onclick=function(){window.togglePwVis();};
-  }
-  var chg=document.getElementById('loginChangeBtn');
-  if(chg){
-    chg.onclick=function(){window.toggleChangePw();};
-  }
-  var sav=document.getElementById('chpwSaveBtn');
-  if(sav){
-    sav.onclick=function(){window.doChangePw();};
-  }
-  var inp=document.getElementById('loginPw');
-  if(inp){
-    inp.onkeydown=function(e){if(e.key==='Enter')window.doLogin();};
-  }
-})();
-</script>
-
-<!-- Firebase SDK -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet"><!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
@@ -1444,6 +1367,8 @@ function deductStock(items){
     if(curV==='w')renderStock();
   }
 }
+
+function openStats(){
   // Jesli juz jestesmy w statystykach - bez hasla
   if(curV==='s'){renderStats();return;}
   var modal=document.createElement('div');
@@ -2042,5 +1967,82 @@ if(checkSession()){
   });
 })();
 </script>
+
+<!-- Login - osobny skrypt, niezalezny od Firebase -->
+<script>
+(function(){
+  var DP='smazalnia2024';
+  function lg(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function ls(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+  window.getStoredPw=function(){return lg('sp_pw')||DP;};
+
+  window.doLogin=function(){
+    var pw=document.getElementById('loginPw').value;
+    var err=document.getElementById('loginErr');
+    if(!pw){if(err)err.textContent='Wprowadz haslo';return;}
+    if(pw===window.getStoredPw()){
+      ls('sp_session',String(Date.now()+43200000));
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('app').style.display='block';
+      if(err)err.textContent='';
+      if(typeof bootApp==='function')bootApp();
+    } else {
+      if(err)err.textContent='Nieprawidlowe haslo';
+      document.getElementById('loginPw').value='';
+    }
+  };
+
+  window.togglePwVis=function(){
+    var i=document.getElementById('loginPw');
+    var e=document.getElementById('loginEye');
+    if(!i)return;
+    i.type=(i.type==='password')?'text':'password';
+    if(e)e.textContent=(i.type==='text')?'\uD83D\uDE48':'\uD83D\uDC41';
+  };
+
+  window.toggleChangePw=function(){
+    var b=document.getElementById('chpwBox');
+    if(b)b.style.display=(b.style.display==='block')?'none':'block';
+  };
+
+  window.doChangePw=function(){
+    var o=document.getElementById('chpwOld').value;
+    var n1=document.getElementById('chpwNew').value;
+    var n2=document.getElementById('chpwNew2').value;
+    var err=document.getElementById('loginErr');
+    if(o!==window.getStoredPw()){if(err)err.textContent='Stare haslo nieprawidlowe';return;}
+    if(n1.length<4){if(err)err.textContent='Min. 4 znaki';return;}
+    if(n1!==n2){if(err)err.textContent='Hasla rozne';return;}
+    ls('sp_pw',n1);
+    ['chpwOld','chpwNew','chpwNew2'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+    var b=document.getElementById('chpwBox');if(b)b.style.display='none';
+    if(err)err.textContent='Haslo zmienione!';
+  };
+
+  // Listenery - proste i bezposrednie
+  var btn=document.getElementById('loginBtn');
+  if(btn){
+    btn.onclick=function(){window.doLogin();};
+  }
+  var eye=document.getElementById('loginEye');
+  if(eye){
+    eye.onclick=function(){window.togglePwVis();};
+  }
+  var chg=document.getElementById('loginChangeBtn');
+  if(chg){
+    chg.onclick=function(){window.toggleChangePw();};
+  }
+  var sav=document.getElementById('chpwSaveBtn');
+  if(sav){
+    sav.onclick=function(){window.doChangePw();};
+  }
+  var inp=document.getElementById('loginPw');
+  if(inp){
+    inp.onkeydown=function(e){if(e.key==='Enter')window.doLogin();};
+  }
+})();
+</script>
+
 </body>
 </html>
