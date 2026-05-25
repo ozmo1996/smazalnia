@@ -270,17 +270,19 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
     <div class="login-sub">Wprowadz haslo aby kontynuowac</div>
     <div class="login-inp-wrap">
       <input class="login-inp" id="loginPw" type="password" placeholder="Haslo" autocomplete="current-password">
-      <button class="login-eye" id="loginEye">&#x1F441;</button>
+    <div class="login-pw-wrap">
+      <input class="login-inp" id="loginPw" type="password" placeholder="Haslo" autocomplete="current-password">
+      <button class="login-eye" id="loginEye" type="button">&#x1F441;</button>
     </div>
     <div class="login-err" id="loginErr"></div>
-    <button class="login-btn" id="loginBtn">Zaloguj sie</button>
-    <button class="login-change" id="loginChangeBtn">Zmien haslo</button>
+    <button class="login-btn" id="loginBtn" type="button">Zaloguj sie</button>
+    <button class="login-change" id="loginChangeBtn" type="button">Zmien haslo</button>
     <div class="chpw-box" id="chpwBox">
       <div class="chpw-title">Zmiana hasla (wymagane stare haslo)</div>
       <input class="chpw-inp" id="chpwOld" type="password" placeholder="Stare haslo">
       <input class="chpw-inp" id="chpwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)">
       <input class="chpw-inp" id="chpwNew2" type="password" placeholder="Powtorz nowe haslo">
-      <button class="chpw-btn" id="chpwSaveBtn">Zapisz nowe haslo</button>
+      <button class="chpw-btn" id="chpwSaveBtn" type="button">Zapisz nowe haslo</button>
     </div>
   </div>
 </div>
@@ -413,6 +415,69 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
   </div>
 </div>
 <script>
+// ═══════════════════════════════════════
+// LOGOWANIE — uruchamiane jako pierwsze
+// ═══════════════════════════════════════
+var DEFAULT_PW='smazalnia2024';
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function getStoredPw(){return lsGet('sp_pw')||DEFAULT_PW;}
+
+function doLogin(){
+  var pw=document.getElementById('loginPw').value;
+  var err=document.getElementById('loginErr');
+  if(!pw){if(err)err.textContent='Wprowadz haslo';return;}
+  if(pw===getStoredPw()){
+    lsSet('sp_session',String(Date.now()+12*3600*1000));
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='block';
+    if(err)err.textContent='';
+    bootApp();
+  } else {
+    if(err)err.textContent='Nieprawidlowe haslo';
+    document.getElementById('loginPw').value='';
+    document.getElementById('loginPw').style.borderColor='#e85c3a';
+    setTimeout(function(){document.getElementById('loginPw').style.borderColor='';},1000);
+  }
+}
+
+function togglePwVis(){
+  var inp=document.getElementById('loginPw');
+  var eye=document.getElementById('loginEye');
+  if(!inp)return;
+  var show=(inp.type==='password');
+  inp.type=show?'text':'password';
+  if(eye)eye.textContent=show?'\uD83D\uDE48':'\uD83D\uDC41';
+}
+
+function toggleChangePw(){
+  var box=document.getElementById('chpwBox');
+  if(box)box.style.display=box.style.display==='block'?'none':'block';
+}
+
+function doChangePw(){
+  var old=document.getElementById('chpwOld').value;
+  var n1=document.getElementById('chpwNew').value;
+  var n2=document.getElementById('chpwNew2').value;
+  var err=document.getElementById('loginErr');
+  if(old!==getStoredPw()){if(err)err.textContent='Stare haslo nieprawidlowe';return;}
+  if(n1.length<4){if(err)err.textContent='Min. 4 znaki';return;}
+  if(n1!==n2){if(err)err.textContent='Hasla nie sa identyczne';return;}
+  lsSet('sp_pw',n1);
+  ['chpwOld','chpwNew','chpwNew2'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('chpwBox').style.display='none';
+  if(err)err.textContent='';
+  alert('Haslo zostalo zmienione!');
+}
+
+// Podpinamy listenery od razu — przyciski sa juz w DOM
+document.getElementById('loginBtn').addEventListener('click',function(){doLogin();});
+document.getElementById('loginBtn').addEventListener('touchend',function(e){e.preventDefault();doLogin();},{passive:false});
+document.getElementById('loginEye').addEventListener('click',function(){togglePwVis();});
+document.getElementById('loginEye').addEventListener('touchend',function(e){e.preventDefault();togglePwVis();},{passive:false});
+document.getElementById('loginChangeBtn').addEventListener('click',function(){toggleChangePw();});
+document.getElementById('chpwSaveBtn').addEventListener('click',function(){doChangePw();});
+document.getElementById('loginPw').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin();});
 var DEF={main:[
   {id:'m1',name:'Pstrag smazony',e:'fish',emoji:'&#x1F41F;',price:42,badge:'HIT',bc:'popular'},
   {id:'m2',name:'Pstrag pieczony',e:'herb',emoji:'&#x1F33F;',price:46,badge:'',bc:''},
@@ -1665,9 +1730,10 @@ function testFb(){
   if(!fbReady){toast('Brak polaczenia Firebase','#e85c3a');if(btn)btn.textContent='Testuj polaczenie z Firebase';return;}
   fbDB.ref('test_ping').set({ts:Date.now(),device:DID}).then(function(){
     toast('Firebase dziala poprawnie!','#27ae60');
+    if(btn)btn.textContent='Testuj polaczenie z Firebase';
+    renderCloud();
   }).catch(function(e){
     toast('Blad zapisu: '+e.message,'#e85c3a');
-  }).finally(function(){
     if(btn)btn.textContent='Testuj polaczenie z Firebase';
     renderCloud();
   });
@@ -1715,80 +1781,6 @@ setInterval(function(){
     }
   }
 },1000);
-
-// ═══════════════════════════════════════
-// LOGOWANIE
-// ═══════════════════════════════════════
-var DEFAULT_PW='smazalnia2024';
-
-function getStoredPw(){
-  return lsGet('sp_pw')||DEFAULT_PW;
-}
-
-function doLogin(){
-  var pw=document.getElementById('loginPw').value;
-  var err=document.getElementById('loginErr');
-  if(!pw){err.textContent='Wprowadz haslo';return;}
-  if(pw===getStoredPw()){
-    // Sukces — sesja ważna 12 godzin
-    lsSet('sp_session',Date.now()+12*3600*1000);
-    document.getElementById('loginScreen').style.display='none';
-    document.getElementById('app').style.display='block';
-    err.textContent='';
-    bootApp();
-  } else {
-    err.textContent='Nieprawidlowe haslo';
-    document.getElementById('loginPw').value='';
-    // Krótkie trzęsienie inputa
-    var inp=document.getElementById('loginPw');
-    inp.style.borderColor='var(--e)';
-    setTimeout(function(){inp.style.borderColor='';},1000);
-  }
-}
-
-function togglePwVis(){
-  var inp=document.getElementById('loginPw');
-  var eye=document.getElementById('loginEye');
-  if(!inp)return;
-  if(inp.type==='password'){inp.type='text';if(eye)eye.style.opacity='1';}
-  else{inp.type='password';if(eye)eye.style.opacity='.4';}
-}
-
-function toggleChangePw(){
-  var box=document.getElementById('chpwBox');
-  box.style.display=box.style.display==='block'?'none':'block';
-}
-
-function doChangePw(){
-  var old=document.getElementById('chpwOld').value;
-  var n1=document.getElementById('chpwNew').value;
-  var n2=document.getElementById('chpwNew2').value;
-  var err=document.getElementById('loginErr');
-  if(old!==getStoredPw()){err.textContent='Stare haslo nieprawidlowe';return;}
-  if(n1.length<4){err.textContent='Nowe haslo min. 4 znaki';return;}
-  if(n1!==n2){err.textContent='Hasla nie sa identyczne';return;}
-  lsSet('sp_pw',n1);
-  document.getElementById('chpwOld').value='';
-  document.getElementById('chpwNew').value='';
-  document.getElementById('chpwNew2').value='';
-  document.getElementById('chpwBox').style.display='none';
-  err.textContent='';
-  toast('Haslo zostalo zmienione!','#27ae60');
-}
-
-document.getElementById('loginPw').addEventListener('keydown',function(e){
-  if(e.key==='Enter')doLogin();
-});
-(function(){
-  var b=document.getElementById('loginBtn');
-  if(b){b.addEventListener('click',function(){doLogin();});}
-  var e2=document.getElementById('loginEye');
-  if(e2){e2.addEventListener('click',function(){togglePwVis();});}
-  var c=document.getElementById('loginChangeBtn');
-  if(c){c.addEventListener('click',function(){toggleChangePw();});}
-  var s=document.getElementById('chpwSaveBtn');
-  if(s){s.addEventListener('click',function(){doChangePw();});}
-})();
 
 function clearAllOrders(){
   var count=Object.keys(orders).length;
