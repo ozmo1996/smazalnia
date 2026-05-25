@@ -7,12 +7,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Smazalnia">
-<meta name="application-name" content="Smazalnia Pstraga">
+<meta name="apple-mobile-web-app-title" content="Zakręt">
+<meta name="application-name" content="Zakręt to My">
 <meta name="description" content="System zamowien dla smazalni pstraga">
 <link rel="manifest" id="pwa-manifest">
 <link rel="apple-touch-icon" id="pwa-icon">
-<title>Smazalnia Pstraga</title>
+<title>Zakręt to My</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet"><!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -420,7 +420,6 @@ touch-action:manipulation;
 </div>
 <div class="view" id="vk">
   <div class="dkh"><span class="dkt">Kuchnia</span><span class="dkc" id="kclk"></span></div>
-  <div id="kcounter" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;background:rgba(0,0,0,.3);border-bottom:2px solid rgba(255,255,255,.08);"></div>
   <div class="tkg" id="kg"></div>
 </div>
 <div class="view" id="vs"><div style="padding:12px;background:var(--bg)">
@@ -495,14 +494,14 @@ function rawGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function rawSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 function rawRemove(k){try{localStorage.removeItem(k);}catch(e){}}
 var PROFILE_META={
-  sp:{prefix:'sp',name:'Smazalnia Pstraga',short:'Smazalnia',logoTop:'Smazalnia',logoEm:'Pstraga',emoji:'&#x1F41F;',cloud:true}
+  sp:{prefix:'sp',name:'Smazalnia Pstraga',short:'Smazalnia',logoTop:'Smazalnia',logoEm:'Pstraga',emoji:'&#x1F41F;',cloud:true},
+  ztm:{prefix:'ztm',name:'Zakręt to My',short:'Zakręt',logoTop:'Zakręt',logoEm:'to My',emoji:'&#x1F35C;',cloud:false}
 };
-var activeProfileId='sp';
+var activeProfileId='ztm';
 function prof(){return PROFILE_META[activeProfileId]||PROFILE_META.sp;}
 function lsKey(k){
   if(k.indexOf('sp_')!==0)return k;
-  var p=prof().prefix;
-  return p==='sp'?k:p+'_'+k.slice(3);
+  return 'ztm_'+k.slice(3);
 }
 function lsGet(k){try{return localStorage.getItem(lsKey(k));}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
@@ -592,7 +591,7 @@ var EMOJIS=[
   '&#x1F33F;','&#x2728;','&#x1F9C4;','&#x1F9C6;','&#x1FAD0;','&#x1F959;','&#x1F95D;'
 ];
 
-var menu=cloneObj(DEF);
+var menu=cloneObj(ASIAN_DEF);
 var orders={};
 var archive={};
 var cart={};
@@ -1366,7 +1365,6 @@ function renderKCounter(){
 
 function renderKitch(){
   var g=document.getElementById('kg');if(!g)return;
-  renderKCounter();
   var ds=dSet();var now=Date.now();
   var act=Object.values(orders).filter(function(o){
     return o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});
@@ -1519,29 +1517,18 @@ function renderStock(){
             '</div>'+
           '</div>'+
           '<div class="stock-controls">'+
-            '<button class="stock-btn minus10" onclick="stepStock(\''+safeName+'\',-10,this)">-10</button>'+
-            '<button class="stock-btn minus" onclick="stepStock(\''+safeName+'\',-1,this)">-</button>'+
-            '<input class="stock-inp" id="si_'+safeName.replace(/[^a-z0-9]/gi,'_')+'" type="number" min="0" inputmode="numeric" value="'+s.current+'" onkeydown="if(event.key===\'Enter\'){applyStock(this,\''+safeName+'\')}">'+
-            '<button class="stock-btn" onclick="stepStock(\''+safeName+'\',1,this)">+</button>'+
-            '<button class="stock-btn plus10" onclick="stepStock(\''+safeName+'\',10,this)">+10</button>'+
-            '<button class="stock-apply" onclick="applyStock(this,\''+safeName+'\')">&#x2714; Zatwierdz</button>'+
+            '<button class="stock-btn minus10" onclick="chStock(\''+safeName+'\',-10)">-10</button>'+
+            '<button class="stock-btn minus" onclick="chStock(\''+safeName+'\',-1)">-</button>'+
+            '<input class="stock-inp" type="number" min="0" inputmode="numeric" value="'+s.current+'" onkeydown="if(event.key===\'Enter\'){applyStock(this,\''+safeName+'\')}">'+
+            '<button class="stock-btn" onclick="chStock(\''+safeName+'\',1)">+</button>'+
+            '<button class="stock-btn plus10" onclick="chStock(\''+safeName+'\',10)">+10</button>'+
+            '<button class="stock-apply" onclick="applyStock(this,\''+safeName+'\')">Zatwierdz</button>'+
           '</div>'+
         '</div>';
     });
     html+='</div>';
   });
   wrap.innerHTML=html;
-}
-
-function stepStock(name,d,btn){
-  // Tylko zmien wartosc w inpucie - nie zapisuje
-  var box=btn&&btn.parentNode;
-  var inp=box?box.querySelector('.stock-inp'):null;
-  if(!inp)return;
-  var cur=Math.max(0,(parseInt(inp.value)||0)+d);
-  inp.value=cur;
-  inp.style.borderColor='var(--a)'; // pomarancz = niezapisane
-  vib(10);
 }
 
 function chStock(name,d){
@@ -1559,10 +1546,8 @@ function applyStock(src,name){
   var inp=box?box.querySelector('.stock-inp'):null;
   if(!inp)return;
   setStock(name,+inp.value);
-  inp.style.borderColor=''; // reset koloru
   renderStock();
-  toast('&#x2714; Zapisano: '+esc(name),'#27ae60');
-  vib([10,30,10]);
+  toast('Stan magazynu zapisany','#27ae60');
 }
 
 function setStock(name,val){
@@ -1923,8 +1908,7 @@ setInterval(function(){
 
   // Aktualizuj timery i przyciski biletow kuchennych co sekunde
   if(curV==='k'){
-    renderKCounter();
-    var now=Date.now();
+      var now=Date.now();
     var tkts=document.querySelectorAll('#kg .tkt[data-oid]');
     for(var i=0;i<tkts.length;i++){
       var oid=tkts[i].getAttribute('data-oid');
@@ -2050,7 +2034,7 @@ function doClrStats(){
 }
 
 function checkSession(){
-  var exp=parseInt(localStorage.getItem('sp_session')||'0');
+  var exp=parseInt(localStorage.getItem('ztm_session')||'0');
   return exp>Date.now();
 }
 
@@ -2086,8 +2070,8 @@ function bootApp(){
   loadArc();
   loadStock();
   var _mc=lsGet('sp_menu');
-  if(_mc){try{menu=JSON.parse(_mc);}catch(e){menu=cloneObj(DEF);}}
-  else{menu=defaultMenuForProfile();}
+  if(_mc){try{menu=JSON.parse(_mc);}catch(e){menu=cloneObj(ASIAN_DEF);}}
+  else{menu=cloneObj(ASIAN_DEF);}
   restorePhoneBackup();
   ensureStock();
   var _td=document.getElementById('tnd');if(_td)_td.textContent=numT;
@@ -2243,18 +2227,18 @@ if(checkSession()){
 <!-- Login - osobny skrypt, niezalezny od Firebase -->
 <script>
 (function(){
-  var DP='smazalnia2024';
+  var ZP='kutasna';
   function lg(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function ls(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
-  window.getStoredPw=function(){return lg('sp_pw')||DP;};
+  window.getStoredPw=function(){return lg('ztm_pw')||ZP;};
 
   window.doLogin=function(){
     var pw=document.getElementById('loginPw').value;
     var err=document.getElementById('loginErr');
     if(!pw){if(err)err.textContent='Wprowadz haslo';return;}
     if(pw===window.getStoredPw()){
-      ls('sp_session',String(Date.now()+43200000));
+      ls('ztm_session',String(Date.now()+43200000));
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
       if(err)err.textContent='';
@@ -2284,7 +2268,7 @@ if(checkSession()){
     if(o!==window.getStoredPw()){if(err)err.textContent='Stare haslo nieprawidlowe';return;}
     if(n1.length<4){if(err)err.textContent='Min. 4 znaki';return;}
     if(n1!==n2){if(err)err.textContent='Hasla rozne';return;}
-    ls('sp_pw',n1);
+    ls('ztm_pw',n1);
     ['chpwOld','chpwNew','chpwNew2'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
     var b=document.getElementById('chpwBox');if(b)b.style.display='none';
     if(err)err.textContent='Haslo zmienione!';
