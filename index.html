@@ -412,6 +412,9 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
   </div>
 </div>
 <script>
+// Lokalne storage
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 // ═══════════════════════════════════════
 var DEF={main:[
   {id:'m1',name:'Pstrag smazony',e:'fish',emoji:'&#x1F41F;',price:42,badge:'HIT',bc:'popular'},
