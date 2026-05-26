@@ -365,7 +365,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.0</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v4.0</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -413,6 +413,13 @@ touch-action:manipulation;
   <div style="display:flex;align-items:center;justify-content:space-between;margin-top:4px;margin-bottom:4px;">
     <div class="sh" style="margin:0;flex:1">Wszystkie zamowienia</div>
     <button data-action="clearorders" style="background:rgba(232,92,58,.12);border:1.5px solid rgba(232,92,58,.3);color:var(--e);border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;touch-action:manipulation;white-space:nowrap;">&#x1F5D1; Usun wszystkie</button>
+  </div>
+  <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;">
+    <div style="position:relative;flex:1;">
+      <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:1rem;pointer-events:none;">&#x1F50D;</span>
+      <input id="listSearch" type="text" placeholder="Szukaj stolika, dania..." onkeydown="if(event.key==='Enter')renderList()" style="width:100%;padding:9px 12px 9px 36px;border-radius:10px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:#fff;font-family:'Nunito',sans-serif;font-size:.88rem;box-sizing:border-box;outline:none;">
+    </div>
+    <button onclick="renderList()" style="padding:9px 16px;border-radius:10px;border:none;background:var(--a);color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:.88rem;cursor:pointer;white-space:nowrap;touch-action:manipulation;">&#x1F50D; Szukaj</button>
   </div>
   <div class="ol" id="ordl"></div>
 </div></div>
@@ -502,6 +509,13 @@ var PROFILE_META={
 var activeProfileId='sp';
 function prof(){return PROFILE_META[activeProfileId]||PROFILE_META.sp;}
 function lsKey(k){return k;} // sp prefix zawsze
+// SHA-256 helper - uzywany przez logowanie i weryfikacje hasel
+function sha256(msg){
+  return crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg)).then(function(buf){
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+  });
+}
+
 function lsGet(k){try{return localStorage.getItem(lsKey(k));}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
 function cloneObj(o){return JSON.parse(JSON.stringify(o));}
@@ -744,6 +758,8 @@ function subAll(){
   fbDB.ref('orders').on('value',function(snap){
     orders=snap.val()||{};
     saveOrds();
+setTimeout(function(){ location.reload(); }, 150);
+
     onData();
   });
   fbDB.ref('archive').on('value',function(snap){
@@ -1044,22 +1060,8 @@ function sendOrder(paid){
   if(fbReady)fbBg(fbDB.ref('orders/'+id).set(order));
 }
 
-document.getElementById('bsnd').addEventListener('touchend',function(e){
-  e.preventDefault();
-  _lth=Date.now();doSend();
-},{passive:false});
-document.getElementById('bsnd').addEventListener('click',function(){
-  if(Date.now()-_lth<600)return;
-  doSend();
-});
-document.getElementById('bsnd2').addEventListener('touchend',function(e){
-  e.preventDefault();
-  _lth=Date.now();doSend2();
-},{passive:false});
-document.getElementById('bsnd2').addEventListener('click',function(){
-  if(Date.now()-_lth<600)return;
-  doSend2();
-});
+document.getElementById('bsnd').addEventListener('click',function(){doSend();});
+document.getElementById('bsnd2').addEventListener('click',function(){doSend2();});
 
 // Event delegation — obsługuje wszystkie przyciski z data-action
 function handleDataAction(btn){
@@ -1095,7 +1097,7 @@ function handleDataAction(btn){
   }
   if(action==='clearorders') { clearAllOrders(); return; }
   if(action==='clearorders2'){ clearAllOrders2(); return; }
-  if(action==='clearstats')    { confirmClearStats(); return; }
+  if(action==='editorder')  { openEditOrder(ids[0]); return; }
   if(action==='doClrStats')    { doClrStats(); return; }
   if(action==='closeClrStats') { var m=document.getElementById('clearStatsModal');if(m)m.remove(); return; }
 }
@@ -1103,6 +1105,7 @@ var _lastDelegateTouch=0;
 document.addEventListener('touchend',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
+  if(btn.closest('#eom'))return;
   e.preventDefault();
   _lastDelegateTouch=Date.now();
   handleDataAction(btn);
@@ -1110,7 +1113,7 @@ document.addEventListener('touchend',function(e){
 document.addEventListener('click',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
-  // Ghost click guard tylko dla przyciskow z data-action
+  if(btn.closest('#eom'))return;
   if(Date.now()-_lastDelegateTouch<600)return;
   handleDataAction(btn);
 });
@@ -1156,7 +1159,24 @@ var SL={pending:'Oczekuje',cooking:'Gotowanie',ready:'Gotowe!',done:'Wydane'};
 function renderList(){
   var el=document.getElementById('ordl');
   var arr=Object.values(orders).sort(function(a,b){return b.ts-a.ts;});
-  if(!arr.length){el.innerHTML='<div class="ni">Brak zamowien</div>';return;}
+
+  // Filtruj wg wyszukiwania
+  var q=(document.getElementById('listSearch')||{}).value||'';
+  q=q.trim().toLowerCase();
+  if(q){
+    arr=arr.filter(function(o){
+      // Szukaj po stoliku - dokladne dopasowanie dla liczb
+      var tbl=String(o.table||'').toLowerCase();
+      if(tbl===q)return true;
+      // Szukaj po nazwie dania
+      if(o.items&&o.items.some(function(it){return (it.name||'').toLowerCase().indexOf(q)>=0;}))return true;
+      // Szukaj po uwagach
+      if((o.note||'').toLowerCase().indexOf(q)>=0)return true;
+      return false;
+    });
+  }
+
+  if(!arr.length){el.innerHTML='<div class="ni">'+(q?'Brak wynikow dla "'+esc(q)+'"':'Brak zamowien')+'</div>';return;}
 
   // Grupuj zamówienia z tego samego stolika złożone w ciągu 15 min
   var grouped=[];
@@ -1223,6 +1243,7 @@ function renderList(){
     // Jeden przycisk usuń dla całej grupy
     var allIds=grp.map(function(o){return o.id;}).join(',');
     var delBtns='<button class="ba badl" data-action="delgrp" data-ids="'+allIds+'">&#x1F5D1; Usun</button>';
+    var editBtn='<button class="ba" style="background:rgba(18,120,168,.15);color:#7ec8e3;border:1.5px solid rgba(18,120,168,.3);" data-action="editorder" data-ids="'+mainO.id+'">&#x270F; Edytuj</button>';
 
     // Znaczki
     var mergedBadge=isMerged?'<span style="background:var(--s);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">POLACZONE</span>':'';
@@ -1251,7 +1272,7 @@ function renderList(){
         '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
       '</div>'+
       '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
-      '<div class="ocf" style="flex-wrap:wrap;gap:5px;">'+nx+payBtn+delBtns+'<span class="osb">'+totalSum.toFixed(2)+' zl</span></div>';
+      '<div class="ocf" style="flex-wrap:wrap;gap:5px;">'+nx+payBtn+editBtn+delBtns+'<span class="osb">'+totalSum.toFixed(2)+' zl</span></div>';
     el.appendChild(c);
   }
 }
@@ -1390,6 +1411,7 @@ function renderKitch(){
       t.innerHTML=
         '<div class="tkh">'+
           '<span class="tktbl">'+(o.table==='my'?'&#x1F46A; MY':'Stolik '+o.table)+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+(o.wynos?'<span style="background:#1278a8;color:#fff;font-size:.6rem;font-weight:900;padding:2px 5px;border-radius:5px;margin-left:4px;">WYNOS</span>':'')+'</span>'+
+          '<button data-action="editorder" data-ids="'+o.id+'" style="background:rgba(18,120,168,.15);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;border-radius:7px;padding:3px 8px;font-size:.7rem;font-weight:800;cursor:pointer;flex-shrink:0;">&#x270F;</button>'+
           '<div class="tkm">'+
             '<div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div>'+
             '<div class="tksc">#'+o.seq+' '+o.timeStr+'</div>'+
@@ -1561,6 +1583,181 @@ function deductStock(items){
   }
 }
 
+function openEditOrder(id){
+  var o=orders[id];
+  if(!o)return;
+  // Usun stary modal jesli istnieje
+  var old=document.getElementById('eom');
+  if(old)old.parentNode.removeChild(old);
+
+  // Kopia danych
+  var items=JSON.parse(JSON.stringify(o.items));
+
+  function getHTML(){
+    var rows=items.map(function(it,i){
+      return '<tr>'+
+        '<td style="padding:6px 4px;font-size:1.2rem;">'+it.emoji+'</td>'+
+        '<td style="padding:6px 4px;font-size:.85rem;font-weight:700;color:#111;flex:1;">'+esc(it.name)+'</td>'+
+        '<td style="padding:6px 4px;white-space:nowrap;">'+
+          '<button id="emb'+i+'" style="width:34px;height:34px;font-size:1.1rem;font-weight:900;border:none;border-radius:7px;background:#eee;cursor:pointer;">-</button>'+
+          '<span id="eqs'+i+'" style="display:inline-block;min-width:28px;text-align:center;font-weight:900;">'+it.qty+'</span>'+
+          '<button id="epb'+i+'" style="width:34px;height:34px;font-size:1.1rem;font-weight:900;border:none;border-radius:7px;background:#eee;cursor:pointer;">+</button>'+
+          '<button id="exb'+i+'" style="width:34px;height:34px;font-size:1rem;border:none;border-radius:7px;background:#fde8e3;color:#e85c3a;cursor:pointer;">✕</button>'+
+        '</td>'+
+      '</tr>';
+    }).join('');
+    var opts=[];
+    ['main','sides','drinks'].forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
+    return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
+      '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+(o.table==='my'?'MY':'Stolik '+o.table)+'</div>'+
+      '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
+      '<div style="margin-top:10px;display:flex;gap:8px;">'+
+        '<select id="eadd_sel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.82rem;">'+opts.join('')+'</select>'+
+        '<button id="eadd_btn" style="padding:8px 12px;border:none;border-radius:8px;background:#1278a8;color:#fff;font-weight:900;cursor:pointer;">+Dodaj</button>'+
+      '</div>'+
+      '<div style="margin-top:8px;">'+
+        '<div style="font-size:.78rem;color:#666;margin-bottom:4px;">Uwagi:</div>'+
+        '<input id="enote" value="'+esc(o.note||'')+'" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.85rem;box-sizing:border-box;">'+
+      '</div>'+
+      '<div style="margin-top:14px;display:flex;gap:8px;">'+
+        '<button id="esave" style="flex:1;padding:13px;border:none;border-radius:10px;background:#1278a8;color:#fff;font-size:1rem;font-weight:900;cursor:pointer;">✔ Zapisz zmiany</button>'+
+        '<button id="erefresh" style="padding:13px 14px;border:1.5px solid #ccc;border-radius:10px;background:#fff;color:#555;font-size:1.2rem;cursor:pointer;" title="Odswiez">&#x21BB;</button>'+
+        '<button id="ecanc" style="padding:13px 16px;border:1.5px solid #ccc;border-radius:10px;background:#fff;color:#666;font-weight:700;cursor:pointer;">Anuluj</button>'+
+      '</div>'+
+    '</div>';
+  }
+
+  var m=document.createElement('div');
+  m.id='eom';
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;';
+  m.innerHTML=getHTML();
+  document.body.appendChild(m);
+
+  function rebuildModal(){
+    m.innerHTML=getHTML();
+    bindEvents();
+  }
+
+  function bindEvents(){
+    items.forEach(function(it,i){
+      var bm=document.getElementById('emb'+i);
+      var bp=document.getElementById('epb'+i);
+      var bx=document.getElementById('exb'+i);
+      var qs=document.getElementById('eqs'+i);
+
+      if(bm)bm.onclick=function(e){
+        e.preventDefault();
+        it.qty=Math.max(1,it.qty-1);
+        qs.textContent=it.qty;
+      };
+
+      if(bp)bp.onclick=function(e){
+        e.preventDefault();
+        it.qty++;
+        qs.textContent=it.qty;
+      };
+
+      if(bx)bx.onclick=function(e){
+        e.preventDefault();
+        items.splice(i,1);
+        rebuildModal();
+      };
+    });
+
+    var badd=document.getElementById('eadd_btn');
+    if(badd)badd.onclick=function(e){
+      e.preventDefault();
+
+      var sel=document.getElementById('eadd_sel');
+      var found=null;
+
+      ['main','sides','drinks'].forEach(function(s){
+        (menu[s]||[]).forEach(function(it){
+          if(it.id===sel.value)found=it;
+        });
+      });
+
+      if(!found)return;
+
+      var ex=items.filter(function(x){
+        return x.name===found.name;
+      })[0];
+
+      if(ex){
+        ex.qty++;
+      }else{
+        items.push({
+          id:found.id,
+          name:found.name,
+          emoji:found.emoji,
+          price:found.price,
+          qty:1
+        });
+      }
+
+      rebuildModal();
+    };
+
+    var bcanc=document.getElementById('ecanc');
+    if(bcanc)bcanc.onclick=function(e){
+      e.preventDefault();
+      if(m && m.parentNode)m.parentNode.removeChild(m);
+    };
+
+    var brefresh=document.getElementById('erefresh');
+    if(brefresh)brefresh.onclick=function(e){
+      e.preventDefault();
+      location.reload();
+    };
+
+    var bsave=document.getElementById('esave');
+    if(bsave){
+      bsave.disabled=false;
+      bsave.style.opacity='1';
+
+      bsave.onclick=function(e){
+        e.preventDefault();
+
+        var ord=orders[id];
+        if(!ord)return;
+
+        ord.items=JSON.parse(JSON.stringify(items));
+        ord.note=(document.getElementById('enote')||{}).value||'';
+        ord.total=ord.items.reduce(function(s,x){
+          return s+(x.price||0)*x.qty;
+        },0);
+
+        saveOrds();
+
+        if(fbReady){
+          fbBg(
+            fbDB.ref('orders/'+id).update({
+              items:ord.items,
+              note:ord.note,
+              total:ord.total
+            })
+          );
+        }
+
+        onData();
+        toast('Zaktualizowano zamowienie!','#27ae60');
+
+        try{
+          if(m && m.parentNode){
+            m.parentNode.removeChild(m);
+          }
+        }catch(err){}
+
+        setTimeout(function(){
+          location.reload();
+        },100);
+      };
+    }
+  }
+
+  bindEvents();
+}
+
 function openStats(){
   // Jesli juz jestesmy w statystykach - bez hasla
   if(curV==='s'){renderStats();return;}
@@ -1582,14 +1779,16 @@ function openStats(){
   var err=document.getElementById('statsPwErr');
   function tryEnter(){
     if(!inp.value){return;}
-    if(inp.value!==getStoredPw()){
-      err.textContent='Nieprawidlowe haslo';
-      inp.value='';
-      vib(50);
-      return;
-    }
-    modal.parentNode.removeChild(modal);
-    gv('s');
+    sha256(inp.value).then(function(hash){
+      if(hash!==window.getStoredPw()){
+        err.textContent='Nieprawidlowe haslo';
+        inp.value='';
+        vib(50);
+        return;
+      }
+      modal.parentNode.removeChild(modal);
+      gv('s');
+    });
   }
   document.getElementById('statsPwOk').onclick=function(){tryEnter();};
   document.getElementById('statsPwCancel').onclick=function(){modal.parentNode.removeChild(modal);};
@@ -1995,13 +2194,15 @@ function doClrStats(){
   var pw=document.getElementById('clearStatsPw');
   var err=document.getElementById('clearStatsErr');
   if(!pw||!err)return;
-  if(pw.value!==getStoredPw()){err.textContent='Nieprawidlowe haslo';pw.value='';return;}
-  archive={};saveArc();
-  if(fbReady)fbBg(fbDB.ref('archive').remove());
-  var modal=document.getElementById('clearStatsModal');
-  if(modal)modal.remove();
-  renderStats();
-  toast('Statystyki wyczyszczone!','#27ae60');
+  sha256(pw.value).then(function(hash){
+    if(hash!==window.getStoredPw()){err.textContent='Nieprawidlowe haslo';pw.value='';return;}
+    archive={};saveArc();
+    if(fbReady)fbBg(fbDB.ref('archive').remove());
+    var modal=document.getElementById('clearStatsModal');
+    if(modal)modal.remove();
+    renderStats();
+    toast('Statystyki wyczyszczone!','#27ae60');
+  });
 }
 
 function checkSession(){
@@ -2195,28 +2396,100 @@ if(checkSession()){
 })();
 </script>
 
-<!-- Login - osobny skrypt, niezalezny od Firebase -->
+<!-- Login - SHA-256 + synchronizacja przez Firebase -->
 <script>
 (function(){
-  var DP='smazalnia2024';
+  var FB_PW_KEY='app_password_hash'; // sciezka w Firebase
+  var FB_PW_PATH='settings/pwHash';  // /settings/pwHash w bazie
+  var DEFAULT_HASH=''; // pusty = pierwsze uruchomienie
+
   function lg(k){try{return localStorage.getItem(k);}catch(e){return null;}}
   function ls(k,v){try{localStorage.setItem(k,v);}catch(e){}}
 
-  window.getStoredPw=function(){return lg('sp_pw')||DP;};
+  // SHA-256 - wbudowana implementacja (nie wymaga bibliotek)
+  async function sha256(msg){
+    var buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+  }
+
+  // Pobierz hash z Firebase (jesli dostepny) lub localStorage
+  function getHashLocal(){return lg('sp_pwhash')||lg('sp_pw_hash')||'';}
+  function saveHashLocal(h){ls('sp_pwhash',h);}
+
+  // Synchronizuj hash z Firebase
+  window.syncPwFromFirebase=function(){
+    if(typeof firebase==='undefined'||!firebase.apps||!firebase.apps.length)return;
+    try{
+      var db=firebase.database();
+      db.ref(FB_PW_PATH).once('value').then(function(snap){
+        var fbHash=snap.val();
+        if(fbHash&&fbHash!==getHashLocal()){
+          saveHashLocal(fbHash);
+          console.log('Haslo zsynchronizowane z Firebase');
+        }
+      }).catch(function(){});
+    }catch(e){}
+  };
+
+  // Zapisz hash do Firebase i localStorage
+  function saveHash(hash){
+    saveHashLocal(hash);
+    // Zapisz do Firebase gdy dostepne
+    if(typeof firebase!=='undefined'&&firebase.apps&&firebase.apps.length){
+      try{
+        firebase.database().ref(FB_PW_PATH).set(hash).catch(function(){});
+      }catch(e){}
+    } else {
+      // Jesli Firebase jeszcze nie gotowy - sprobuj pozniej
+      setTimeout(function(){
+        if(typeof firebase!=='undefined'&&firebase.apps&&firebase.apps.length){
+          try{firebase.database().ref(FB_PW_PATH).set(hash).catch(function(){});}catch(e){}
+        }
+      },3000);
+    }
+  }
+
+  window.getStoredPw=function(){return getHashLocal();};
 
   window.doLogin=function(){
     var pw=document.getElementById('loginPw').value;
     var err=document.getElementById('loginErr');
     if(!pw){if(err)err.textContent='Wprowadz haslo';return;}
-    if(pw===window.getStoredPw()){
-      ls('sp_session',String(Date.now()+43200000));
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      if(err)err.textContent='';
-      if(typeof bootApp==='function')bootApp();
+
+    var storedHash=getHashLocal();
+
+    function tryLogin(hash){
+      sha256(pw).then(function(pwHash){
+        if(pwHash===hash){
+          ls('sp_session',String(Date.now()+43200000));
+          document.getElementById('loginScreen').style.display='none';
+          document.getElementById('app').style.display='block';
+          if(err)err.textContent='';
+          window.syncPwFromFirebase();
+          if(typeof bootApp==='function')bootApp();
+        } else {
+          if(err)err.textContent='Nieprawidlowe haslo';
+          document.getElementById('loginPw').value='';
+        }
+      });
+    }
+
+    if(storedHash){
+      tryLogin(storedHash);
     } else {
-      if(err)err.textContent='Nieprawidlowe haslo';
-      document.getElementById('loginPw').value='';
+      // Brak lokalnego hasha - sprobuj Firebase, fallback na domyslne
+      function fallback(){sha256('smazalnia2024').then(function(h){saveHash(h);tryLogin(h);});}
+      if(typeof firebase!=='undefined'&&firebase.apps&&firebase.apps.length){
+        try{
+          firebase.database().ref(FB_PW_PATH).once('value').then(function(snap){
+            var fbHash=snap.val();
+            if(fbHash){saveHashLocal(fbHash);tryLogin(fbHash);}
+            else{fallback();}
+          }).catch(function(){fallback();});
+        }catch(e){fallback();}
+      } else {
+        fallback();
+      }
     }
   };
 
@@ -2227,28 +2500,58 @@ if(checkSession()){
     i.type=(i.type==='password')?'text':'password';
     if(e)e.textContent=(i.type==='text')?'\uD83D\uDE48':'\uD83D\uDC41';
   };
+
   window.toggleChangePw=function(){
     var b=document.getElementById('chpwBox');
     if(b)b.style.display=(b.style.display==='block')?'none':'block';
   };
+
   window.doChangePw=function(){
     var o=document.getElementById('chpwOld').value;
     var n1=document.getElementById('chpwNew').value;
     var n2=document.getElementById('chpwNew2').value;
     var err=document.getElementById('loginErr');
-    if(o!==window.getStoredPw()){if(err)err.textContent='Stare haslo nieprawidlowe';return;}
     if(n1.length<4){if(err)err.textContent='Min. 4 znaki';return;}
     if(n1!==n2){if(err)err.textContent='Hasla rozne';return;}
-    ls('sp_pw',n1);
-    ['chpwOld','chpwNew','chpwNew2'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
-    var b=document.getElementById('chpwBox');if(b)b.style.display='none';
-    if(err)err.textContent='Haslo zmienione!';
+    // Sprawdz stare haslo
+    sha256(o).then(function(oldHash){
+      if(oldHash!==getHashLocal()){
+        if(err)err.textContent='Stare haslo nieprawidlowe';
+        return;
+      }
+      // Zapisz nowe haslo jako hash
+      sha256(n1).then(function(newHash){
+        saveHash(newHash);
+        ['chpwOld','chpwNew','chpwNew2'].forEach(function(id){
+          var el=document.getElementById(id);if(el)el.value='';
+        });
+        var b=document.getElementById('chpwBox');if(b)b.style.display='none';
+        if(err)err.textContent='';
+        if(typeof toast==='function')toast('Haslo zmienione na wszystkich urzadzeniach!','#27ae60');
+        else alert('Haslo zmienione! Zostanie zaktualizowane na wszystkich urzadzeniach.');
+      });
+    });
   };
+
+  // Sprawdz sesje - z synchronizacja hasla
+  function checkSessionAndSync(){
+    var exp=parseInt(lg('sp_session')||'0');
+    if(exp>Date.now()){
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('app').style.display='block';
+      if(typeof bootApp==='function')bootApp();
+      // Synchronizuj haslo w tle
+      setTimeout(window.syncPwFromFirebase,2000);
+    }
+  }
+
   var btn=document.getElementById('loginBtn');if(btn)btn.onclick=function(){window.doLogin();};
   var eye=document.getElementById('loginEye');if(eye)eye.onclick=function(){window.togglePwVis();};
   var chg=document.getElementById('loginChangeBtn');if(chg)chg.onclick=function(){window.toggleChangePw();};
   var sav=document.getElementById('chpwSaveBtn');if(sav)sav.onclick=function(){window.doChangePw();};
   var inp=document.getElementById('loginPw');if(inp)inp.onkeydown=function(e){if(e.key==='Enter')window.doLogin();};
+
+  checkSessionAndSync();
 })();
 </script>
 
