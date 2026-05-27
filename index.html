@@ -2676,7 +2676,7 @@ if(checkSession()){
     if(exp>Date.now()){
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
-      if(typeof bootApp==='function')bootApp();
+      try{if(typeof bootApp==='function')bootApp();}catch(e){alert('bootApp error: '+e.message);}
       // Synchronizuj haslo w tle
       setTimeout(window.syncPwFromFirebase,2000);
     }
