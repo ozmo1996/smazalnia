@@ -393,7 +393,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v7.0</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v10.1</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -403,6 +403,7 @@ touch-action:manipulation;
     <button class="nb" id="nb-m" onclick="gv('m')">&#x270F;&#xFE0F; Menu</button>
     <button class="nb" id="nb-w" onclick="gv('w')">&#x1F4E6; Magazyn</button>
     <button class="nb" id="nb-c" onclick="gv('c')">&#x2601;&#xFE0F; Chmura</button>
+    <button class="nb" id="nb-undo" onclick="undoLastAction()" style="display:none;">&#x21A9; Cofnij</button>
     <button class="nb logout" id="nb-x" onclick="logoutApp()">Wyloguj</button>
     <span id="fbd" class="fbd"></span>
   </nav>
@@ -1087,6 +1088,7 @@ function sendOrder(paid){
     ts:Date.now()};
   lsSet('sp_seq',ordSeq);
   orders[id]=order;saveOrds();
+  saveSnapshot('Zamowienie #'+order.seq);
   deductStock(items); // odejmij od magazynu
   cart={};document.getElementById('onote').value='';
   selTbl=null;
@@ -1165,6 +1167,7 @@ document.addEventListener('click',function(e){
   handleDataAction(btn);
 });
 function setStatus(id,status){
+  if(orders[id])saveSnapshot('Status: '+SL[status]||status);
   if(orders[id]){
     orders[id].status=status;
     if(status==='done')orders[id].doneTs=Date.now();
@@ -1177,6 +1180,7 @@ function setStatus(id,status){
   }
 }
 function setPaid(id){
+  saveSnapshot('Oplacono');
   if(orders[id]){orders[id].paid=true;saveOrds();onData();}
   if(fbReady)fbBg(fbDB.ref('orders/'+id).update({paid:true}));
 }
@@ -1185,6 +1189,7 @@ function setBarDone(id){
   if(fbReady)fbBg(fbDB.ref('orders/'+id).update({barDone:true}));
 }
 function delOrder(id){
+  saveSnapshot('Usunieto: '+(orders[id]?'Stolik '+orders[id].table:id));
   if(orders[id]){
     if(!orders[id].doneTs)orders[id].doneTs=Date.now();
     archive[id]=orders[id];saveArc();
@@ -1199,6 +1204,7 @@ function delOrder(id){
   }
 }
 function cancelOrder(id){
+  saveSnapshot('Anulowano: '+(orders[id]?'Stolik '+orders[id].table:id));
   delete orders[id];saveOrds();onDataImmediate();
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+1;
@@ -1355,6 +1361,14 @@ function renderList(){
 
     // Przycisk Oplacono
     if(payBtnEl2)footer.appendChild(payBtnEl2);
+
+    // Przycisk Dodaj
+    var addBtnEl=tb(document.createElement('button'),
+      (function(tbl){return function(){openAddToOrder(tbl);};})(mainO.table));
+    addBtnEl.className='ba';
+    addBtnEl.style.cssText='background:rgba(39,174,96,.15);color:#27ae60;border:1.5px solid rgba(39,174,96,.3);';
+    addBtnEl.innerHTML='&#x2795; Dodaj';
+    footer.appendChild(addBtnEl);
 
     // Przycisk Edytuj
     var editBtnEl=tb(document.createElement('button'),
@@ -1981,6 +1995,180 @@ function downloadBackup(){
 var _backupTimer=setInterval(function(){
   saveBackupLocal();
 },5*60*1000);
+
+// ═══════════════════════════════════════
+// SYSTEM COFANIA (UNDO)
+// ═══════════════════════════════════════
+var _undoStack=[];
+var _undoTimer=null;
+
+function saveSnapshot(label){
+  _undoStack.push({
+    label:label,
+    orders:JSON.parse(JSON.stringify(orders)),
+    archive:JSON.parse(JSON.stringify(archive)),
+    stock:JSON.parse(JSON.stringify(stock)),
+    ts:Date.now()
+  });
+  // Max 10 snapshots
+  if(_undoStack.length>10)_undoStack.shift();
+  showUndoBtn(label);
+}
+
+function showUndoBtn(label){
+  var btn=document.getElementById('nb-undo');
+  if(!btn)return;
+  btn.style.display='';
+  btn.innerHTML='&#x21A9; Cofnij: '+esc(label);
+  // Ukryj po 30 sekundach
+  if(_undoTimer)clearTimeout(_undoTimer);
+  _undoTimer=setTimeout(function(){
+    _undoStack=[];
+    var b=document.getElementById('nb-undo');
+    if(b)b.style.display='none';
+  },30000);
+}
+
+function undoLastAction(){
+  if(!_undoStack.length){
+    toast('Brak akcji do cofniecia','#778');
+    return;
+  }
+  var snap=_undoStack.pop();
+  // Przywroc stan
+  orders=snap.orders;
+  archive=snap.archive;
+  stock=snap.stock;
+  saveOrds();saveArc();saveStock();
+  // Synchronizuj z Firebase
+  if(fbReady){
+    window._fbSkipNext=(window._fbSkipNext||0)+2;
+    window._fbSkipArchive=(window._fbSkipArchive||0)+1;
+    fbBg(fbDB.ref('orders').set(orders));
+    fbBg(fbDB.ref('archive').set(archive));
+    fbBg(fbDB.ref('stock').set(stock));
+  }
+  onDataImmediate();
+  toast('Cofnieto: '+esc(snap.label),'#f5a623');
+  vib([10,30,10]);
+  // Jesli sa jeszcze snapshoty - poakz nastepny
+  if(_undoStack.length){
+    showUndoBtn(_undoStack[_undoStack.length-1].label);
+  } else {
+    var btn=document.getElementById('nb-undo');
+    if(btn)btn.style.display='none';
+    if(_undoTimer)clearTimeout(_undoTimer);
+  }
+}
+
+function openAddToOrder(table){
+  var existing=document.getElementById('addToOrderModal');
+  if(existing)existing.remove();
+
+  var newItems={};  // {id: {id,name,emoji,price,qty}}
+
+  function getItemsHTML(){
+    var keys=Object.keys(newItems);
+    if(!keys.length)return '<div style="color:#aaa;font-size:.83rem;text-align:center;padding:10px;">Brak pozycji — wybierz z listy ponizej</div>';
+    return keys.map(function(k){
+      var it=newItems[k];
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;">'+
+        '<span style="font-size:1.2rem;">'+it.emoji+'</span>'+
+        '<span style="flex:1;font-size:.85rem;font-weight:700;color:#0b1e28;">'+esc(it.name)+'</span>'+
+        '<button id="atom_'+k+'" data-k="'+k+'" class="atobm" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">-</button>'+
+        '<span id="atoq_'+k+'" style="min-width:24px;text-align:center;font-weight:900;">'+it.qty+'</span>'+
+        '<button id="atobp_'+k+'" data-k="'+k+'" class="atobp" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">+</button>'+
+        '<button id="atox_'+k+'" data-k="'+k+'" class="atox" style="width:30px;height:30px;border-radius:6px;border:none;background:#fde8e3;color:#e85c3a;cursor:pointer;">&#x2715;</button>'+
+      '</div>';
+    }).join('');
+  }
+
+  // Menu opcje
+  var allItems=[];
+  ['main','sides','drinks'].forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(it.available!==false)allItems.push(it);});});
+  var opts=allItems.map(function(it){
+    return '<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
+  }).join('');
+
+  var tblLabel=table==='my'?'MY - obsluga':(typeof table==='string'&&table.indexOf('odbior')===0?'Odbior '+table.slice(7):'Stolik '+table);
+
+  var m=document.createElement('div');
+  m.id='addToOrderModal';
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;';
+  m.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:18px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;">'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:12px;">&#x2795; Dodaj do — '+esc(tblLabel)+'</div>'+
+      '<div id="atoRows" style="margin-bottom:10px;min-height:40px;">'+getItemsHTML()+'</div>'+
+      '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
+        '<select id="atoSel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.82rem;">'+opts+'</select>'+
+        '<button id="atoAddBtn" style="padding:8px 14px;border-radius:8px;border:none;background:#1278a8;color:#fff;font-weight:900;cursor:pointer;">+ Dodaj</button>'+
+      '</div>'+
+      '<div style="margin-bottom:10px;">'+
+        '<label style="font-size:.78rem;color:#666;font-weight:700;">Uwagi:</label>'+
+        '<input id="atoNote" placeholder="np. bez lodu..." style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.83rem;margin-top:4px;box-sizing:border-box;">'+
+      '</div>'+
+      '<div style="display:flex;gap:8px;">'+
+        '<button id="atoSend" style="flex:1;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a8a45,#27ae60);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.95rem;cursor:pointer;">&#x2705; Wyslij do kuchni</button>'+
+        '<button id="atoCanc" style="padding:12px 16px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-weight:700;cursor:pointer;">Anuluj</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(m);
+
+  function rebuildRows(){
+    document.getElementById('atoRows').innerHTML=getItemsHTML();
+    // Podepnij przyciski wierszy
+    Object.keys(newItems).forEach(function(k){
+      var bm=document.getElementById('atom_'+k);
+      var bp=document.getElementById('atobp_'+k);
+      var bx=document.getElementById('atox_'+k);
+      var qs=document.getElementById('atoq_'+k);
+      if(bm)bm.onclick=function(){newItems[k].qty=Math.max(1,newItems[k].qty-1);qs.textContent=newItems[k].qty;};
+      if(bp)bp.onclick=function(){newItems[k].qty++;qs.textContent=newItems[k].qty;};
+      if(bx)bx.onclick=function(){delete newItems[k];rebuildRows();};
+    });
+  }
+
+  // Przycisk Dodaj pozycje
+  document.getElementById('atoAddBtn').onclick=function(){
+    var sel=document.getElementById('atoSel');
+    var found=null;
+    allItems.forEach(function(it){if(it.id===sel.value)found=it;});
+    if(!found)return;
+    if(newItems[found.id]){newItems[found.id].qty++;}
+    else{newItems[found.id]={id:found.id,name:found.name,emoji:found.emoji,price:found.price,qty:1};}
+    rebuildRows();
+  };
+
+  // Przycisk Anuluj
+  document.getElementById('atoCanc').onclick=function(){m.remove();};
+
+  // Przycisk Wyslij
+  document.getElementById('atoSend').onclick=function(){
+    var keys=Object.keys(newItems);
+    if(!keys.length){toast('Dodaj minimum 1 pozycje','#e85c3a');return;}
+    var items=keys.map(function(k){return newItems[k];});
+    var tot=items.reduce(function(s,it){return s+it.price*it.qty;},0);
+    var note=document.getElementById('atoNote').value.trim();
+    var id=uid();
+    var order={
+      id:id,seq:ordSeq++,table:table,items:items,total:tot,note:note,
+      status:'pending',paid:false,wynos:false,barDone:false,
+      timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
+      ts:Date.now()
+    };
+    lsSet('sp_seq',ordSeq);
+    saveSnapshot('Dodano do: '+tblLabel);
+    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    orders[id]=order;
+    saveOrds();
+    deductStock(items);
+    if(fbReady)fbBg(fbDB.ref('orders/'+id).set(order));
+    m.remove();
+    onDataImmediate();
+    toast('Dodano zamowienie #'+order.seq+' dla '+tblLabel+'!','#27ae60');
+    vib([10,30,10]);
+  };
+}
 
 function openStats(){
   // Jesli juz jestesmy w statystykach - bez hasla
