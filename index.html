@@ -2416,12 +2416,17 @@ if(checkSession()){
   // 4. Service Worker — cache offline
   if('serviceWorker' in navigator){
     var swCode=
-      'var CACHE="smazalnia-v1";'+
-      'var URLS=["https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap","https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js","https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"];'+
+      'var CACHE="smazalnia-v5";'+
       'self.addEventListener("install",function(e){'+
-        'e.waitUntil(caches.open(CACHE).then(function(c){'+
-          'return Promise.allSettled(URLS.map(function(u){return c.add(u).catch(function(){});}));'+
-        '}));'+
+        'e.waitUntil('+
+          'caches.open(CACHE).then(function(c){'+
+            'return c.addAll(['+
+              '"https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap",'+
+              '"https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js",'+
+              '"https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"'+
+            '].map(function(u){return fetch(u).then(function(r){return c.put(u,r);}).catch(function(){});}))'+
+          '})'+
+        ');'+
         'self.skipWaiting();'+
       '});'+
       'self.addEventListener("activate",function(e){'+
@@ -2432,16 +2437,34 @@ if(checkSession()){
       '});'+
       'self.addEventListener("fetch",function(e){'+
         'if(e.request.method!=="GET")return;'+
-        'e.respondWith(fetch(e.request).then(function(r){'+
-          'var rc=r.clone();'+
-          'caches.open(CACHE).then(function(c){c.put(e.request,rc);});'+
-          'return r;'+
-        '}).catch(function(){return caches.match(e.request);}));'+
+        'e.respondWith('+
+          'caches.match(e.request).then(function(cached){'+
+            'var network=fetch(e.request).then(function(r){'+
+              'if(r&&r.status===200){var rc=r.clone();caches.open(CACHE).then(function(c){c.put(e.request,rc);});}'+
+              'return r;'+
+            '}).catch(function(){return cached;});'+
+            'return cached||network;'+
+          '})'+
+        ');'+
       '});';
     var swBlob=new Blob([swCode],{type:'application/javascript'});
     var swUrl=URL.createObjectURL(swBlob);
     navigator.serviceWorker.register(swUrl,{scope:'./'}).catch(function(){});
   }
+
+  // Synchronizacja gdy wraca internet
+  window.addEventListener('online',function(){
+    if(!fbReady)return;
+    // Wyslij lokalne dane do Firebase
+    var localOrders=orders;
+    if(Object.keys(localOrders).length>0){
+      fbBg(fbDB.ref('orders').set(localOrders));
+      toast('Internet przywrocony — synchronizacja...','#27ae60');
+    }
+  });
+  window.addEventListener('offline',function(){
+    toast('Tryb offline — dane zapisywane lokalnie','#f5a623');
+  });
 
   // 5. Przycisk "Dodaj do ekranu głównego"
   var deferredPrompt=null;
