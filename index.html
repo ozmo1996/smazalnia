@@ -16,27 +16,31 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
 <!-- Firebase SDK - ladowane dynamicznie zeby nie blokowac offline -->
 <script>
-// Fallback offline - dziala bez Firebase
-window._fbRef={
+// Fallback offline - osobny obiekt, nie nadpisuje window.firebase
+window._fbOfflineRef={
   on:function(){return this;},off:function(){return this;},
   once:function(){return Promise.resolve({val:function(){return null;}});},
   set:function(){return Promise.resolve();},update:function(){return Promise.resolve();},
-  remove:function(){return Promise.resolve();},ref:function(){return window._fbRef;}
+  remove:function(){return Promise.resolve();},ref:function(){return window._fbOfflineRef;}
 };
-window.firebase={apps:[],initializeApp:function(){return{};},database:function(){return{ref:function(){return window._fbRef;}};}};
+window._fbOfflineDB={ref:function(){return window._fbOfflineRef;}};
+window._fbOffline={apps:[],initializeApp:function(){return{};},database:function(){return window._fbOfflineDB;}};
 
-// Laduj Firebase SDK asynchronicznie - nie blokuje startu aplikacji
+// Laduj Firebase SDK asynchronicznie
 function loadFirebaseSDK(cb){
+  if(typeof firebase!=='undefined'&&firebase.apps!==undefined&&firebase.database&&typeof firebase.database==='function'){
+    if(cb)cb();return;
+  }
   var s1=document.createElement('script');
   s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
   s1.onload=function(){
     var s2=document.createElement('script');
     s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
     s2.onload=function(){if(cb)cb();};
-    s2.onerror=function(){console.warn('Firebase DB offline');};
+    s2.onerror=function(){if(cb)cb();};
     document.head.appendChild(s2);
   };
-  s1.onerror=function(){console.warn('Firebase App offline');};
+  s1.onerror=function(){if(cb)cb();};
   document.head.appendChild(s1);
 }
 </script>
@@ -389,7 +393,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.6</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.7</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -742,39 +746,29 @@ function initFb(cfg){
     toast('Brak danych Firebase - sprawdz zakladke Chmura','#e85c3a');
     return;
   }
-  // Zaladuj Firebase SDK jesli jeszcze nie zaladowany
-  var realFirebase=(firebase.apps&&firebase.apps.length>0)||
-    (typeof firebase.database().ref('test').on==='function'&&firebase!==window.firebase);
-
-  function doInit(){
+  loadFirebaseSDK(function(){
     try{
-      var existingApp=firebase.apps&&firebase.apps[0];
-      if(existingApp&&fbDB&&fbReady){
-        dot('ok');subAll();return;
+      var fb=typeof firebase!=='undefined'?firebase:window._fbOffline;
+      var existingApp=fb.apps&&fb.apps[0];
+      if(!existingApp){fb.initializeApp(cfg);}
+      fbDB=fb.database();
+      fbReady=(fb!==window._fbOffline);
+      if(fbReady){
+        dot('ok');
+        toast('Firebase polaczony!','#27ae60');
+        subAll();
+      } else {
+        dot('er');
+        toast('Tryb offline — dane lokalne','#f5a623');
       }
-      if(!existingApp){firebase.initializeApp(cfg);}
-      fbDB=firebase.database();
-      fbReady=true;
-      dot('ok');
-      toast('Firebase polaczony!','#27ae60');
-      subAll();
       if(curV==='c')renderCloud();
     }catch(e){
       dot('er');fbReady=false;
+      fbDB=window._fbOfflineDB;
       toast('Firebase blad: '+e.message,'#e85c3a');
       if(curV==='c')renderCloud();
     }
-  }
-
-  // Sprawdz czy to prawdziwy Firebase czy fallback
-  if(window.firebase===firebase||!firebase.apps){
-    // Fallback - zaladuj prawdziwy SDK
-    if(typeof loadFirebaseSDK==='function'){
-      loadFirebaseSDK(doInit);
-    }
-  } else {
-    doInit();
-  }
+  });
 }
 
 function subAll(){
@@ -2327,9 +2321,7 @@ function checkSession(){
 function logoutApp(){
   savePhoneBackup();
   rawRemove(lsKey('sp_session'));
-  if(fbReady&&fbDB){
-    try{firebase.app().delete();}catch(e){}
-  }
+  try{localStorage.removeItem('sp_session');}catch(e){}
   fbReady=false;fbDB=null;dot('');
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
@@ -2371,23 +2363,8 @@ function bootApp(){
   else{fbReady=false;fbDB=null;dot('');if(curV==='c')renderCloud();}
 }
 
-// Sprawdz sesje przy starcie
+// Sprawdz sesje przy starcie - obslugiwane przez skrypt logowania
 applyProfileUI();
-if(checkSession()){
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
-  try{
-    bootApp();
-  }catch(e){
-    console.error('bootApp error:',e);
-    // Jesli bootApp crashuje — wróc do logowania
-    document.getElementById('loginScreen').style.display='flex';
-    document.getElementById('app').style.display='none';
-    var err=document.getElementById('loginErr');
-    if(err)err.textContent='Blad startu: '+e.message;
-  }
-}
-// Jeśli brak sesji — loginScreen jest już widoczny domyślnie
 
 
 (function(){
@@ -2536,7 +2513,6 @@ if(checkSession()){
 <!-- Login - SHA-256 + synchronizacja przez Firebase -->
 <script>
 (function(){
-  alert("LOGIN SCRIPT START");
   var FB_PW_KEY='app_password_hash'; // sciezka w Firebase
   var FB_PW_PATH='settings/pwHash';  // /settings/pwHash w bazie
   var DEFAULT_HASH=''; // pusty = pierwsze uruchomienie
@@ -2677,7 +2653,7 @@ if(checkSession()){
     if(exp>Date.now()){
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
-      try{if(typeof bootApp==='function')bootApp();}catch(e){alert('bootApp error: '+e.message);}
+      if(typeof bootApp==='function')bootApp();
       // Synchronizuj haslo w tle
       setTimeout(window.syncPwFromFirebase,2000);
     }
