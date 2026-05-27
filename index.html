@@ -13,9 +13,29 @@
 <link rel="manifest" id="pwa-manifest">
 <link rel="apple-touch-icon" id="pwa-icon">
 <title>Smazalnia Pstraga</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet"><!-- Firebase SDK -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
+<!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+// Fallback gdy Firebase SDK nie zaladowany (tryb offline)
+if(typeof firebase==='undefined'){
+  var _fbRef={
+    on:function(){return this;},
+    off:function(){return this;},
+    once:function(){return Promise.resolve({val:function(){return null;}});},
+    set:function(){return Promise.resolve();},
+    update:function(){return Promise.resolve();},
+    remove:function(){return Promise.resolve();},
+    ref:function(){return _fbRef;}
+  };
+  window.firebase={
+    apps:[],
+    initializeApp:function(){return {};},
+    database:function(){return{ref:function(){return _fbRef;}};}
+  };
+}
+</script>
 <style>
 :root{--bg:#0b1e28;--deep:#07131b;--w:#0d4a6a;--s:#1278a8;--a:#f5a623;--g:#d4870e;--e:#e85c3a;--gr:#27ae60;--c:#fff;--card:#fff;--r:14px}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
