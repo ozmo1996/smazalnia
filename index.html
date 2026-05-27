@@ -365,7 +365,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.0</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.1</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -719,18 +719,17 @@ function initFb(cfg){
     return;
   }
   try{
-    dot('');
-    firebase.app(); // sprawdz czy juz istnieje
-  }catch(e){
-    // nie istnieje - inicjalizuj
-  }
-  try{
-    // Usun stare instancje
-    var apps=firebase.apps||[];
-    for(var i=0;i<apps.length;i++){
-      try{apps[i].delete();}catch(ex){}
+    // Sprawdz czy juz zainicjalizowany z tymi samymi danymi
+    var existingApp=firebase.apps&&firebase.apps[0];
+    if(existingApp&&fbDB&&fbReady){
+      // Juz polaczony - nie reinicjalizuj
+      dot('ok');
+      subAll();
+      return;
     }
-    firebase.initializeApp(cfg);
+    if(!existingApp){
+      firebase.initializeApp(cfg);
+    }
     fbDB=firebase.database();
     fbReady=true;
     dot('ok');
@@ -747,11 +746,13 @@ function initFb(cfg){
 }
 
 function subAll(){
+  var _fbLocalChange=false;
+  window._fbSkipNext=0;
   fbDB.ref('orders').on('value',function(snap){
+    if(window._fbSkipNext>0){window._fbSkipNext--;return;}
+    if(_fbLocalChange)return;
     orders=snap.val()||{};
     saveOrds();
-setTimeout(function(){ location.reload(); }, 150);
-
     onData();
   });
   fbDB.ref('archive').on('value',function(snap){
@@ -1129,18 +1130,24 @@ function setBarDone(id){
 }
 function delOrder(id){
   if(orders[id]){
-    // Dodaj doneTs jesli jeszcze nie ma (zamowienie usuniete bez przejscia przez "Wydane")
     if(!orders[id].doneTs)orders[id].doneTs=Date.now();
     archive[id]=orders[id];saveArc();
     if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id]));
   }
-  delete orders[id];saveOrds();onData();
-  if(fbReady)fbBg(fbDB.ref('orders/'+id).remove());
+  delete orders[id];
+  saveOrds();
+  onData();
+  if(fbReady){
+    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    fbBg(fbDB.ref('orders/'+id).remove());
+  }
 }
 function cancelOrder(id){
-  // Anuluj bez archiwizacji - znika ze statystyk
   delete orders[id];saveOrds();onData();
-  if(fbReady)fbBg(fbDB.ref('orders/'+id).remove());
+  if(fbReady){
+    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    fbBg(fbDB.ref('orders/'+id).remove());
+  }
   toast('Zamowienie anulowane','#778');
 }
 
@@ -1216,32 +1223,41 @@ function renderList(){
     var hasUnpaid=grp.some(function(o){return o.paid===false;});
     var allPaid=grp.every(function(o){return o.paid!==false;});
 
-    // Przyciski statusu - uzywamy data-ids zamiast inline JSON
+    // Helper - dodaje onclick + touchend na przycisku
+    function tb(el,fn){
+      el.onclick=fn;
+      el.addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();fn();},{passive:false});
+      return el;
+    }
+
+    // Przyciski statusu
     var idsStr=grp.map(function(o){return o.id;}).join(',');
     var nx=null;
-    var idsStr2=grp.map(function(o){return o.id;});
+    var idsArr=grp.map(function(o){return o.id;});
     if(mainO.status==='pending'){
-      nx=document.createElement('button');nx.className='ba bac';nx.innerHTML='&#x1F525; Gotowanie';
-      (function(ids){nx.onclick=function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'cooking');};})(idsStr2);
+      nx=tb(document.createElement('button'),
+        (function(ids){return function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'cooking');};})(idsArr));
+      nx.className='ba bac';nx.innerHTML='&#x1F525; Gotowanie';
     } else if(mainO.status==='cooking'){
-      nx=document.createElement('button');nx.className='ba bar';nx.innerHTML='&#x2705; Gotowe';
-      (function(ids){nx.onclick=function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'ready');};})(idsStr2);
+      nx=tb(document.createElement('button'),
+        (function(ids){return function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'ready');};})(idsArr));
+      nx.className='ba bar';nx.innerHTML='&#x2705; Gotowe';
     } else if(mainO.status==='ready'){
-      nx=document.createElement('button');nx.className='ba bad';nx.innerHTML='&#x1F37D; Wydane';
-      (function(ids){nx.onclick=function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'done');};})(idsStr2);
+      nx=tb(document.createElement('button'),
+        (function(ids){return function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'done');};})(idsArr));
+      nx.className='ba bad';nx.innerHTML='&#x1F37D; Wydane';
     }
 
     // Przycisk Oplacono
     var payBtnEl2=null;
     if(hasUnpaid){
       var unpaidIds2=grp.filter(function(o){return o.paid===false;}).map(function(o){return o.id;});
-      payBtnEl2=document.createElement('button');
+      payBtnEl2=tb(document.createElement('button'),
+        (function(ids){return function(){for(var i=0;i<ids.length;i++)setPaid(ids[i]);toast('Zamowienie oplacone!','#27ae60');};})(unpaidIds2));
       payBtnEl2.className='ba';payBtnEl2.style.cssText='background:var(--gr);color:#fff;min-width:90px;';
       payBtnEl2.innerHTML='&#x1F4B0; Oplacono';
-      (function(ids){payBtnEl2.onclick=function(){for(var i=0;i<ids.length;i++)setPaid(ids[i]);toast('Zamowienie oplacone!','#27ae60');};})(unpaidIds2);
     }
 
-    // Jeden przycisk usuń dla całej grupy
     var allIds=grp.map(function(o){return o.id;}).join(',');
 
     // Znaczki
@@ -1285,20 +1301,20 @@ function renderList(){
     if(payBtnEl2)footer.appendChild(payBtnEl2);
 
     // Przycisk Edytuj
-    var editBtnEl=document.createElement('button');
+    var editBtnEl=tb(document.createElement('button'),
+      (function(oid){return function(){openEditOrder(oid);};})(mainO.id));
     editBtnEl.className='ba';
     editBtnEl.style.cssText='background:rgba(18,120,168,.15);color:#7ec8e3;border:1.5px solid rgba(18,120,168,.3);';
     editBtnEl.innerHTML='&#x270F; Edytuj';
-    (function(oid){editBtnEl.onclick=function(){openEditOrder(oid);};})(mainO.id);
     footer.appendChild(editBtnEl);
 
     // Przycisk Usun
-    var delBtnEl=document.createElement('button');
+    var delBtnEl=tb(document.createElement('button'),
+      (function(ids){return function(){
+        for(var i=0;i<ids.length;i++)delOrder(ids[i]);
+      };})(allIds.split(',')));
     delBtnEl.className='ba badl';
     delBtnEl.innerHTML='&#x1F5D1; Usun';
-    (function(ids){
-      delBtnEl.onclick=function(){for(var i=0;i<ids.length;i++)delOrder(ids[i]);};
-    })(allIds.split(','));
     footer.appendChild(delBtnEl);
 
     // Kwota
@@ -1754,7 +1770,8 @@ function openEditOrder(id){
     var brefresh=document.getElementById('erefresh');
     if(brefresh)brefresh.onclick=function(e){
       e.preventDefault();
-      location.reload();
+      if(m&&m.parentNode)m.parentNode.removeChild(m);
+      onData();
     };
 
     var bsave=document.getElementById('esave');
@@ -1777,27 +1794,17 @@ function openEditOrder(id){
         saveOrds();
 
         if(fbReady){
-          fbBg(
-            fbDB.ref('orders/'+id).update({
-              items:ord.items,
-              note:ord.note,
-              total:ord.total
-            })
-          );
+          window._fbSkipNext=(window._fbSkipNext||0)+1;
+          fbBg(fbDB.ref('orders/'+id).update({
+            items:ord.items,
+            note:ord.note,
+            total:ord.total
+          }));
         }
 
         onData();
         toast('Zaktualizowano zamowienie!','#27ae60');
-
-        try{
-          if(m && m.parentNode){
-            m.parentNode.removeChild(m);
-          }
-        }catch(err){}
-
-        setTimeout(function(){
-          location.reload();
-        },100);
+        try{if(m&&m.parentNode)m.parentNode.removeChild(m);}catch(err){}
       };
     }
   }
@@ -1826,8 +1833,33 @@ function openStats(){
   var err=document.getElementById('statsPwErr');
   function tryEnter(){
     if(!inp.value){return;}
+    var stored=window.getStoredPw();
+    // Jesli brak hasha w localStorage - sprawdz przez Firebase lub uzyj domyslnego
+    if(!stored){
+      err.textContent='Ladowanie hasla...';
+      if(fbReady){
+        fbDB.ref('settings/pwHash').once('value').then(function(snap){
+          var fbHash=snap.val();
+          if(fbHash){
+            try{localStorage.setItem('sp_pwhash',fbHash);}catch(ex){}
+            tryEnter();
+          } else {
+            sha256('smazalnia2024').then(function(h){
+              try{localStorage.setItem('sp_pwhash',h);}catch(ex){}
+              tryEnter();
+            });
+          }
+        });
+      } else {
+        sha256('smazalnia2024').then(function(h){
+          try{localStorage.setItem('sp_pwhash',h);}catch(ex){}
+          tryEnter();
+        });
+      }
+      return;
+    }
     sha256(inp.value).then(function(hash){
-      if(hash!==window.getStoredPw()){
+      if(hash!==stored){
         err.textContent='Nieprawidlowe haslo';
         inp.value='';
         vib(50);
