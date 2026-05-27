@@ -393,7 +393,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.7</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v6.0</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -791,7 +791,9 @@ function subAll(){
     saveOrds();
     onData();
   });
+  window._fbSkipArchive=0;
   fbDB.ref('archive').on('value',function(snap){
+    if(window._fbSkipArchive>0){window._fbSkipArchive--;return;}
     archive=snap.val()||{};
     saveArc();
     if(curV==='s')renderStats();
@@ -1127,6 +1129,7 @@ function handleDataAction(btn){
   if(action==='clearorders') { clearAllOrders(); return; }
   if(action==='editorder')  { openEditOrder(ids[0]); return; }
   if(action==='doClrStats')    { doClrStats(); return; }
+  if(action==='clearstats')   { confirmClearStats(); return; }
   if(action==='closeClrStats') { var m=document.getElementById('clearStatsModal');if(m)m.remove(); return; }
 }
 var _lastDelegateTouch=0;
@@ -1651,17 +1654,46 @@ function setStock(name,val){
 }
 
 function resetStock(){
-  if(!confirm('Zresetowac stan magazynowy do wartosci poczatkowych?'))return;
-  var items=getAllMenuItems();
-  items.forEach(function(it){
-    if(stock[it.name]){
-      stock[it.name].current=stock[it.name].init||0;
-    }
-  });
-  saveStock();
-  if(fbReady)fbBg(fbDB.ref('stock').set(stock));
-  renderStock();
-  toast('Stan magazynowy zresetowany','#27ae60');
+  // Pierwsze potwierdzenie
+  var m1=document.createElement('div');
+  m1.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
+  m1.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-size:2rem;margin-bottom:8px;">&#x1F504;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.05rem;font-weight:700;color:#0b1e28;margin-bottom:8px;">Resetowac magazyn?</div>'+
+      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan biezacy zostanie przywrocony do wartosci poczatkowych.</div>'+
+      '<button id="rst1ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, resetuj</button>'+
+      '<button id="rst1no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(m1);
+  document.getElementById('rst1no').onclick=function(){m1.remove();};
+  document.getElementById('rst1ok').onclick=function(){
+    m1.remove();
+    // Drugie potwierdzenie
+    var m2=document.createElement('div');
+    m2.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px;';
+    m2.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+        '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
+        '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">To jest ostateczne. Wszystkie biezace stany zostana nadpisane wartosciami poczatkowymi.</div>'+
+        '<button id="rst2ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Potwierdz reset</button>'+
+        '<button id="rst2no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+      '</div>';
+    document.body.appendChild(m2);
+    document.getElementById('rst2no').onclick=function(){m2.remove();};
+    document.getElementById('rst2ok').onclick=function(){
+      m2.remove();
+      var items=getAllMenuItems();
+      items.forEach(function(it){
+        if(stock[it.name])stock[it.name].current=stock[it.name].init||0;
+      });
+      saveStock();
+      if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+      renderStock();
+      toast('Stan magazynowy zresetowany','#27ae60');
+    };
+  };
 }
 
 // Odejmij sprzedane przy zlozeniu zamowienia
@@ -2107,7 +2139,7 @@ function renderStats(){
     (hourRows?'<div class="ss2">&#x1F4C5; Sredni czas wydania wg godziny</div><table class="stbl"><tr><th>Godzina</th><th>Sr. czas</th><th>Zamowien</th><th>Ocena</th></tr>'+hourRows+'</table>':'')+
     '<div class="ss2">Historia</div>'+
     '<div style="margin-bottom:8px">'+
-      '<button class="sf" data-action="clearstats" style="background:rgba(232,92,58,.15);border-color:rgba(232,92,58,.3);color:var(--e);">&#x1F5D1; Wyczysc statystyki</button>'+
+      '<button class="sf" onclick="confirmClearStats()" style="background:rgba(232,92,58,.15);border-color:rgba(232,92,58,.3);color:var(--e);">&#x1F5D1; Wyczysc statystyki</button>'+
     '</div>'+
     '<div class="hl">'+(histRows||'<div class="ni">Brak wydanych zamowien</div>')+'</div>';
 }
@@ -2381,16 +2413,23 @@ function confirmClearStats(){
   modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
   modal.innerHTML=
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:340px;width:100%;text-align:center;">'+
-      '<div style="font-size:2rem;margin-bottom:8px;">&#x1F5D1;</div>'+
+      '<div style="font-size:2rem;margin-bottom:8px;">&#x1F4CA;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">Wyczysc statystyki</div>'+
       '<div style="color:#666;font-size:.83rem;margin-bottom:14px;">Wpisz haslo do aplikacji aby potwierdzic.</div>'+
       '<input id="clearStatsPw" type="password" placeholder="Haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
       '<div id="clearStatsErr" style="color:#e85c3a;font-size:.8rem;font-weight:800;min-height:18px;margin-bottom:8px;"></div>'+
-      '<button data-action="doClrStats" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Wyczysc</button>'+
-      '<button data-action="closeClrStats" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+      '<button id="clrStOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Dalej</button>'+
+      '<button id="clrStNo" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
     '</div>';
   document.body.appendChild(modal);
-  setTimeout(function(){var inp=document.getElementById('clearStatsPw');if(inp)inp.focus();},100);
+
+  document.getElementById('clrStNo').onclick=function(){modal.parentNode.removeChild(modal);};
+  document.getElementById('clrStOk').onclick=function(){doClrStats();};
+  var inp=document.getElementById('clearStatsPw');
+  if(inp){
+    inp.onkeydown=function(e){if(e.key==='Enter')doClrStats();};
+    setTimeout(function(){inp.focus();},100);
+  }
 }
 
 function doClrStats(){
@@ -2398,13 +2437,39 @@ function doClrStats(){
   var err=document.getElementById('clearStatsErr');
   if(!pw||!err)return;
   sha256(pw.value).then(function(hash){
-    if(hash!==window.getStoredPw()){err.textContent='Nieprawidlowe haslo';pw.value='';return;}
-    archive={};saveArc();
-    if(fbReady)fbBg(fbDB.ref('archive').remove());
-    var modal=document.getElementById('clearStatsModal');
-    if(modal)modal.remove();
-    renderStats();
-    toast('Statystyki wyczyszczone!','#27ae60');
+    if(hash!==window.getStoredPw()){
+      err.textContent='Nieprawidlowe haslo';
+      pw.value='';
+      return;
+    }
+    // Haslo OK - drugie potwierdzenie
+    var m1=document.getElementById('clearStatsModal');
+    if(m1)m1.parentNode.removeChild(m1);
+
+    var m2=document.createElement('div');
+    m2.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px;';
+    m2.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+        '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
+        '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Wszystkie statystyki i historia zamowien zostana trwale usuniete.</div>'+
+        '<button id="clrSt2Ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Tak, wyczysc wszystko</button>'+
+        '<button id="clrSt2No" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+      '</div>';
+    document.body.appendChild(m2);
+
+    document.getElementById('clrSt2No').onclick=function(){m2.parentNode.removeChild(m2);};
+    document.getElementById('clrSt2Ok').onclick=function(){
+      m2.parentNode.removeChild(m2);
+      archive={};
+      saveArc();
+      if(fbReady){
+        window._fbSkipArchive=(window._fbSkipArchive||0)+1;
+        fbBg(fbDB.ref('archive').remove());
+      }
+      renderStats();
+      toast('Statystyki wyczyszczone!','#27ae60');
+    };
   });
 }
 
