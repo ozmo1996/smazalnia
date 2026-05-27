@@ -14,26 +14,30 @@
 <link rel="apple-touch-icon" id="pwa-icon">
 <title>Smazalnia Pstraga</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- Firebase SDK - ladowane dynamicznie zeby nie blokowac offline -->
 <script>
-// Fallback gdy Firebase SDK nie zaladowany (tryb offline)
-if(typeof firebase==='undefined'){
-  var _fbRef={
-    on:function(){return this;},
-    off:function(){return this;},
-    once:function(){return Promise.resolve({val:function(){return null;}});},
-    set:function(){return Promise.resolve();},
-    update:function(){return Promise.resolve();},
-    remove:function(){return Promise.resolve();},
-    ref:function(){return _fbRef;}
+// Fallback offline - dziala bez Firebase
+window._fbRef={
+  on:function(){return this;},off:function(){return this;},
+  once:function(){return Promise.resolve({val:function(){return null;}});},
+  set:function(){return Promise.resolve();},update:function(){return Promise.resolve();},
+  remove:function(){return Promise.resolve();},ref:function(){return window._fbRef;}
+};
+window.firebase={apps:[],initializeApp:function(){return{};},database:function(){return{ref:function(){return window._fbRef;}};}};
+
+// Laduj Firebase SDK asynchronicznie - nie blokuje startu aplikacji
+function loadFirebaseSDK(cb){
+  var s1=document.createElement('script');
+  s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+  s1.onload=function(){
+    var s2=document.createElement('script');
+    s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
+    s2.onload=function(){if(cb)cb();};
+    s2.onerror=function(){console.warn('Firebase DB offline');};
+    document.head.appendChild(s2);
   };
-  window.firebase={
-    apps:[],
-    initializeApp:function(){return {};},
-    database:function(){return{ref:function(){return _fbRef;}};}
-  };
+  s1.onerror=function(){console.warn('Firebase App offline');};
+  document.head.appendChild(s1);
 }
 </script>
 <style>
@@ -385,7 +389,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.5</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v5.6</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -738,30 +742,38 @@ function initFb(cfg){
     toast('Brak danych Firebase - sprawdz zakladke Chmura','#e85c3a');
     return;
   }
-  try{
-    // Sprawdz czy juz zainicjalizowany z tymi samymi danymi
-    var existingApp=firebase.apps&&firebase.apps[0];
-    if(existingApp&&fbDB&&fbReady){
-      // Juz polaczony - nie reinicjalizuj
+  // Zaladuj Firebase SDK jesli jeszcze nie zaladowany
+  var realFirebase=(firebase.apps&&firebase.apps.length>0)||
+    (typeof firebase.database().ref('test').on==='function'&&firebase!==window.firebase);
+
+  function doInit(){
+    try{
+      var existingApp=firebase.apps&&firebase.apps[0];
+      if(existingApp&&fbDB&&fbReady){
+        dot('ok');subAll();return;
+      }
+      if(!existingApp){firebase.initializeApp(cfg);}
+      fbDB=firebase.database();
+      fbReady=true;
       dot('ok');
+      toast('Firebase polaczony!','#27ae60');
       subAll();
-      return;
+      if(curV==='c')renderCloud();
+    }catch(e){
+      dot('er');fbReady=false;
+      toast('Firebase blad: '+e.message,'#e85c3a');
+      if(curV==='c')renderCloud();
     }
-    if(!existingApp){
-      firebase.initializeApp(cfg);
+  }
+
+  // Sprawdz czy to prawdziwy Firebase czy fallback
+  if(window.firebase===firebase||!firebase.apps){
+    // Fallback - zaladuj prawdziwy SDK
+    if(typeof loadFirebaseSDK==='function'){
+      loadFirebaseSDK(doInit);
     }
-    fbDB=firebase.database();
-    fbReady=true;
-    dot('ok');
-    toast('Firebase polaczony!','#27ae60');
-    subAll();
-    if(curV==='c')renderCloud();
-  }catch(e){
-    dot('er');
-    fbReady=false;
-    toast('Firebase blad: '+e.message,'#e85c3a');
-    console.error('FB init error:',e);
-    if(curV==='c')renderCloud();
+  } else {
+    doInit();
   }
 }
 
