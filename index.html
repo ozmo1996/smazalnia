@@ -393,7 +393,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v6.0</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v7.0</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -656,7 +656,9 @@ function toast(msg,color){
   setTimeout(function(){t.classList.remove('show');},2800);
 }
 
-function dSet(){return new Set((menu.drinks||[]).map(function(d){return norm(d.name);}));}
+var _dSetCache=null;
+function dSet(){if(!_dSetCache)_dSetCache=new Set((menu.drinks||[]).map(function(d){return norm(d.name);}));return _dSetCache;}
+function dSetInvalidate(){_dSetCache=null;}
 function isDrink(i){return dSet().has(norm(i.name));}
 function menuOrderMap(){
   var map={};
@@ -803,6 +805,7 @@ function subAll(){
     if(v){
       menu=v;
       lsSet('sp_menu',JSON.stringify(menu));
+      dSetInvalidate();
       renderMGs();
       if(curV==='m')renderEditor();
     }else{
@@ -854,7 +857,21 @@ function gv(name){
   if(name==='c')renderCloud();
 }
 
+var _onDataTimer=null;
 function onData(){
+  // Throttle - max raz na 300ms
+  if(_onDataTimer)clearTimeout(_onDataTimer);
+  _onDataTimer=setTimeout(function(){
+    _onDataTimer=null;
+    renderTbls();
+    if(curV==='l')renderList();
+    if(curV==='b')renderBar();
+    if(curV==='k')renderKitch();
+    if(curV==='s')renderStats();
+  },300);
+}
+function onDataImmediate(){
+  if(_onDataTimer){clearTimeout(_onDataTimer);_onDataTimer=null;}
   renderTbls();
   if(curV==='l')renderList();
   if(curV==='b')renderBar();
@@ -1175,14 +1192,14 @@ function delOrder(id){
   }
   delete orders[id];
   saveOrds();
-  onData();
+  onDataImmediate();
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+1;
     fbBg(fbDB.ref('orders/'+id).remove());
   }
 }
 function cancelOrder(id){
-  delete orders[id];saveOrds();onData();
+  delete orders[id];saveOrds();onDataImmediate();
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+1;
     fbBg(fbDB.ref('orders/'+id).remove());
@@ -1961,7 +1978,7 @@ function downloadBackup(){
 }
 
 // Auto-zapis co 5 minut
-setInterval(function(){
+var _backupTimer=setInterval(function(){
   saveBackupLocal();
 },5*60*1000);
 
@@ -2492,6 +2509,24 @@ function logoutApp(){
 // ═══════════════════════════════════════
 // BOOT (wywolywany po zalogowaniu)
 // ═══════════════════════════════════════
+
+// Timer kuchni - odswiezaj tylko liczniki czasu bez przebudowy DOM
+var _kitchTimer=null;
+function startKitchTimer(){
+  if(_kitchTimer)clearInterval(_kitchTimer);
+  _kitchTimer=setInterval(function(){
+    if(curV!=='k')return;
+    // Aktualizuj tylko elementy .tktmr bez przebudowy
+    var timers=document.querySelectorAll('.tktmr[data-ts]');
+    timers.forEach(function(el){
+      var ts=parseInt(el.getAttribute('data-ts')||'0');
+      if(!ts)return;
+      var sec=Math.floor((Date.now()-ts)/1000);
+      var m=Math.floor(sec/60);var s=sec%60;
+      el.textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+    });
+  },1000);
+}
 function bootApp(){
   applyProfileUI();
   orders={};
