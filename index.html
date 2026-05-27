@@ -481,6 +481,16 @@ touch-action:manipulation;
 </div>
 <div class="view" id="vc">
   <div id="cst"></div>
+
+  <!-- BACKUP -->
+  <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:4px;">&#x1F4BE; Backup lokalny</div>
+    <div style="color:rgba(255,255,255,.6);font-size:.78rem;margin-bottom:10px;">Automatyczny zapis co 5 minut. Kliknij aby pobrac plik .txt z wszystkimi zamowieniami.</div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button onclick="downloadBackup()" style="background:var(--a);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-family:Nunito,sans-serif;font-weight:900;font-size:.85rem;cursor:pointer;touch-action:manipulation;">&#x2B07; Pobierz backup</button>
+      <span id="backupStatus" style="color:rgba(255,255,255,.5);font-size:.75rem;"></span>
+    </div>
+  </div>
   <div class="cdiag"><div class="cdgt">Diagnostyka polaczenia</div><div id="cdiag"></div>
     <button class="bftst" onclick="testFb()" id="btest">Testuj polaczenie z Firebase</button>
   </div>
@@ -1837,6 +1847,91 @@ function openEditOrder(id){
 
   bindEvents();
 }
+
+// ═══════════════════════════════════════
+// BACKUP LOKALNY
+// ═══════════════════════════════════════
+function generateBackupText(){
+  var lines=[];
+  var now=new Date().toLocaleString('pl-PL');
+  lines.push('=== BACKUP SMAZALNIA PSTRAGA ===');
+  lines.push('Data: '+now);
+  lines.push('');
+
+  // Aktywne zamowienia
+  var aktywne=Object.values(orders).sort(function(a,b){return b.ts-a.ts;});
+  lines.push('--- AKTYWNE ZAMOWIENIA ('+aktywne.length+') ---');
+  aktywne.forEach(function(o){
+    var tbl=o.table==='my'?'MY - obsluga':
+      (typeof o.table==='string'&&o.table.indexOf('odbior')===0?'Odbior '+o.table.slice(7):'Stolik '+o.table);
+    lines.push('');
+    lines.push('[#'+o.seq+'] '+tbl+' | '+o.timeStr+' | Status: '+(o.status||'?')+' | '+(o.paid===false?'NIEOPLACONE':'OPLACONE'));
+    (o.items||[]).forEach(function(it){
+      lines.push('  - '+it.name+' x'+it.qty+' = '+(it.price*it.qty).toFixed(2)+' zl');
+    });
+    if(o.note)lines.push('  Uwagi: '+o.note);
+    lines.push('  RAZEM: '+(o.total||0).toFixed(2)+' zl');
+  });
+
+  // Archiwum z dzisiaj
+  var today=new Date().toLocaleDateString('pl-PL');
+  var dzisiaj=Object.values(archive).filter(function(o){
+    return o.timeStr&&o.timeStr.indexOf(today.slice(0,5))>=0||
+           (o.ts&&new Date(o.ts).toLocaleDateString('pl-PL')===today);
+  }).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+
+  lines.push('');
+  lines.push('--- WYDANE DZISIAJ ('+dzisiaj.length+') ---');
+  dzisiaj.forEach(function(o){
+    var tbl=o.table==='my'?'MY':('Stolik '+o.table);
+    lines.push('[#'+o.seq+'] '+tbl+' | '+(o.total||0).toFixed(2)+' zl');
+  });
+
+  // Podsumowanie
+  var totalAkt=aktywne.reduce(function(s,o){return s+(o.total||0);},0);
+  var totalDzis=dzisiaj.reduce(function(s,o){return s+(o.total||0);},0);
+  lines.push('');
+  lines.push('--- PODSUMOWANIE ---');
+  lines.push('Aktywne zamowienia: '+aktywne.length+' = '+totalAkt.toFixed(2)+' zl');
+  lines.push('Wydane dzisiaj: '+dzisiaj.length+' = '+totalDzis.toFixed(2)+' zl');
+
+  return lines.join('\n');
+}
+
+function saveBackupLocal(){
+  try{
+    var txt=generateBackupText();
+    lsSet('sp_backup_txt',txt);
+    lsSet('sp_backup_ts',String(Date.now()));
+    var el=document.getElementById('backupStatus');
+    if(el){
+      var t=new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+      el.textContent='Ostatni zapis: '+t;
+    }
+  }catch(e){}
+}
+
+function downloadBackup(){
+  // Odswierz backup
+  saveBackupLocal();
+  var txt=lsGet('sp_backup_txt')||generateBackupText();
+  var blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  var date=new Date().toLocaleDateString('pl-PL').replace(/\./g,'-');
+  a.href=url;
+  a.download='smazalnia_backup_'+date+'.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Backup pobrany!','#27ae60');
+}
+
+// Auto-zapis co 5 minut
+setInterval(function(){
+  saveBackupLocal();
+},5*60*1000);
 
 function openStats(){
   // Jesli juz jestesmy w statystykach - bez hasla
