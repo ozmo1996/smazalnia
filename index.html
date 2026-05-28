@@ -393,7 +393,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v10.1</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.01</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -432,8 +432,11 @@ touch-action:manipulation;
     <div class="oi" id="oi"><div class="oe">Dodaj pozycje z menu</div></div>
     <div class="of">
       <span class="ot">Razem: <b id="otot">0.00 zl</b><br><span class="oczk">= <b id="otczk">0</b> CZK</span></span>
-      <button class="bsnd" id="bsnd" disabled>&#x2705; Wyslij do kuchni</button>
-      <button class="bsnd2" id="bsnd2" disabled>&#x1F4CB; Na rachunek</button>
+      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+        <button class="bsnd" id="bsnd" disabled style="font-size:.78rem;padding:9px 12px;">&#x2705; Wyslij PLN</button>
+        <button class="bsnd" id="bsnd_czk" disabled style="font-size:.78rem;padding:9px 12px;background:linear-gradient(135deg,#0d4a6a,#1278a8);">&#x1F1E8;&#x1F1FF; Wyslij CZK</button>
+        <button class="bsnd2" id="bsnd2" disabled style="font-size:.78rem;padding:9px 12px;">&#x1F4CB; Na rachunek</button>
+      </div>
     </div>
   </div>
   <div style="height:22px"></div>
@@ -1067,17 +1070,25 @@ function renderCart(){
 function updSend(){
   var dis=!selTbl||!Object.keys(cart).length;
   document.getElementById('bsnd').disabled=dis;
+  document.getElementById('bsnd_czk').disabled=dis;
   document.getElementById('bsnd2').disabled=dis;
 }
 
 // WYSLIJ
-function doSend(){sendOrder(true);}
-function doSend2(){sendOrder(false);}
+function doSend(){sendOrder(true,'PLN');}
+function doSendCZK(){
+  var rate=getCZK();
+  var tot=parseFloat((document.getElementById('otot')||{}).textContent)||0;
+  var czkTot=Math.round(tot*rate);
+  sendOrder(true,'CZK',czkTot);
+}
+function doSend2(){sendOrder(false,'PLN');}
 
-function sendOrder(paid){
+function sendOrder(paid,currency,czkAmount){
   if(_send||!selTbl||!Object.keys(cart).length)return;
   _send=true;
   document.getElementById('bsnd').disabled=true;
+  var bck=document.getElementById('bsnd_czk');if(bck)bck.disabled=true;
   document.getElementById('bsnd2').disabled=true;
   var note=document.getElementById('onote').value.trim();
   var id=uid();
@@ -1087,6 +1098,9 @@ function sendOrder(paid){
   var tot=0;for(var i=0;i<items.length;i++)tot+=items[i].price*items[i].qty;
   var order={id:id,seq:ordSeq++,table:selTbl,items:items,total:tot,note:note,
     status:'pending',paid:paid,wynos:wynos,barDone:false,
+    currency:currency||'PLN',
+    czkAmount:czkAmount||0,
+    czkRate:getCZK(),
     timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
     ts:Date.now()};
   lsSet('sp_seq',ordSeq);
@@ -1102,11 +1116,14 @@ function sendOrder(paid){
   if(lblW){lblW.style.background='rgba(255,255,255,.07)';lblW.style.borderColor='rgba(255,255,255,.12)';}
   if(txtW)txtW.style.color='rgba(255,255,255,.7)';
   renderCart();renderTbls();
-  if(paid){
-    toast('Zamowienie #'+order.seq+' wyslane!');
+  if(paid&&currency==='CZK'){
+    toast('Zamowienie #'+order.seq+' — oplac. CZK!','#1278a8');
+    vib([10,30,10]);
+  } else if(paid){
+    toast('Zamowienie #'+order.seq+' — oplac. PLN!','#27ae60');
     vib([10,30,10]);
   } else {
-    toast('Zamowienie #'+order.seq+' - NA RACHUNEK!','#e85c3a');
+    toast('Zamowienie #'+order.seq+' — NA RACHUNEK!','#e85c3a');
     vib([10,30,10]);
   }
   _send=false;updSend(); // reset przed Firebase call
@@ -1114,6 +1131,7 @@ function sendOrder(paid){
 }
 
 document.getElementById('bsnd').addEventListener('click',function(){doSend();});
+document.getElementById('bsnd_czk').addEventListener('click',function(){doSendCZK();});
 document.getElementById('bsnd2').addEventListener('click',function(){doSend2();});
 
 // Event delegation — obsługuje wszystkie przyciski z data-action
@@ -1183,9 +1201,38 @@ function setStatus(id,status){
   }
 }
 function setPaid(id){
-  saveSnapshot('Oplacono');
-  if(orders[id]){orders[id].paid=true;saveOrds();onData();}
-  if(fbReady)fbBg(fbDB.ref('orders/'+id).update({paid:true}));
+  var o=orders[id];if(!o)return;
+  var rate=getCZK();
+  var czkTot=Math.round((o.total||0)*rate);
+
+  var m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
+  m.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">&#x1F4B0; Wybierz walute platnosci</div>'+
+      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+(o.total||0).toFixed(2)+' zl</b> = <b style="color:#1278a8;">'+czkTot+' CZK</b></div>'+
+      '<div style="display:flex;gap:10px;margin-bottom:10px;">'+
+        '<button id="sp_PLN" style="flex:1;padding:14px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;">&#x1F1F5;&#x1F1F1;<br>PLN<br><span style="font-size:.8rem;font-weight:700;">'+(o.total||0).toFixed(2)+' zl</span></button>'+
+        '<button id="sp_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">'+czkTot+' CZK</span></button>'+
+      '</div>'+
+      '<button id="sp_canc" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(m);
+
+  document.getElementById('sp_canc').onclick=function(){m.remove();};
+  function doPay(currency,czk){
+    m.remove();
+    saveSnapshot('Oplacono');
+    var upd={paid:true,currency:currency,czkAmount:czk||0,czkRate:rate};
+    Object.assign(orders[id],upd);
+    saveOrds();
+    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
+    onDataImmediate();
+    toast('Oplacono w '+currency,'#27ae60');
+  }
+  document.getElementById('sp_PLN').onclick=function(){doPay('PLN',0);};
+  document.getElementById('sp_CZK').onclick=function(){doPay('CZK',czkTot);};
 }
 function setBarDone(id){
   if(orders[id]){orders[id].barDone=true;saveOrds();renderBar();}
@@ -2316,6 +2363,15 @@ function renderStats(){
   var done=filt.filter(function(o){return o.status==='done';});
   var rev=done.reduce(function(s,o){return s+o.total;},0);
   var n=done.length,ni=done.reduce(function(s,o){return s+o.items.reduce(function(ss,i){return ss+i.qty;},0);},0);
+
+  // Podział walutowy
+  var revPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).reduce(function(s,o){return s+o.total;},0);
+  var revCZK=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+o.total;},0);
+  var revCZKamt=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.czkAmount||Math.round(o.total*(o.czkRate||getCZK())));},0);
+  var nPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).length;
+  var nCZK=done.filter(function(o){return o.currency==='CZK';}).length;
+  var pctPLN=rev>0?Math.round(revPLN/rev*100):0;
+  var pctCZK=rev>0?Math.round(revCZK/rev*100):0;
   var avg=n?rev/n:0;
   var im={};
   done.forEach(function(o){o.items.forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=it.qty;im[it.name].rev+=it.qty*it.price;});});
@@ -2399,6 +2455,26 @@ function renderStats(){
       '<div class="sb"><div class="sbv">'+avg.toFixed(0)+' zl</div><div class="sbl">Sr. zam.</div></div>'+
       (avgTime!==null?'<div class="sb"><div class="sbv">'+avgTime+' min</div><div class="sbl">Sr. czas wydania</div></div>':'')+
     '</div>'+
+    (n>0?
+    '<div style="background:rgba(255,255,255,.05);border-radius:12px;padding:14px;margin-bottom:12px;">'+
+      '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:10px;">&#x1F4B1; Podział walutowy</div>'+
+      '<div style="display:flex;gap:10px;margin-bottom:8px;">'+
+        '<div style="flex:1;background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);border-radius:10px;padding:10px;text-align:center;">'+
+          '<div style="font-size:1.2rem;font-weight:900;color:#27ae60;">'+revPLN.toFixed(0)+' zł</div>'+
+          '<div style="font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px;">PLN • '+nPLN+' zam. • '+pctPLN+'%</div>'+
+          '<div style="background:rgba(39,174,96,.3);border-radius:4px;height:6px;margin-top:6px;">'+
+            '<div style="background:#27ae60;border-radius:4px;height:6px;width:'+pctPLN+'%"></div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="flex:1;background:rgba(18,120,168,.12);border:1.5px solid rgba(18,120,168,.3);border-radius:10px;padding:10px;text-align:center;">'+
+          '<div style="font-size:1.2rem;font-weight:900;color:#7ec8e3;">'+revCZKamt+' CZK</div>'+
+          '<div style="font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px;">'+(revCZK.toFixed(0))+' zł • '+nCZK+' zam. • '+pctCZK+'%</div>'+
+          '<div style="background:rgba(18,120,168,.3);border-radius:4px;height:6px;margin-top:6px;">'+
+            '<div style="background:#1278a8;border-radius:4px;height:6px;width:'+pctCZK+'%"></div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+    '</div>':'')+ 
     (top.length?'<div class="ss2">Najczesciej zamawiane</div><table class="stbl"><tr><th>Pozycja</th><th>Ilosc</th><th>Przychod</th><th>Popularnosc</th></tr>'+topRows+'</table>':'')+
     (bhKeys.length?'<div class="ss2">Ruch wg godziny</div><table class="stbl"><tr><th>Godzina</th><th>Zamowien</th><th>Ruch</th></tr>'+bhRows+'</table>':'')+
     (timeRows
