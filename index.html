@@ -521,7 +521,10 @@ touch-action:manipulation;
   <div style="padding:12px;background:var(--bg)">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
       <div class="sh" style="margin:0;">&#x1F4E6; Stan magazynowy</div>
-      <button onclick="resetStock()" style="background:rgba(232,92,58,.1);border:1.5px solid rgba(232,92,58,.3);color:var(--e);border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;">&#x1F504; Resetuj do poczatkowych</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button onclick="resetStock()" style="background:rgba(232,92,58,.1);border:1.5px solid rgba(232,92,58,.3);color:var(--e);border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;touch-action:manipulation;">&#x1F504; Reset stanu</button>
+        <button onclick="resetSold()" style="background:rgba(18,120,168,.1);border:1.5px solid rgba(18,120,168,.3);color:#7ec8e3;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;touch-action:manipulation;">&#x1F9F9; Reset sprzedazy</button>
+      </div>
     </div>
     <div id="stockWrap"></div>
     <div style="height:24px"></div>
@@ -1608,10 +1611,22 @@ function ensureStock(){
   if(changed)saveStock();
 }
 
+function calcSoldFromStats(){
+  // Oblicz sprzedaz z archiwum (statystyk) - tylko do wyswietlenia
+  var sold={};
+  Object.values(archive).forEach(function(o){
+    (o.items||[]).forEach(function(it){
+      sold[it.name]=(sold[it.name]||0)+it.qty;
+    });
+  });
+  return sold;
+}
+
 function renderStock(){
   ensureStock();
   var wrap=document.getElementById('stockWrap');
   if(!wrap)return;
+  var soldStats=calcSoldFromStats(); // sprzedaz ze statystyk
   var secs=[
     {key:'main',  label:'&#x1F41F; Dania glowne'},
     {key:'sides', label:'&#x1F957; Dodatki'},
@@ -1624,6 +1639,9 @@ function renderStock(){
     html+='<div class="stock-sec"><div class="stock-sec-title">'+sec.label+'</div>';
     items.forEach(function(it){
       var s=stock[it.name]||{init:0,current:0,sold:0};
+      var soldFromStats=soldStats[it.name]||0;
+      var soldReset=s.soldReset||0; // offset odjety przy resecie sprzedazy
+      var soldCount=Math.max(0,soldFromStats-soldReset);
       var low=(s.init>0 && s.current<=Math.ceil(s.init*0.2));
       var safeName=it.name.replace(/'/g,"\\'");
       html+=
@@ -1632,7 +1650,7 @@ function renderStock(){
           '<div class="stock-name" style="flex:1">'+
             '<div>'+esc(it.name)+'</div>'+
             '<div class="stock-sold'+(low?' stock-low':'')+'">'+
-              'Sprzedano: '+s.sold+
+              'Sprzedano: '+soldCount+
               (s.init>0?' | Pocz: '+s.init:'') +
               (low?' &#x26A0; NISKI STAN':'') +
             '</div>'+
@@ -1692,7 +1710,7 @@ function resetStock(){
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
       '<div style="font-size:2rem;margin-bottom:8px;">&#x1F504;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.05rem;font-weight:700;color:#0b1e28;margin-bottom:8px;">Resetowac magazyn?</div>'+
-      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan biezacy zostanie przywrocony do wartosci poczatkowych.</div>'+
+      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan poczatkowy zostanie ustawiony na 0. Stan biezacy zostaje bez zmian.</div>'+
       '<button id="rst1ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, resetuj</button>'+
       '<button id="rst1no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
     '</div>';
@@ -1707,7 +1725,7 @@ function resetStock(){
       '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
         '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
         '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
-        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">To jest ostateczne. Wszystkie biezace stany zostana nadpisane wartosciami poczatkowymi.</div>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan poczatkowy wszystkich produktow zostanie ustawiony na 0.</div>'+
         '<button id="rst2ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Potwierdz reset</button>'+
         '<button id="rst2no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
       '</div>';
@@ -1717,7 +1735,9 @@ function resetStock(){
       m2.remove();
       var items=getAllMenuItems();
       items.forEach(function(it){
-        if(stock[it.name])stock[it.name].current=stock[it.name].init||0;
+        if(stock[it.name]){
+          stock[it.name].init=0;
+        }
       });
       saveStock();
       if(fbReady)fbBg(fbDB.ref('stock').set(stock));
@@ -2167,6 +2187,50 @@ function openAddToOrder(table){
     onDataImmediate();
     toast('Dodano zamowienie #'+order.seq+' dla '+tblLabel+'!','#27ae60');
     vib([10,30,10]);
+  };
+}
+
+function resetSold(){
+  var m1=document.createElement('div');
+  m1.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
+  m1.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-size:2rem;margin-bottom:8px;">&#x1F9F9;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.05rem;font-weight:700;color:#0b1e28;margin-bottom:8px;">Resetowac sprzedaz?</div>'+
+      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Licznik sprzedanych sztuk w magazynie zostanie wyzerowany. Statystyki i historia zamowien zostaja bez zmian.</div>'+
+      '<button id="rs1ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#1278a8;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, resetuj sprzedaz</button>'+
+      '<button id="rs1no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(m1);
+  document.getElementById('rs1no').onclick=function(){m1.remove();};
+  document.getElementById('rs1ok').onclick=function(){
+    m1.remove();
+    var m2=document.createElement('div');
+    m2.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:20px;';
+    m2.innerHTML=
+      '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+        '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
+        '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#1278a8;margin-bottom:10px;">Jestes pewny?</div>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Wszystkie dane o sprzedazy zostana wyzerowane.</div>'+
+        '<button id="rs2ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#1278a8;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Potwierdz reset sprzedazy</button>'+
+        '<button id="rs2no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+      '</div>';
+    document.body.appendChild(m2);
+    document.getElementById('rs2no').onclick=function(){m2.remove();};
+    document.getElementById('rs2ok').onclick=function(){
+      m2.remove();
+      // Zapisz aktualny stan ze statystyk jako offset - sprzedaz liczy od teraz
+      var soldStats=calcSoldFromStats();
+      var items=getAllMenuItems();
+      items.forEach(function(it){
+        if(!stock[it.name])stock[it.name]={init:0,current:0,sold:0,soldReset:0};
+        stock[it.name].soldReset=soldStats[it.name]||0;
+      });
+      saveStock();
+      if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+      renderStock();
+      toast('Sprzedaz zresetowana','#27ae60');
+    };
   };
 }
 
