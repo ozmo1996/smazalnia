@@ -173,6 +173,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tkh{padding:6px 9px;display:flex;justify-content:space-between;align-items:flex-start;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06)}
 .tktbl{font-family:'Playfair Display',serif;color:#fff;font-size:1.1rem;font-weight:700}.tkm{text-align:right}
 .tktmr{font-size:.97rem;font-weight:900}.tktmr.warm{color:var(--gr)}.tktmr.hot{color:var(--a)}.tktmr.over{color:var(--e)}
+.tkct{font-size:.75rem;font-weight:900;margin-top:1px;color:rgba(255,255,255,.7)}
 .tksc{color:rgba(255,255,255,.35);font-size:.71rem}
 .tkb{padding:6px 9px}.tki{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}.tki:last-child{border:none}
 .tie{font-size:1.4rem}.tin{flex:1;color:#fff;font-weight:700;font-size:.88rem}
@@ -1191,11 +1192,13 @@ function setStatus(id,status){
   if(orders[id])saveSnapshot('Status: '+SL[status]||status);
   if(orders[id]){
     orders[id].status=status;
+    if(status==='cooking')orders[id].cookingTs=Date.now();
     if(status==='done')orders[id].doneTs=Date.now();
     saveOrds();onData();
   }
   if(fbReady){
     var upd={status:status};
+    if(status==='cooking')upd.cookingTs=Date.now();
     if(status==='done')upd.doneTs=Date.now();
     fbBg(fbDB.ref('orders/'+id).update(upd));
   }
@@ -1563,6 +1566,12 @@ function renderKitch(){
     var tc=el2<480?'warm':el2<900?'hot':'over';
     var cls='tkt '+(o.wynos?'tw ':'')+(o.status==='cooking'?'tc':o.status==='ready'?'tr':el2>=900?'to':'tp');
 
+    // Czas smazenia - od kliknięcia Gotowanie
+    var cookSec=o.cookingTs?Math.floor((now-o.cookingTs)/1000):0;
+    var cm=Math.floor(cookSec/60),cs=cookSec%60;
+    var cookTimerHTML=(o.cookingTs&&o.status==='cooking')?
+      '<div class="tkct" data-cts="'+o.cookingTs+'">&#x1F525; '+cm+':'+String(cs).padStart(2,'0')+'</div>':'';
+
     if(existingIds[o.id]){
       // Bilet juz istnieje — zaktualizuj timer, klase i przyciski
       var tkt=existingIds[o.id];
@@ -1579,6 +1588,21 @@ function renderKitch(){
 
       var tmr=tkt.querySelector('.tktmr');
       if(tmr){tmr.className='tktmr '+tc;tmr.textContent=m+':'+String(s).padStart(2,'0');}
+
+      // Czas smazenia
+      var ctmr=tkt.querySelector('.tkct');
+      if(o.cookingTs&&o.status==='cooking'){
+        if(ctmr){
+          ctmr.innerHTML='&#x1F525; '+cm+':'+String(cs).padStart(2,'0');
+        } else {
+          var newCtmr=document.createElement('div');
+          newCtmr.className='tkct';
+          newCtmr.innerHTML='&#x1F525; '+cm+':'+String(cs).padStart(2,'0');
+          newCtmr.setAttribute('data-cts',o.cookingTs);
+          var tkm=tkt.querySelector('.tkm');if(tkm)tkm.appendChild(newCtmr);
+        }
+      } else if(ctmr){ctmr.parentNode.removeChild(ctmr);}
+
       var tkb=tkt.querySelector('.tkb');
       if(tkb)tkb.innerHTML=kitchenRows(food)+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'');
     } else {
@@ -1597,6 +1621,7 @@ function renderKitch(){
           '<button data-action="editorder" data-ids="'+o.id+'" style="background:rgba(18,120,168,.15);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;border-radius:7px;padding:3px 8px;font-size:.7rem;font-weight:800;cursor:pointer;flex-shrink:0;">&#x270F;</button>'+
           '<div class="tkm">'+
             '<div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div>'+
+            cookTimerHTML+
             '<div class="tksc">#'+o.seq+' '+o.timeStr+'</div>'+
           '</div>'+
         '</div>'+
@@ -2403,8 +2428,30 @@ function renderStats(){
   for(var i=0;i<Math.min(timeSorted.length,20);i++){
     var td=timeSorted[i];
     var barW=Math.round(td.mins/Math.max(timeSorted[0].mins,1)*120);
-    var col=td.mins<=20?'var(--gr)':td.mins<=45?'var(--a)':td.mins<=60?'var(--e)':'#333';
+    var col='var(--s)';
     timeRows+='<tr><td>Stolik '+td.table+' #'+td.seq+'</td><td><b>'+td.mins+' min</b></td><td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:'+col+'"></div></div></td></tr>';
+  }
+
+  // Czas smazenia - od klikniecia Gotowanie do wydania
+  var fryData=[];
+  filt.forEach(function(o){
+    if(o.cookingTs && o.doneTs){
+      var secs=Math.round((o.doneTs-o.cookingTs)/1000);
+      var mins=Math.round(secs/60);
+      if(secs>0&&secs<7200){
+        var mm=Math.floor(secs/60),ss=secs%60;
+        fryData.push({table:o.table,seq:o.seq,mins:mins,str:mm+'m '+String(ss).padStart(2,'0')+'s'});
+      }
+    }
+  });
+  var avgFryTime=fryData.length?Math.round(fryData.reduce(function(s,x){return s+x.mins;},0)/fryData.length):null;
+  var fryRows='';
+  var frySorted=fryData.slice().sort(function(a,b){return b.mins-a.mins;});
+  for(var i=0;i<Math.min(frySorted.length,20);i++){
+    var fd=frySorted[i];
+    var fbarW=Math.round(fd.mins/Math.max(frySorted[0].mins,1)*120);
+    var fcol='var(--s)';
+    fryRows+='<tr><td>Stolik '+fd.table+' #'+fd.seq+'</td><td><b>'+fd.str+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+fbarW+'px;background:'+fcol+'"></div></div></td></tr>';
   }
 
   // Sredni czas wydania per godzina
@@ -2454,6 +2501,7 @@ function renderStats(){
       '<div class="sb"><div class="sbv">'+ni+'</div><div class="sbl">Dan</div></div>'+
       '<div class="sb"><div class="sbv">'+avg.toFixed(0)+' zl</div><div class="sbl">Sr. zam.</div></div>'+
       (avgTime!==null?'<div class="sb"><div class="sbv">'+avgTime+' min</div><div class="sbl">Sr. czas wydania</div></div>':'')+
+      (avgFryTime!==null?'<div class="sb"><div class="sbv">&#x1F525; '+avgFryTime+' min</div><div class="sbl">Sr. czas smazenia</div></div>':'')+
     '</div>'+
     (n>0?
     '<div style="background:rgba(255,255,255,.05);border-radius:12px;padding:14px;margin-bottom:12px;">'+
@@ -2482,6 +2530,10 @@ function renderStats(){
       :'<div class="ss2">&#x23F1; Czas wydania zamowien</div><div class="ni" style="margin-bottom:8px;">Brak danych — pojawi sie po oznaczeniu zamowien jako Wydane</div>'
     )+
     (hourRows?'<div class="ss2">&#x1F4C5; Sredni czas wydania wg godziny</div><table class="stbl"><tr><th>Godzina</th><th>Sr. czas</th><th>Zamowien</th><th>Ocena</th></tr>'+hourRows+'</table>':'')+
+    (fryRows
+      ?'<div class="ss2">&#x1F525; Czas smazenia zamowien</div><table class="stbl"><tr><th>Zamowienie</th><th>Czas smazenia</th><th>Ocena</th></tr>'+fryRows+'</table>'
+      :'<div class="ss2">&#x1F525; Czas smazenia zamowien</div><div class="ni" style="margin-bottom:8px;">Brak danych — pojawi sie po oznaczeniu statusu Gotowanie</div>'
+    )+
     '<div class="ss2">Historia</div>'+
     '<div style="margin-bottom:8px">'+
       '<button class="sf" onclick="confirmClearStats()" style="background:rgba(232,92,58,.15);border-color:rgba(232,92,58,.3);color:var(--e);">&#x1F5D1; Wyczysc statystyki</button>'+
@@ -2666,6 +2718,13 @@ setInterval(function(){
       // Aktualizuj timer
       var tmr=tkts[i].querySelector('.tktmr');
       if(tmr){tmr.className='tktmr '+tc;tmr.textContent=m+':'+String(s).padStart(2,'0');}
+      // Aktualizuj licznik smazenia
+      if(o.cookingTs&&o.status==='cooking'){
+        var cookSec2=Math.floor((now-o.cookingTs)/1000);
+        var cm2=Math.floor(cookSec2/60),cs2=cookSec2%60;
+        var ctmr2=tkts[i].querySelector('.tkct');
+        if(ctmr2){ctmr2.innerHTML='&#x1F525; '+cm2+':'+String(cs2).padStart(2,'0');}
+      }
       // Aktualizuj klase ramki
       var newCls='tkt '+(o.wynos?'tw ':' ')+(o.status==='cooking'?'tc':o.status==='ready'?'tr':el2>=900?'to':'tp');
       tkts[i].className=newCls;
