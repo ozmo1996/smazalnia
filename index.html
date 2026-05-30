@@ -320,6 +320,14 @@ select.set-inp option{background:#0d3d56;color:#fff}
 .set-check input{width:22px;height:22px;accent-color:var(--a);flex-shrink:0;cursor:pointer}
 .set-save{display:block;width:100%;margin-top:14px;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--a),var(--g));color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;touch-action:manipulation;min-height:46px}
 .set-save:active{opacity:.88}
+.cnt-mini{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.8);border-radius:8px;padding:6px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;touch-action:manipulation}
+.cnt-mini:active{background:rgba(255,255,255,.2)}
+.cnt-sec{color:rgba(255,255,255,.5);font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px}
+.cnt-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer;user-select:none}
+.cnt-row:last-child{border:none}
+.cnt-row input{width:21px;height:21px;accent-color:var(--gr);flex-shrink:0;cursor:pointer}
+.cnt-row .cnt-em{font-size:1.2rem;width:26px;text-align:center;flex-shrink:0}
+.cnt-row .cnt-nm{flex:1;color:#fff;font-weight:700;font-size:.85rem}
 .cst.ok{background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);color:#1a8a45}
 .cst.er{background:rgba(232,92,58,.1);border:1.5px solid rgba(232,92,58,.25);color:var(--e)}
 .cst.of{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
@@ -467,6 +475,7 @@ select.set-inp option{background:#0d3d56;color:#fff}
 </div></div>
 <div class="view" id="vb">
   <div class="dkh"><span class="dkt">Bar</span><span class="dkc" id="bclk"></span></div>
+  <div id="bcounter" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;background:rgba(0,0,0,.3);border-bottom:2px solid rgba(255,255,255,.08);"></div>
   <div class="tkg" id="bg"></div>
 </div>
 <div class="view" id="vk">
@@ -522,6 +531,18 @@ select.set-inp option{background:#0d3d56;color:#fff}
     </label>
 
     <button class="set-save" onclick="saveSettingsFromUI()">&#x1F4BE; Zapisz ustawienia</button>
+  </div>
+
+  <!-- POZYCJE ZLICZANE W LICZNIKACH -->
+  <div style="background:rgba(39,174,96,.08);border:1.5px solid rgba(39,174,96,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="font-family:'Playfair Display',serif;font-weight:700;color:#5fd896;font-size:.95rem;margin-bottom:4px;">&#x1F522; Pozycje zliczane w licznikach</div>
+    <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Zaznacz, ktore pozycje maja byc sumowane w pasku licznikow Kuchni (smazenie/przygotowanie) i Baru (wydawanie). Domyslnie liczone sa wszystkie.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <button class="cnt-mini" onclick="setCountAll(true)">Zaznacz wszystkie</button>
+      <button class="cnt-mini" onclick="setCountAll(false)">Odznacz wszystkie</button>
+    </div>
+    <div id="countItemsList"></div>
+    <button class="set-save" style="background:linear-gradient(135deg,#1a8a45,#27ae60);" onclick="saveCountItems()">&#x1F4BE; Zapisz wybor pozycji</button>
   </div>
 
   <!-- ZMIANA HASLA -->
@@ -706,7 +727,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o'};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -743,6 +764,19 @@ function toast(msg,color){
 
 var _dSetCache=null;
 function dSet(){if(!_dSetCache)_dSetCache=new Set((menu.drinks||[]).map(function(d){return norm(d.name);}));return _dSetCache;}
+
+// Zbior pozycji wybranych do zliczania w licznikach (kuchnia/bar).
+// null lub pusty = zliczaj wszystkie pozycje.
+var _countSetCache=null;
+function countSet(){
+  if(_countSetCache===null){
+    var ci=appSettings&&appSettings.countItems;
+    _countSetCache=(ci&&ci.length)?new Set(ci.map(norm)):false; // false = wszystkie
+  }
+  return _countSetCache;
+}
+function countSetInvalidate(){_countSetCache=null;}
+function isCounted(i){var cs=countSet();return cs===false?true:cs.has(norm(i.name||i));}
 function dSetInvalidate(){_dSetCache=null;}
 function isDrink(i){return dSet().has(norm(i.name));}
 function menuOrderMap(){
@@ -936,8 +970,10 @@ function subAll(){
       menu=v;
       lsSet('sp_menu',JSON.stringify(menu));
       dSetInvalidate();
+      countSetInvalidate();
       renderMGs();
       if(curV==='m')renderEditor();
+      if(curV==='c')renderCountItems();
     }else{
       fbDB.ref('menu').set(menu).catch(function(){});
     }
@@ -969,11 +1005,14 @@ function subAll(){
     if(!v)return;
     for(var k in SETTINGS_DEF){if(v[k]!==undefined)appSettings[k]=v[k];}
     lsSet('sp_settings',JSON.stringify(appSettings));
+    countSetInvalidate();
     // Zaktualizuj pole kursu tylko gdy koszyk jest pusty (zeby nie zmieniac w trakcie zamowienia)
     var cr=document.getElementById('czkrate');
     if(cr&&Object.keys(cart||{}).length===0)cr.value=appSettings.czkRate;
     if(curV==='c')renderCloud();
     if(curV==='w')renderStock();
+    if(curV==='k')renderKCounter();
+    if(curV==='b')renderBar();
   });
 
   // Powrót internetu - dopisz lokalne do chmury (nie nadpisuj!)
@@ -1394,16 +1433,18 @@ function setPaidGroup(mainId,ids){
   // Jeden modal dla calej grupy
   var o=orders[mainId];if(!o)return;
   var total=ids.reduce(function(s,id){return s+(orders[id]?orders[id].total||0:0);},0);
+  var rate=getCZK();
+  var czkTotal=Math.round(total*rate);
 
   var m=document.createElement('div');
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
   m.innerHTML=
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">&#x1F4B0; Wybierz walute platnosci</div>'+
-      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+total.toFixed(2)+' zl</b></div>'+
+      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+total.toFixed(2)+' zl</b> &bull; <b style="color:#1278a8;">'+czkTotal+' CZK</b></div>'+
       '<div style="display:flex;gap:10px;margin-bottom:10px;">'+
         '<button id="spg_PLN" style="flex:1;padding:14px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1F5;&#x1F1F1;<br>PLN<br><span style="font-size:.8rem;font-weight:700;">'+total.toFixed(2)+' zl</span></button>'+
-        '<button id="spg_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">CZK</span></button>'+
+        '<button id="spg_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">'+czkTotal+' CZK</span></button>'+
       '</div>'+
       '<button id="spg_canc" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;touch-action:manipulation;">Anuluj</button>'+
     '</div>';
@@ -1415,14 +1456,15 @@ function setPaidGroup(mainId,ids){
     saveSnapshot('Oplacono');
     ids.forEach(function(id){
       if(!orders[id])return;
-      var upd={paid:true,currency:currency,czkAmount:0,czkRate:0};
+      var czkAmt=currency==='CZK'?Math.round((orders[id].total||0)*rate):0;
+      var upd={paid:true,currency:currency,czkAmount:czkAmt,czkRate:currency==='CZK'?rate:0};
       Object.assign(orders[id],upd);
       window._fbSkipNext=(window._fbSkipNext||0)+1;
       if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
     });
     saveOrds();
     onDataImmediate();
-    toast('Oplacono w '+currency,'#27ae60');
+    toast(currency==='CZK'?('Oplacono '+czkTotal+' CZK'):('Oplacono '+total.toFixed(2)+' zl'),'#27ae60');
   }
   document.getElementById('spg_PLN').onclick=function(){doPay('PLN');};
   document.getElementById('spg_CZK').onclick=function(){doPay('CZK');};
@@ -1431,15 +1473,18 @@ function setPaidGroup(mainId,ids){
 function setPaid(id){
   var o=orders[id];if(!o)return;
 
+  var rate=getCZK();
+  var czkTotal=Math.round((o.total||0)*rate);
+
   var m=document.createElement('div');
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
   m.innerHTML=
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">&#x1F4B0; Wybierz walute platnosci</div>'+
-      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+(o.total||0).toFixed(2)+' zl</b></div>'+
+      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+(o.total||0).toFixed(2)+' zl</b> &bull; <b style="color:#1278a8;">'+czkTotal+' CZK</b></div>'+
       '<div style="display:flex;gap:10px;margin-bottom:10px;">'+
         '<button id="sp_PLN" style="flex:1;padding:14px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1F5;&#x1F1F1;<br>PLN<br><span style="font-size:.8rem;font-weight:700;">'+(o.total||0).toFixed(2)+' zl</span></button>'+
-        '<button id="sp_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">CZK</span></button>'+
+        '<button id="sp_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">'+czkTotal+' CZK</span></button>'+
       '</div>'+
       '<button id="sp_canc" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;touch-action:manipulation;">Anuluj</button>'+
     '</div>';
@@ -1449,16 +1494,14 @@ function setPaid(id){
   function doPay(currency){
     m.remove();
     saveSnapshot('Oplacono');
-    var czkRate=0;
-    try{var czkEl=document.getElementById('czkrate');if(czkEl)czkRate=parseFloat(czkEl.value)||0;}catch(e){}
-    var czkTot=currency==='CZK'?Math.round((o.total||0)*(czkRate||1)):0;
-    var upd={paid:true,currency:currency,czkAmount:czkTot,czkRate:czkRate};
+    var czkTot=currency==='CZK'?Math.round((o.total||0)*rate):0;
+    var upd={paid:true,currency:currency,czkAmount:czkTot,czkRate:currency==='CZK'?rate:0};
     Object.assign(orders[id],upd);
     saveOrds();
     window._fbSkipNext=(window._fbSkipNext||0)+1;
     if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
     onDataImmediate();
-    toast('Oplacono w '+currency,'#27ae60');
+    toast(currency==='CZK'?('Oplacono '+czkTot+' CZK'):('Oplacono '+(o.total||0).toFixed(2)+' zl'),'#27ae60');
   }
   document.getElementById('sp_PLN').onclick=function(){doPay('PLN');};
   document.getElementById('sp_CZK').onclick=function(){doPay('CZK');};
@@ -1713,7 +1756,41 @@ function renderList(){
 
 
 // BAR
+function renderBCounter(){
+  var el=document.getElementById('bcounter');
+  if(!el)return;
+  var ds=dSet();
+  var act=Object.values(orders).filter(function(o){
+    return o.status!=='done'&&o.items.some(function(i){return ds.has(norm(i.name));});
+  });
+  var totals={};
+  var pending={};
+  act.forEach(function(o){
+    o.items.forEach(function(it){
+      if(!ds.has(norm(it.name)))return;   // tylko napoje
+      if(!isCounted(it))return;            // tylko wybrane do zliczania
+      var key=it.name;
+      if(!totals[key])totals[key]={emoji:it.emoji,name:it.name,qty:0};
+      totals[key].qty+=it.qty;
+      if(!o.barDone){
+        if(!pending[key])pending[key]={qty:0};
+        pending[key].qty+=it.qty;
+      }
+    });
+  });
+  var keys=Object.keys(totals);
+  if(!keys.length){el.innerHTML='';return;}
+  var html='';
+  Object.values(totals).sort(function(a,b){return b.qty-a.qty;}).forEach(function(item){
+    html+='<div class="kcnt"><span class="kcnt-em">'+item.emoji+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
+    var pq=pending[item.name]?pending[item.name].qty:0;
+    if(pq>0)html+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F37A;</span><div class="kcnt-info"><span class="kcnt-num">'+pq+'</span><span class="kcnt-lbl">do wydania</span></div></div>';
+  });
+  el.innerHTML=html;
+}
+
 function renderBar(){
+  renderBCounter();
   var g=document.getElementById('bg');if(!g)return;
   var ds=dSet();
   var act=Object.values(orders).filter(function(o){return o.status!=='done'&&o.items.some(function(i){return ds.has(norm(i.name));});}).sort(function(a,b){return a.ts-b.ts;});
@@ -1750,6 +1827,7 @@ function renderKCounter(){
   act.forEach(function(o){
     o.items.forEach(function(it){
       if(ds.has(norm(it.name)))return;
+      if(!isCounted(it))return; // pomin pozycje wylaczone z liczenia
       var key=it.name;
       if(!totals[key])totals[key]={emoji:it.emoji,name:it.name,qty:0,isFish:fishNames.has(norm(it.name))};
       totals[key].qty+=it.qty;
@@ -2994,7 +3072,61 @@ function renderCloud(){
   var sL=document.getElementById('setLow');if(sL)sL.value=appSettings.lowStockPct;
   var sV=document.getElementById('setView');if(sV)sV.value=appSettings.startView;
   var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
+  renderCountItems();
   renderDevices();
+}
+
+function renderCountItems(){
+  var box=document.getElementById('countItemsList');
+  if(!box)return;
+  var ci=appSettings.countItems;
+  var all=!ci||!ci.length; // brak listy = wszystkie zaznaczone
+  var sel=all?null:new Set(ci.map(norm));
+  var secs=[
+    {key:'main',label:'Dania glowne'},
+    {key:'sides',label:'Dodatki'},
+    {key:'drinks',label:'Napoje'}
+  ];
+  var html='';
+  secs.forEach(function(sec){
+    var items=menu[sec.key]||[];
+    if(!items.length)return;
+    html+='<div class="cnt-sec">'+sec.label+'</div>';
+    items.forEach(function(it){
+      var checked=all?true:sel.has(norm(it.name));
+      html+='<label class="cnt-row">'+
+        '<input type="checkbox" class="cnt-cb" data-name="'+esc(it.name)+'"'+(checked?' checked':'')+'>'+
+        '<span class="cnt-em">'+it.emoji+'</span>'+
+        '<span class="cnt-nm">'+esc(it.name)+'</span>'+
+      '</label>';
+    });
+  });
+  box.innerHTML=html||'<div class="set-hint" style="margin-top:0;">Brak pozycji w menu.</div>';
+}
+
+function setCountAll(val){
+  var cbs=document.querySelectorAll('#countItemsList .cnt-cb');
+  for(var i=0;i<cbs.length;i++)cbs[i].checked=!!val;
+}
+
+function saveCountItems(){
+  var cbs=document.querySelectorAll('#countItemsList .cnt-cb');
+  var chosen=[];
+  var total=cbs.length;
+  for(var i=0;i<cbs.length;i++){if(cbs[i].checked)chosen.push(cbs[i].getAttribute('data-name'));}
+  // Jesli zaznaczono wszystkie (lub nic) -> null = licz wszystkie (domyslnie)
+  if(chosen.length===total||chosen.length===0){
+    appSettings.countItems=null;
+  } else {
+    appSettings.countItems=chosen;
+  }
+  countSetInvalidate();
+  saveSettings();
+  if(curV==='k'){renderKCounter();}
+  if(curV==='b'){renderBar();}
+  var msg=appSettings.countItems?('Zliczane pozycje: '+chosen.length):'Zliczane: wszystkie pozycje';
+  toast(msg,'#27ae60');
+  vib([10,30,10]);
 }
 
 function saveSettingsFromUI(){
@@ -3299,6 +3431,7 @@ function bootApp(){
   DID=lsGet('sp_did')||mkDID();
   menu=cloneObj(DEF);
   appSettings=loadSettings();
+  countSetInvalidate();
   loadOrds();
   loadArc();
   loadStock();
