@@ -163,10 +163,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 }
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
 .tkt.tw .tkh{background:rgba(0,0,0,.25);}
-.tkt.tw .tktbl{color:#4ade80;}
 .tkt.bn{border-color:var(--s)}.tkt.bd{opacity:.38;border-color:#334;background:#060f17}
 .tkt.tp{background:#0c1e2c;border-color:rgba(255,255,255,.12)}.tkt.tc{background:#1a0d00;border-color:var(--a)}.tkt.tr{background:#001a0a;border-color:var(--gr)}.tkt.to{background:#1a0500;border-color:var(--e)}
-.tkt.tw{background:#0a3d1f!important;border-color:#1a8a45!important;}
 .tkt.tw.tc{background:#0d4a22!important;}
 .tkt.tw.tr{background:#0d6b2a!important;}
 .tkt.tw .tktbl{color:#4ade80!important;}
@@ -556,6 +554,8 @@ touch-action:manipulation;
 // Lokalne storage
 var activeProfileId='sp';
 function lsKey(k){return k;} // sp prefix zawsze
+// Bezpieczne usuwanie z localStorage (uzywane przez logout, saveFb, discFb)
+function rawRemove(k){try{localStorage.removeItem(k);}catch(e){}}
 // SHA-256 helper - uzywany przez logowanie i weryfikacje hasel
 function sha256(msg){
   return crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg)).then(function(buf){
@@ -1057,8 +1057,7 @@ function pickTbl(n){
   selTbl = (typeof n==='number') ? n : (isNaN(+n) ? n : +n);
   var el=document.getElementById('ophs');
   if(el){
-    if(selTbl==='wynos') el.textContent='Na wynos';
-    else if(selTbl==='my') el.textContent='MY - obsluga';
+    if(selTbl==='my') el.textContent='MY - obsluga';
     else if(typeof selTbl==='string'&&selTbl.indexOf('odbior')===0) el.textContent='Odbior o '+selTbl.split(':').slice(1).join(':');
     else el.textContent='Stolik '+selTbl;
   }
@@ -1280,7 +1279,7 @@ document.addEventListener('click',function(e){
   handleDataAction(btn);
 });
 function setStatus(id,status){
-  if(orders[id])saveSnapshot('Status: '+SL[status]||status);
+  if(orders[id])saveSnapshot('Status: '+(SL[status]||status));
   if(orders[id]){
     orders[id].status=status;
     if(status==='cooking')orders[id].cookingTs=Date.now();
@@ -2337,7 +2336,7 @@ function openAddToOrder(table){
 
   // Menu opcje
   var allItems=[];
-  ['main','sides','drinks'].forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(it.available!==false)allItems.push(it);});});
+  ['main','sides','drinks'].forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(!it.unavailable)allItems.push(it);});});
   var opts=allItems.map(function(it){
     return '<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
   }).join('');
@@ -3255,19 +3254,9 @@ applyProfileUI();
     navigator.serviceWorker.register(swUrl,{scope:'./'}).catch(function(){});
   }
 
-  // Synchronizacja gdy wraca internet
-  window.addEventListener('online',function(){
-    if(!fbReady)return;
-    // Wyslij lokalne dane do Firebase
-    var localOrders=orders;
-    if(Object.keys(localOrders).length>0){
-      fbBg(fbDB.ref('orders').set(localOrders));
-      toast('Internet przywrocony — synchronizacja...','#27ae60');
-    }
-  });
-  window.addEventListener('offline',function(){
-    toast('Tryb offline — dane zapisywane lokalnie','#f5a623');
-  });
+  // Synchronizacja przy powrocie internetu jest obslugiwana w subAll()
+  // przez bezpieczny merge (dopisywanie brakujacych), wiec NIE nadpisujemy
+  // tutaj calej galezi 'orders' — to mogloby skasowac zamowienia z innych urzadzen.
 
   // 5. Przycisk "Dodaj do ekranu głównego"
   var deferredPrompt=null;
