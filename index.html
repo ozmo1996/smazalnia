@@ -488,6 +488,14 @@ touch-action:manipulation;
   <div id="cst"></div>
 
   <!-- BACKUP -->
+  <!-- URZADZENIA -->
+  <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;">&#x1F4F1; Podłączone urządzenia</div>
+      <button onclick="renderDevices()" style="background:rgba(18,120,168,.2);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:800;cursor:pointer;">&#x21BB; Odśwież</button>
+    </div>
+    <div id="devList"><div style="color:rgba(255,255,255,.4);font-size:.8rem;">Ładowanie...</div></div>
+  </div>
   <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:4px;">&#x1F4BE; Backup lokalny</div>
     <div style="color:rgba(255,255,255,.6);font-size:.78rem;margin-bottom:10px;">Automatyczny zapis co 5 minut. Kliknij aby pobrac plik .txt z wszystkimi zamowieniami.</div>
@@ -794,6 +802,9 @@ function initFb(cfg){
 function subAll(){
   var _fbLocalChange=false;
   window._fbSkipNext=0;
+  // Wyslij heartbeat przy starcie i co minutę
+  sendHeartbeat();
+  setInterval(sendHeartbeat,60000);
   fbDB.ref('orders').on('value',function(snap){
     if(window._fbSkipNext>0){window._fbSkipNext--;return;}
     if(_fbLocalChange)return;
@@ -2153,6 +2164,35 @@ function undoLastAction(){
   }
 }
 
+// ═══════════════════════════════════════
+// GLOBALNY ZOOM APLIKACJI
+// ═══════════════════════════════════════
+var ZOOM_SIZES=[70,80,90,100,110,120,130];
+var _zoomIdx=3; // domyslnie 100%
+
+function applyIconSize(){
+  var pct=ZOOM_SIZES[_zoomIdx];
+  document.documentElement.style.fontSize=pct+'%';
+  var lbl=document.getElementById('iconSizeLbl');
+  if(lbl)lbl.textContent=pct+'%';
+}
+
+function changeIconSize(dir){
+  _zoomIdx=Math.max(0,Math.min(ZOOM_SIZES.length-1,_zoomIdx+dir));
+  applyIconSize();
+  lsSet('sp_iconsize',String(_zoomIdx));
+  toast('Zoom: '+ZOOM_SIZES[_zoomIdx]+'%','#1278a8');
+}
+
+function loadIconSize(){
+  var saved=lsGet('sp_iconsize');
+  if(saved!==null&&saved!==undefined){
+    var idx=parseInt(saved);
+    if(!isNaN(idx)&&idx>=0&&idx<ZOOM_SIZES.length)_zoomIdx=idx;
+  }
+  applyIconSize();
+}
+
 function openAddToOrder(table){
   var existing=document.getElementById('addToOrderModal');
   if(existing)existing.remove();
@@ -2639,6 +2679,56 @@ function saveTbls(){
 }
 
 // CHMURA
+function sendHeartbeat(){
+  if(!fbReady)return;
+  var info={
+    did:DID,
+    ts:Date.now(),
+    v:'v1.01',
+    view:curV||'o',
+    orders:Object.keys(orders).length,
+    ua:navigator.userAgent.slice(0,60)
+  };
+  fbBg(fbDB.ref('devices/'+DID).set(info));
+}
+
+function renderDevices(){
+  if(!fbReady){
+    var el=document.getElementById('devList');
+    if(el)el.innerHTML='<div style="color:rgba(255,255,255,.4);font-size:.8rem;">Dostepne tylko po polaczeniu z Firebase</div>';
+    return;
+  }
+  fbDB.ref('devices').once('value').then(function(snap){
+    var devs=snap.val()||{};
+    var el=document.getElementById('devList');
+    if(!el)return;
+    var now=Date.now();
+    var list=Object.values(devs).sort(function(a,b){return b.ts-a.ts;});
+    if(!list.length){el.innerHTML='<div style="color:rgba(255,255,255,.4);font-size:.8rem;">Brak aktywnych urządzeń</div>';return;}
+    var html='';
+    list.forEach(function(d){
+      var ago=Math.floor((now-d.ts)/1000);
+      var active=ago<120;
+      var agoStr=ago<60?(ago+'s temu'):(Math.floor(ago/60)+'m temu');
+      var isMine=d.did===DID;
+      html+=
+        '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">'+
+          '<div style="width:10px;height:10px;border-radius:50%;background:'+(active?'#27ae60':'#666')+';flex-shrink:0;"></div>'+
+          '<div style="flex:1;">'+
+            '<div style="font-size:.82rem;font-weight:700;color:#fff;">'+esc(d.did)+(isMine?' <span style="background:#1278a8;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:4px;">TEN TELEFON</span>':'')+'</div>'+
+            '<div style="font-size:.72rem;color:rgba(255,255,255,.5);">'+esc(d.ua.slice(0,50))+'</div>'+
+          '</div>'+
+          '<div style="text-align:right;flex-shrink:0;">'+
+            '<div style="font-size:.75rem;font-weight:800;color:'+(active?'#27ae60':'#888')+';">'+(active?'AKTYWNE':'offline')+'</div>'+
+            '<div style="font-size:.68rem;color:rgba(255,255,255,.4);">'+agoStr+'</div>'+
+            '<div style="font-size:.68rem;color:rgba(255,255,255,.4);">zamow: '+d.orders+'</div>'+
+          '</div>'+
+        '</div>';
+    });
+    el.innerHTML=html;
+  }).catch(function(){});
+}
+
 function renderCloud(){
   var cfg=getCfg();
   var se=document.getElementById('cst');
@@ -2666,6 +2756,7 @@ function renderCloud(){
     var f=document.getElementById('ci4');if(f)f.value=cfg.projectId||'';
     var f=document.getElementById('ci5');if(f)f.value=cfg.appId||'';
   }
+  renderDevices();
 }
 function saveFb(){
   var cfg={apiKey:xv('ci1'),authDomain:xv('ci2'),databaseURL:xv('ci3'),projectId:xv('ci4'),appId:xv('ci5')};
@@ -2916,6 +3007,7 @@ function startKitchTimer(){
 }
 function bootApp(){
   applyProfileUI();
+  loadIconSize();
   orders={};
   archive={};
   stock={};
@@ -3251,5 +3343,11 @@ applyProfileUI();
 })();
 </script>
 
+<!-- Kontrolka rozmiaru ikon -->
+<div id="iconCtrl" style="position:fixed;bottom:22px;left:12px;z-index:8000;display:flex;flex-direction:column;gap:4px;opacity:0.35;transition:opacity .2s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.35'" ontouchstart="this.style.opacity='1'" ontouchend="setTimeout(function(){document.getElementById('iconCtrl').style.opacity='0.35';},2000)">
+  <button onclick="changeIconSize(1)" style="width:34px;height:34px;border-radius:10px;border:none;background:rgba(18,120,168,.7);color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);touch-action:manipulation;">&#x1F50D;+</button>
+  <button onclick="changeIconSize(-1)" style="width:34px;height:34px;border-radius:10px;border:none;background:rgba(18,120,168,.7);color:#fff;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);touch-action:manipulation;">&#x1F50D;-</button>
+  <div id="iconSizeLbl" style="text-align:center;font-size:.6rem;color:rgba(255,255,255,.6);font-weight:800;"></div>
+</div>
 </body>
 </html>
