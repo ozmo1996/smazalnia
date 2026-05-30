@@ -55,8 +55,9 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 .nb{background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);border:1.5px solid rgba(255,255,255,.13);border-radius:22px;padding:6px 11px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.73rem;cursor:pointer;white-space:nowrap;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nb.on{background:var(--a);border-color:var(--g);color:#fff}
+.nb:active{filter:brightness(1.25)}
 .nb.logout{background:rgba(232,92,58,.12);border-color:rgba(232,92,58,.35);color:#ffb1a1}
-.fbd{width:8px;height:8px;border-radius:50%;background:#444;flex-shrink:0;margin-left:2px;align-self:center}
+.fbd{width:8px;height:8px;border-radius:50%;background:#444;flex-shrink:0;margin-left:5px;align-self:center}
 .fbd.ok{background:var(--gr);box-shadow:0 0 5px var(--gr)}.fbd.er{background:var(--e)}
 .view{display:none!important}.view.on{display:block!important}
 #vb.on,#vk.on{display:block!important}
@@ -202,7 +203,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .stbl th{background:linear-gradient(90deg,var(--w),var(--s));color:#fff;padding:8px 10px;font-size:.75rem;text-align:left;font-weight:800}
 .stbl td{padding:7px 10px;font-size:.8rem;font-weight:700;color:#0b1e28;border-bottom:1px solid rgba(0,0,0,.06)}.stbl tr:last-child td{border:none}
 .stbl tr:nth-child(even) td{background:rgba(0,0,0,.025)}
-.sbw{display:flex;align-items:center}.sbar{height:7px;border-radius:3px;background:linear-gradient(90deg,var(--s),var(--a));min-width:3px}
+.sbw{display:flex;align-items:center;max-width:100%;overflow:hidden}.sbar{height:7px;border-radius:3px;background:linear-gradient(90deg,var(--s),var(--a));min-width:3px;max-width:100%}
 .hl{display:flex;flex-direction:column;gap:5px;margin-top:5px}
 .hr2{background:var(--c);border-radius:9px;padding:7px 11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ht{color:#999;font-size:.7rem;font-weight:800;min-width:82px}.htbl{color:var(--s);font-weight:900;font-size:.83rem;min-width:58px}
@@ -308,6 +309,17 @@ touch-action:manipulation;
 }
 
 .cst{border-radius:11px;padding:11px 14px;display:flex;align-items:center;gap:10px;font-weight:700;font-size:.85rem;margin-bottom:12px}
+.set-lbl{display:block;color:rgba(255,255,255,.75);font-size:.78rem;font-weight:800;margin-bottom:5px;margin-top:12px}
+.set-lbl:first-of-type{margin-top:0}
+.set-inp{display:block;width:100%;padding:11px 12px;border-radius:10px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-family:'Nunito',sans-serif;font-size:.95rem;font-weight:700;outline:none;margin-bottom:2px}
+.set-inp:focus{border-color:var(--a)}
+.set-inp::placeholder{color:rgba(255,255,255,.3)}
+select.set-inp option{background:#0d3d56;color:#fff}
+.set-hint{color:rgba(255,255,255,.45);font-size:.72rem;margin-top:4px;line-height:1.4}
+.set-check{display:flex;align-items:center;gap:9px;color:rgba(255,255,255,.8);font-size:.83rem;font-weight:700;cursor:pointer;user-select:none}
+.set-check input{width:22px;height:22px;accent-color:var(--a);flex-shrink:0;cursor:pointer}
+.set-save{display:block;width:100%;margin-top:14px;padding:12px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--a),var(--g));color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;touch-action:manipulation;min-height:46px}
+.set-save:active{opacity:.88}
 .cst.ok{background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);color:#1a8a45}
 .cst.er{background:rgba(232,92,58,.1);border:1.5px solid rgba(232,92,58,.25);color:var(--e)}
 .cst.of{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
@@ -392,7 +404,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.1</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.2</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -401,10 +413,9 @@ touch-action:manipulation;
     <button class="nb" id="nb-s" onclick="openStats()">&#x1F4CA; Statystyki</button>
     <button class="nb" id="nb-m" onclick="gv('m')">&#x270F;&#xFE0F; Menu</button>
     <button class="nb" id="nb-w" onclick="gv('w')">&#x1F4E6; Magazyn</button>
-    <button class="nb" id="nb-c" onclick="gv('c')">&#x2601;&#xFE0F; Chmura</button>
+    <button class="nb" id="nb-c" onclick="gv('c')">&#x2699;&#xFE0F; Ustawienia</button>
     <button class="nb" id="nb-undo" onclick="undoLastAction()" style="display:none;">&#x21A9; Cofnij</button>
     <button class="nb logout" id="nb-x" onclick="logoutApp()">Wyloguj</button>
-    <span id="fbd" class="fbd"></span>
   </nav>
 </header>
 <div class="view on" id="vo">
@@ -485,6 +496,45 @@ touch-action:manipulation;
 <div class="view" id="vc">
   <div id="cst"></div>
 
+  <!-- USTAWIENIA APLIKACJI -->
+  <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:12px;">&#x2699;&#xFE0F; Ustawienia ogolne</div>
+
+    <label class="set-lbl">&#x1F1E8;&#x1F1FF; Domyslny kurs (1 PLN = ? CZK)</label>
+    <input class="set-inp" id="setCzk" type="number" min="0.1" max="50" step="0.1">
+
+    <label class="set-lbl">&#x1F4E6; Prog niskiego stanu magazynu (%)</label>
+    <input class="set-inp" id="setLow" type="number" min="1" max="100" step="1">
+    <div class="set-hint">Produkt oznaczany jako NISKI STAN gdy zostanie tyle % stanu poczatkowego.</div>
+
+    <label class="set-lbl">&#x1F3E0; Widok po zalogowaniu</label>
+    <select class="set-inp" id="setView">
+      <option value="o">&#x1F6D2; Zamow</option>
+      <option value="l">&#x1F4CB; Lista</option>
+      <option value="b">&#x1F37A; Bar</option>
+      <option value="k">&#x1F468;&#x200D;&#x1F373; Kuchnia</option>
+      <option value="w">&#x1F4E6; Magazyn</option>
+    </select>
+
+    <label class="set-check" style="margin-top:12px;">
+      <input type="checkbox" id="setConfDel">
+      <span>Pytaj o potwierdzenie przy usuwaniu zamowienia</span>
+    </label>
+
+    <button class="set-save" onclick="saveSettingsFromUI()">&#x1F4BE; Zapisz ustawienia</button>
+  </div>
+
+  <!-- ZMIANA HASLA -->
+  <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;margin-bottom:10px;">&#x1F510; Haslo aplikacji</div>
+    <input class="set-inp" id="setPwOld" type="password" placeholder="Stare haslo">
+    <input class="set-inp" id="setPwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)">
+    <input class="set-inp" id="setPwNew2" type="password" placeholder="Powtorz nowe haslo">
+    <div id="setPwErr" style="color:var(--e);font-size:.78rem;font-weight:800;min-height:16px;margin:2px 0;"></div>
+    <button class="set-save" style="background:linear-gradient(135deg,#0d4a6a,#1278a8);" onclick="changePwFromSettings()">Zmien haslo</button>
+    <div class="set-hint">Nowe haslo obowiazuje na wszystkich urzadzeniach.</div>
+  </div>
+
   <!-- BACKUP -->
   <!-- URZADZENIA -->
   <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
@@ -501,6 +551,10 @@ touch-action:manipulation;
       <button onclick="downloadBackup()" style="background:var(--a);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-family:Nunito,sans-serif;font-weight:900;font-size:.85rem;cursor:pointer;touch-action:manipulation;">&#x2B07; Pobierz backup</button>
       <span id="backupStatus" style="color:rgba(255,255,255,.5);font-size:.75rem;"></span>
     </div>
+  </div>
+  <div style="margin:22px 12px 4px;display:flex;align-items:center;gap:8px;">
+    <div style="font-family:'Playfair Display',serif;color:rgba(255,255,255,.55);font-size:.85rem;font-weight:700;white-space:nowrap;">&#x2601;&#xFE0F; Chmura i kopia zapasowa</div>
+    <div style="flex:1;height:1px;background:rgba(255,255,255,.1);"></div>
   </div>
   <div class="cdiag"><div class="cdgt">Diagnostyka polaczenia</div><div id="cdiag"></div>
     <button class="bftst" onclick="testFb()" id="btest">Testuj polaczenie z Firebase</button>
@@ -650,6 +704,21 @@ var fbDB=null;
 var _send=false;
 var _lth=0;
 var _la=0;
+
+// ── USTAWIENIA APLIKACJI ──
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o'};
+var appSettings=loadSettings();
+function loadSettings(){
+  var s=cloneObj(SETTINGS_DEF);
+  try{var raw=lsGet('sp_settings');if(raw){var p=JSON.parse(raw);for(var k in SETTINGS_DEF){if(p[k]!==undefined)s[k]=p[k];}}}catch(e){}
+  return s;
+}
+function saveSettings(){
+  lsSet('sp_settings',JSON.stringify(appSettings));
+  savePhoneBackup();
+  if(fbReady)fbBg(fbDB.ref('settings/app').set(appSettings));
+}
+
 function applyProfileUI(){
   // Profil sp - dane na stale
   document.title='Smazalnia Pstraga';
@@ -718,7 +787,8 @@ function phoneBackupData(){
     menu:menu||cloneObj(DEF),
     stock:stock||{},
     ordSeq:ordSeq||1,
-    numT:numT||29
+    numT:numT||29,
+    settings:appSettings||cloneObj(SETTINGS_DEF)
   };
 }
 
@@ -747,6 +817,10 @@ function restorePhoneBackup(){
     }
     if((!ordSeq||ordSeq<2)&&b.ordSeq){ordSeq=parseInt(b.ordSeq)||1;lsSet('sp_seq',String(ordSeq));restored=true;}
     if((!numT||numT===29)&&b.numT){numT=parseInt(b.numT)||29;lsSet('sp_tbls',String(numT));restored=true;}
+    if(!lsGet('sp_settings')&&b.settings){
+      for(var sk in SETTINGS_DEF){if(b.settings[sk]!==undefined)appSettings[sk]=b.settings[sk];}
+      lsSet('sp_settings',JSON.stringify(appSettings));restored=true;
+    }
     return restored;
   }catch(e){return false;}
 }
@@ -887,6 +961,19 @@ function subAll(){
       if(el)el.textContent=numT;
       renderTbls();
     }
+  });
+
+  // USTAWIENIA APLIKACJI - chmura nadrzędna
+  fbDB.ref('settings/app').on('value',function(snap){
+    var v=snap.val();
+    if(!v)return;
+    for(var k in SETTINGS_DEF){if(v[k]!==undefined)appSettings[k]=v[k];}
+    lsSet('sp_settings',JSON.stringify(appSettings));
+    // Zaktualizuj pole kursu tylko gdy koszyk jest pusty (zeby nie zmieniac w trakcie zamowienia)
+    var cr=document.getElementById('czkrate');
+    if(cr&&Object.keys(cart||{}).length===0)cr.value=appSettings.czkRate;
+    if(curV==='c')renderCloud();
+    if(curV==='w')renderStock();
   });
 
   // Powrót internetu - dopisz lokalne do chmury (nie nadpisuj!)
@@ -1129,7 +1216,7 @@ function chQty(id,d){
   if(cart[id].qty<=0)delete cart[id];
   renderCart();updSend();
 }
-function getCZK(){return parseFloat(document.getElementById('czkrate').value)||6.2;}
+function getCZK(){var el=document.getElementById('czkrate');return (el&&parseFloat(el.value))||appSettings.czkRate||6.2;}
 function updateCZK(tot){
   var czk=Math.round(tot*getCZK());
   var el=document.getElementById('otczk');if(el)el.textContent=czk;
@@ -1380,6 +1467,21 @@ function setBarDone(id){
   if(orders[id]){orders[id].barDone=true;saveOrds();renderBar();}
   if(fbReady)fbBg(fbDB.ref('orders/'+id).update({barDone:true}));
 }
+function confirmDeleteOrders(ids){
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-size:2rem;margin-bottom:8px;">&#x1F5D1;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.05rem;font-weight:700;color:#0b1e28;margin-bottom:8px;">Usunac zamowienie?</div>'+
+      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Zamowienie trafi do statystyk (historii).</div>'+
+      '<button id="delOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, usun</button>'+
+      '<button id="delNo" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(modal);
+  document.getElementById('delOk').onclick=function(){modal.remove();for(var i=0;i<ids.length;i++)delOrder(ids[i]);};
+  document.getElementById('delNo').onclick=function(){modal.remove();};
+}
 function delOrder(id){
   saveSnapshot('Usunieto: '+(orders[id]?'Stolik '+orders[id].table:id));
   if(orders[id]){
@@ -1576,7 +1678,11 @@ function renderList(){
     // Przycisk Usun
     var delBtnEl=tb(document.createElement('button'),
       (function(ids){return function(){
-        for(var i=0;i<ids.length;i++)delOrder(ids[i]);
+        if(appSettings.confirmDelete){
+          confirmDeleteOrders(ids);
+        } else {
+          for(var i=0;i<ids.length;i++)delOrder(ids[i]);
+        }
       };})(allIds.split(',')));
     delBtnEl.className='ba badl';
     delBtnEl.innerHTML='&#x1F5D1; Usun';
@@ -1856,7 +1962,7 @@ function renderStock(){
       var soldFromStats=soldStats[it.name]||0;
       var soldReset=s.soldReset||0; // offset odjety przy resecie sprzedazy
       var soldCount=Math.max(0,soldFromStats-soldReset);
-      var low=(s.init>0 && s.current<=Math.ceil(s.init*0.2));
+      var low=(s.init>0 && s.current<=Math.ceil(s.init*((appSettings.lowStockPct||20)/100)));
       var safeName=it.name.replace(/'/g,"\\'");
       html+=
         '<div class="stock-item">'+
@@ -2239,6 +2345,7 @@ function saveSnapshot(label){
   _undoStack.push({
     label:label,
     orders:JSON.parse(JSON.stringify(orders)),
+    stock:JSON.parse(JSON.stringify(stock)),
     ts:Date.now()
   });
   if(_undoStack.length>10)_undoStack.shift();
@@ -2270,6 +2377,13 @@ function undoLastAction(){
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+2;
     fbBg(fbDB.ref('orders').set(orders));
+  }
+  // Przywroc stan magazynowy (np. cofniecie zamowienia oddaje produkty na stan)
+  if(snap.stock){
+    stock=snap.stock;
+    saveStock();
+    if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+    if(curV==='w')renderStock();
   }
   onDataImmediate();
   toast('Cofnieto: '+esc(snap.label),'#f5a623');
@@ -2667,7 +2781,7 @@ function renderStats(){
       '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:10px;">&#x1F4B1; Podział walutowy</div>'+
       '<div style="display:flex;gap:10px;margin-bottom:8px;">'+
         '<div style="flex:1;background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);border-radius:10px;padding:10px;text-align:center;">'+
-          '<div style="font-size:1.2rem;font-weight:900;color:#27ae60;">'+revPLN.toFixed(0)+' zł</div>'+
+          '<div style="font-size:1.2rem;font-weight:900;color:#27ae60;">'+revPLN.toFixed(0)+' zl</div>'+
           '<div style="font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px;">PLN • '+nPLN+' zam. • '+pctPLN+'%</div>'+
           '<div style="background:rgba(39,174,96,.3);border-radius:4px;height:6px;margin-top:6px;">'+
             '<div style="background:#27ae60;border-radius:4px;height:6px;width:'+pctPLN+'%"></div>'+
@@ -2675,7 +2789,7 @@ function renderStats(){
         '</div>'+
         '<div style="flex:1;background:rgba(18,120,168,.12);border:1.5px solid rgba(18,120,168,.3);border-radius:10px;padding:10px;text-align:center;">'+
           '<div style="font-size:1.2rem;font-weight:900;color:#7ec8e3;">'+revCZKamt+' CZK</div>'+
-          '<div style="font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px;">'+(revCZK.toFixed(0))+' zł • '+nCZK+' zam. • '+pctCZK+'%</div>'+
+          '<div style="font-size:.72rem;color:rgba(255,255,255,.6);margin-top:2px;">'+(revCZK.toFixed(0))+' zl • '+nCZK+' zam. • '+pctCZK+'%</div>'+
           '<div style="background:rgba(18,120,168,.3);border-radius:4px;height:6px;margin-top:6px;">'+
             '<div style="background:#1278a8;border-radius:4px;height:6px;width:'+pctCZK+'%"></div>'+
           '</div>'+
@@ -2803,7 +2917,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v1.1',
+    v:'v1.2',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -2875,7 +2989,54 @@ function renderCloud(){
     var f=document.getElementById('ci4');if(f)f.value=cfg.projectId||'';
     var f=document.getElementById('ci5');if(f)f.value=cfg.appId||'';
   }
+  // Wypelnij pola ustawien ogolnych
+  var sC=document.getElementById('setCzk');if(sC)sC.value=appSettings.czkRate;
+  var sL=document.getElementById('setLow');if(sL)sL.value=appSettings.lowStockPct;
+  var sV=document.getElementById('setView');if(sV)sV.value=appSettings.startView;
+  var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
   renderDevices();
+}
+
+function saveSettingsFromUI(){
+  var c=parseFloat((document.getElementById('setCzk')||{}).value);
+  var l=parseInt((document.getElementById('setLow')||{}).value);
+  var v=(document.getElementById('setView')||{}).value;
+  var d=(document.getElementById('setConfDel')||{}).checked;
+  if(c>0&&c<=50)appSettings.czkRate=c;
+  if(l>=1&&l<=100)appSettings.lowStockPct=l;
+  if(v&&VL.indexOf(v)>=0)appSettings.startView=v;
+  appSettings.confirmDelete=!!d;
+  saveSettings();
+  // Zastosuj kurs od razu w polu zamowienia
+  var cr=document.getElementById('czkrate');if(cr){cr.value=appSettings.czkRate;renderCart();}
+  if(curV==='w')renderStock();
+  toast('Ustawienia zapisane!','#27ae60');
+  vib([10,30,10]);
+}
+
+function changePwFromSettings(){
+  var o=(document.getElementById('setPwOld')||{}).value||'';
+  var n1=(document.getElementById('setPwNew')||{}).value||'';
+  var n2=(document.getElementById('setPwNew2')||{}).value||'';
+  var err=document.getElementById('setPwErr');
+  if(err)err.textContent='';
+  if(n1.length<4){if(err)err.textContent='Nowe haslo: min. 4 znaki';return;}
+  if(n1!==n2){if(err)err.textContent='Hasla sie roznia';return;}
+  sha256(o).then(function(oldHash){
+    if(oldHash!==window.getStoredPw()){
+      if(err)err.textContent='Stare haslo nieprawidlowe';
+      return;
+    }
+    sha256(n1).then(function(newHash){
+      try{localStorage.setItem('sp_pwhash',newHash);}catch(e){}
+      if(typeof firebase!=='undefined'&&firebase.apps&&firebase.apps.length){
+        try{firebase.database().ref('settings/pwHash').set(newHash).catch(function(){});}catch(e){}
+      }
+      ['setPwOld','setPwNew','setPwNew2'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+      toast('Haslo zmienione na wszystkich urzadzeniach!','#27ae60');
+      vib([10,30,10]);
+    });
+  });
 }
 function saveFb(){
   var cfg={apiKey:xv('ci1'),authDomain:xv('ci2'),databaseURL:xv('ci3'),projectId:xv('ci4'),appId:xv('ci5')};
@@ -3137,6 +3298,7 @@ function bootApp(){
   numT=parseInt(lsGet('sp_tbls'))||29;
   DID=lsGet('sp_did')||mkDID();
   menu=cloneObj(DEF);
+  appSettings=loadSettings();
   loadOrds();
   loadArc();
   loadStock();
@@ -3145,7 +3307,13 @@ function bootApp(){
   else{menu=cloneObj(DEF);}
   restorePhoneBackup();
   ensureStock();
+  // Domyslny kurs CZK z ustawien
+  var _cr=document.getElementById('czkrate');if(_cr)_cr.value=appSettings.czkRate||6.2;
   var _td=document.getElementById('tnd');if(_td)_td.textContent=numT;
+  // Widok startowy z ustawien (jesli inny niz domyslny 'o')
+  if(appSettings.startView&&appSettings.startView!=='o'&&VL.indexOf(appSettings.startView)>=0){
+    gv(appSettings.startView);
+  }
   renderTbls();
   renderMGs();
   renderEditor();
