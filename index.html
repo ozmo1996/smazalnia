@@ -244,6 +244,12 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .stock-name{flex:1;font-weight:800;font-size:.88rem;color:#0b1e28;line-height:1.2;}
 .stock-sold{font-size:.72rem;color:#999;font-weight:700;margin-top:2px;}
 .stock-low{color:var(--e)!important;}
+.stock-initrow{display:flex;align-items:center;gap:6px;margin-top:6px;}
+.stock-initlbl{font-size:.72rem;color:#888;font-weight:800;white-space:nowrap;}
+.stock-init{width:62px;height:34px;padding:4px 6px;border-radius:8px;border:1.5px solid #ddd;font-family:'Nunito',sans-serif;font-size:.92rem;font-weight:800;color:#0b1e28;text-align:center;outline:none;-webkit-appearance:none;appearance:none;}
+.stock-init:focus{border-color:var(--s);}
+.stock-initset{height:34px;padding:0 10px;border-radius:8px;border:none;background:rgba(18,120,168,.15);color:#1278a8;font-family:'Nunito',sans-serif;font-size:.74rem;font-weight:900;cursor:pointer;touch-action:manipulation;}
+.stock-initset:active{filter:brightness(1.1);}
 .stock-controls{display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
 .stock-btn{width:52px;height:52px;border-radius:12px;border:none;background:var(--s);color:#fff;font-size:1.7rem;font-weight:900;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;}
 .stock-btn:active{filter:brightness(1.2)}
@@ -328,6 +334,17 @@ select.set-inp option{background:#0d3d56;color:#fff}
 .cnt-row input{width:21px;height:21px;accent-color:var(--gr);flex-shrink:0;cursor:pointer}
 .cnt-row .cnt-em{font-size:1.2rem;width:26px;text-align:center;flex-shrink:0}
 .cnt-row .cnt-nm{flex:1;color:#fff;font-weight:700;font-size:.85rem}
+.cat-row{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.cat-row:last-child{border:none}
+.cat-row .cat-nm{flex:1;min-width:0;padding:9px 10px;border-radius:8px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-family:'Nunito',sans-serif;font-size:.86rem;font-weight:700;outline:none}
+.cat-row .cat-nm:focus{border-color:var(--a)}
+.cat-row .cat-drink{display:flex;align-items:center;gap:4px;color:rgba(255,255,255,.7);font-size:.72rem;font-weight:800;white-space:nowrap;cursor:pointer;user-select:none}
+.cat-row .cat-drink input{width:18px;height:18px;accent-color:var(--s);cursor:pointer}
+.cat-mv,.cat-del{width:34px;height:36px;border-radius:8px;border:none;cursor:pointer;font-size:1rem;font-weight:900;flex-shrink:0;touch-action:manipulation}
+.cat-mv{background:rgba(255,255,255,.12);color:#fff}
+.cat-del{background:rgba(232,92,58,.15);color:var(--e)}
+.cat-mv:active,.cat-del:active{filter:brightness(1.2)}
+.cat-cnt{color:rgba(255,255,255,.4);font-size:.68rem;font-weight:800;white-space:nowrap;min-width:34px;text-align:center}
 .cst.ok{background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);color:#1a8a45}
 .cst.er{background:rgba(232,92,58,.1);border:1.5px solid rgba(232,92,58,.25);color:var(--e)}
 .cst.of{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
@@ -412,7 +429,7 @@ select.set-inp option{background:#0d3d56;color:#fff}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.2</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v2.0</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -429,9 +446,7 @@ select.set-inp option{background:#0d3d56;color:#fff}
 <div class="view on" id="vo">
   <div class="tlbl" id="tlbl">Wybierz stolik (1-29)</div>
   <div class="tg" id="tg"></div>
-  <div class="sh">Dania glowne</div><div class="mg" id="mg1"></div>
-  <div class="sh">Dodatki</div><div class="mg" id="mg2"></div>
-  <div class="sh">Napoje</div><div class="mg" id="mg3"></div>
+  <div id="menuSections"></div>
   <div class="op">
     <div class="oph"><span class="opht">Zamowienie</span><span class="ophs" id="ophs">wybierz stolik</span></div>
     <div class="onr" style="display:flex;gap:8px;align-items:center;">
@@ -543,6 +558,16 @@ select.set-inp option{background:#0d3d56;color:#fff}
     </div>
     <div id="countItemsList"></div>
     <button class="set-save" style="background:linear-gradient(135deg,#1a8a45,#27ae60);" onclick="saveCountItems()">&#x1F4BE; Zapisz wybor pozycji</button>
+  </div>
+
+  <!-- KATEGORIE MENU -->
+  <div style="background:rgba(146,109,222,.1);border:1.5px solid rgba(146,109,222,.35);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="font-family:'Playfair Display',serif;font-weight:700;color:#c4a8ff;font-size:.95rem;margin-bottom:4px;">&#x1F5C2;&#xFE0F; Kategorie menu</div>
+    <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Dodawaj wlasne zakladki menu (np. Desery, Przystawki). Zaznacz „Bar" jesli pozycje maja trafiac do zakladki Bar (napoje), w przeciwnym razie ida do Kuchni.</div>
+    <div id="catList"></div>
+    <button class="cnt-mini" style="margin-top:8px;" onclick="addCategory()">&#x2795; Dodaj kategorie</button>
+    <button class="set-save" style="background:linear-gradient(135deg,#6a4caa,#926dde);" onclick="saveCategories()">&#x1F4BE; Zapisz kategorie</button>
+    <div class="set-hint">Uwaga: usuniecie kategorii usuwa wszystkie jej pozycje z menu.</div>
   </div>
 
   <!-- ZMIANA HASLA -->
@@ -705,6 +730,30 @@ var EMOJIS=[
 ];
 
 var menu=cloneObj(DEF);
+
+// ── KATEGORIE MENU ──
+// Domyslne 3 kategorie. Napoje rozpoznawane po fladze isDrink (idą do Baru).
+var DEFAULT_CATS=[
+  {key:'main',  label:'Dania glowne', isDrink:false},
+  {key:'sides', label:'Dodatki',      isDrink:false},
+  {key:'drinks',label:'Napoje',       isDrink:true}
+];
+// Zwraca aktualna liste kategorii (z menu._cats lub domyslna).
+function getCats(){
+  if(menu._cats&&menu._cats.length)return menu._cats;
+  return DEFAULT_CATS;
+}
+// Lista kluczy kategorii (zamiennik dawnego ['main','sides','drinks']).
+function catKeys(){return getCats().map(function(c){return c.key;});}
+// Etykieta kategorii po kluczu.
+function catLabel(key){var c=getCats().filter(function(x){return x.key===key;})[0];return c?c.label:key;}
+// Czy kategoria to napoje (idzie do Baru)?
+function catIsDrink(key){var c=getCats().filter(function(x){return x.key===key;})[0];return c?!!c.isDrink:false;}
+// Upewnij sie ze menu ma tablice dla kazdej kategorii.
+function ensureCatArrays(){
+  getCats().forEach(function(c){if(!Array.isArray(menu[c.key]))menu[c.key]=[];});
+}
+
 var orders={};
 var archive={};
 var cart={};
@@ -763,7 +812,15 @@ function toast(msg,color){
 }
 
 var _dSetCache=null;
-function dSet(){if(!_dSetCache)_dSetCache=new Set((menu.drinks||[]).map(function(d){return norm(d.name);}));return _dSetCache;}
+function dSet(){
+  if(!_dSetCache){
+    _dSetCache=new Set();
+    getCats().forEach(function(c){
+      if(c.isDrink)(menu[c.key]||[]).forEach(function(d){_dSetCache.add(norm(d.name));});
+    });
+  }
+  return _dSetCache;
+}
 
 // Zbior pozycji wybranych do zliczania w licznikach (kuchnia/bar).
 // null lub pusty = zliczaj wszystkie pozycje.
@@ -782,7 +839,7 @@ function isDrink(i){return dSet().has(norm(i.name));}
 function menuOrderMap(){
   var map={};
   var idx=0;
-  ['main','sides','drinks'].forEach(function(sec){
+  catKeys().forEach(function(sec){
     (menu[sec]||[]).forEach(function(it){
       map[norm(it.name)]=idx++;
     });
@@ -968,12 +1025,16 @@ function subAll(){
     var v=snap.val();
     if(v){
       menu=v;
+      ensureCatArrays();
       lsSet('sp_menu',JSON.stringify(menu));
       dSetInvalidate();
       countSetInvalidate();
       renderMGs();
       if(curV==='m')renderEditor();
-      if(curV==='c')renderCountItems();
+      if(curV==='c'){_catsEdit=null;renderCatEditor();renderCountItems();}
+      if(curV==='b')renderBar();
+      if(curV==='k')renderKitch();
+      if(curV==='w')renderStock();
     }else{
       fbDB.ref('menu').set(menu).catch(function(){});
     }
@@ -1193,9 +1254,21 @@ function pickTbl(n){
 
 // MENU KARTY
 function renderMGs(){
-  renderMG('mg1',menu.main);
-  renderMG('mg2',menu.sides);
-  renderMG('mg3',menu.drinks);
+  var wrap=document.getElementById('menuSections');
+  if(!wrap)return;
+  ensureCatArrays();
+  var cats=getCats();
+  // Zbuduj brakujace sekcje / usun nadmiarowe (re-render calosci dla prostoty)
+  var html='';
+  cats.forEach(function(c){
+    var items=menu[c.key]||[];
+    if(!items.length)return; // pusta kategoria - nie pokazuj naglowka w widoku zamowienia
+    html+='<div class="sh">'+esc(c.label)+'</div><div class="mg" id="mg_'+c.key+'"></div>';
+  });
+  wrap.innerHTML=html;
+  cats.forEach(function(c){
+    if((menu[c.key]||[]).length)renderMG('mg_'+c.key,menu[c.key]);
+  });
 }
 function renderMG(id,items){
   var g=document.getElementById(id);
@@ -1542,6 +1615,9 @@ function delOrder(id){
 }
 function cancelOrder(id){
   saveSnapshot('Anulowano: '+(orders[id]?'Stolik '+orders[id].table:id));
+  var cancelled=orders[id];
+  // Zwroc pozycje na stan (zamowienie odjelo je przy zlozeniu)
+  if(cancelled&&cancelled.items)restoreStock(cancelled.items);
   delete orders[id];saveOrds();onDataImmediate();
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+1;
@@ -1820,9 +1896,10 @@ function renderKCounter(){
 
   var totals={};
   var cooking={};
-  // Kategorie: ryby vs reszta
+  // Lewa kolumna licznika = pierwsza kategoria (dania glowne / ryby); reszta po prawej
   var fishNames=new Set();
-  (menu.main||[]).forEach(function(it){fishNames.add(norm(it.name));});
+  var firstFoodCat=catKeys().filter(function(k){return !catIsDrink(k);})[0];
+  if(firstFoodCat)(menu[firstFoodCat]||[]).forEach(function(it){fishNames.add(norm(it.name));});
 
   act.forEach(function(o){
     o.items.forEach(function(it){
@@ -1980,7 +2057,7 @@ function loadStock(){try{var r=lsGet('sp_stock');if(r)stock=JSON.parse(r);}catch
 
 function getAllMenuItems(){
   var all=[];
-  ['main','sides','drinks'].forEach(function(sec){
+  catKeys().forEach(function(sec){
     (menu[sec]||[]).forEach(function(it){all.push({name:it.name,emoji:it.emoji,sec:sec});});
   });
   return all;
@@ -1992,56 +2069,42 @@ function ensureStock(){
   var changed=false;
   items.forEach(function(it){
     if(!stock[it.name]){
-      stock[it.name]={init:0,current:0,sold:0,emoji:it.emoji};
+      stock[it.name]={init:0,current:0,emoji:it.emoji};
       changed=true;
     } else {
-      // Zaktualizuj emoji jezeli zmienione
       var init=Math.max(0,Math.round(stock[it.name].init)||0);
       var current=Math.max(0,Math.round(stock[it.name].current)||0);
-      var sold=Math.max(0,Math.round(stock[it.name].sold)||0);
-      if(stock[it.name].emoji!==it.emoji||stock[it.name].init!==init||stock[it.name].current!==current||stock[it.name].sold!==sold)changed=true;
+      if(stock[it.name].emoji!==it.emoji||stock[it.name].init!==init||stock[it.name].current!==current)changed=true;
       stock[it.name].emoji=it.emoji;
       stock[it.name].init=init;
       stock[it.name].current=current;
-      stock[it.name].sold=sold;
+      // Usun przestarzale pola jezeli istnieja
+      if('sold' in stock[it.name]){delete stock[it.name].sold;changed=true;}
+      if('soldReset' in stock[it.name]){delete stock[it.name].soldReset;changed=true;}
     }
   });
   if(changed)saveStock();
-}
-
-function calcSoldFromStats(){
-  // Oblicz sprzedaz z archiwum (statystyk) - tylko do wyswietlenia
-  var sold={};
-  Object.values(archive).forEach(function(o){
-    (o.items||[]).forEach(function(it){
-      sold[it.name]=(sold[it.name]||0)+it.qty;
-    });
-  });
-  return sold;
 }
 
 function renderStock(){
   ensureStock();
   var wrap=document.getElementById('stockWrap');
   if(!wrap)return;
-  var soldStats=calcSoldFromStats(); // sprzedaz ze statystyk
-  var secs=[
-    {key:'main',  label:'&#x1F41F; Dania glowne'},
-    {key:'sides', label:'&#x1F957; Dodatki'},
-    {key:'drinks',label:'&#x1F37A; Napoje'},
-  ];
+  var secs=getCats().map(function(c){return {key:c.key,label:esc(c.label)};});
   var html='';
   secs.forEach(function(sec){
     var items=(menu[sec.key]||[]);
     if(!items.length)return;
     html+='<div class="stock-sec"><div class="stock-sec-title">'+sec.label+'</div>';
     items.forEach(function(it){
-      var s=stock[it.name]||{init:0,current:0,sold:0};
-      var soldFromStats=soldStats[it.name]||0;
-      var soldReset=s.soldReset||0; // offset odjety przy resecie sprzedazy
-      var soldCount=Math.max(0,soldFromStats-soldReset);
-      var low=(s.init>0 && s.current<=Math.ceil(s.init*((appSettings.lowStockPct||20)/100)));
+      var s=stock[it.name]||{init:0,current:0};
+      var initV=Math.max(0,Math.round(s.init)||0);
+      var curV2=Math.max(0,Math.round(s.current)||0);
+      // Sprzedano = ile ubylo ze stanu poczatkowego (spojne ze stanem biezacym)
+      var soldCount=Math.max(0,initV-curV2);
+      var low=(initV>0 && curV2<=Math.ceil(initV*((appSettings.lowStockPct||20)/100)));
       var safeName=it.name.replace(/'/g,"\\'");
+      var idBase=safeName.replace(/[^a-z0-9]/gi,'_');
       html+=
         '<div class="stock-item">'+
           '<span class="stock-em">'+it.emoji+'</span>'+
@@ -2049,14 +2112,19 @@ function renderStock(){
             '<div>'+esc(it.name)+'</div>'+
             '<div class="stock-sold'+(low?' stock-low':'')+'">'+
               'Sprzedano: '+soldCount+
-              (s.init>0?' | Pocz: '+s.init:'') +
+              (initV>0?' | Pocz: '+initV:'') +
               (low?' &#x26A0; NISKI STAN':'') +
+            '</div>'+
+            '<div class="stock-initrow">'+
+              '<span class="stock-initlbl">Stan pocz.:</span>'+
+              '<input class="stock-init" id="sinit_'+idBase+'" type="number" min="0" inputmode="numeric" value="'+initV+'" onkeydown="if(event.key===\'Enter\'){applyInit(this,\''+safeName+'\')}">'+
+              '<button class="stock-initset" onclick="applyInit(document.getElementById(\'sinit_'+idBase+'\'),\''+safeName+'\')">Ustaw</button>'+
             '</div>'+
           '</div>'+
           '<div class="stock-controls">'+
             '<button class="stock-btn minus10" onclick="stepStock(\''+safeName+'\',-10,this)">-10</button>'+
             '<button class="stock-btn minus" onclick="stepStock(\''+safeName+'\',-1,this)">-</button>'+
-            '<input class="stock-inp" id="si_'+safeName.replace(/[^a-z0-9]/gi,'_')+'" type="number" min="0" inputmode="numeric" value="'+s.current+'" onkeydown="if(event.key===\'Enter\'){applyStock(this,\''+safeName+'\')}">'+
+            '<input class="stock-inp" id="si_'+idBase+'" type="number" min="0" inputmode="numeric" value="'+curV2+'" onkeydown="if(event.key===\'Enter\'){applyStock(this,\''+safeName+'\')}">'+
             '<button class="stock-btn" onclick="stepStock(\''+safeName+'\',1,this)">+</button>'+
             '<button class="stock-btn plus10" onclick="stepStock(\''+safeName+'\',10,this)">+10</button>'+
             '<button class="stock-apply" onclick="applyStock(this,\''+safeName+'\')">&#x2714; Zatwierdz</button>'+
@@ -2091,11 +2159,27 @@ function applyStock(src,name){
   vib([10,30,10]);
 }
 
+// Ustawienie stanu poczatkowego (baza do liczenia "Sprzedano" i alertu niskiego stanu)
+function applyInit(inp,name){
+  if(!inp||!stock[name])return;
+  var val=Math.max(0,Math.round(+inp.value)||0);
+  stock[name].init=val;
+  // Stan poczatkowy nie moze byc mniejszy niz biezacy (nie da sie sprzedac wiecej niz bylo)
+  if((stock[name].current||0)>val)stock[name].current=val;
+  saveStock();
+  if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+  renderStock();
+  toast('&#x2714; Stan poczatkowy: '+esc(name)+' = '+val,'#27ae60');
+  vib([10,30,10]);
+}
+
 function setStock(name,val){
   if(!stock[name])return;
   val=Math.max(0,Math.round(val)||0);
   stock[name].current=val;
-  // init nie jest automatycznie zmieniane - uzytkownik ustawia go recznie
+  // Jezeli biezacy przekracza poczatkowy (dostawa/uzupelnienie) - podnies poczatkowy,
+  // zeby licznik "Sprzedano" (init - current) nie byl ujemny i mial sens.
+  if(val>(stock[name].init||0))stock[name].init=val;
   saveStock();
   if(fbReady)fbBg(fbDB.ref('stock').set(stock));
 }
@@ -2108,7 +2192,7 @@ function resetStock(){
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
       '<div style="font-size:2rem;margin-bottom:8px;">&#x1F504;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.05rem;font-weight:700;color:#0b1e28;margin-bottom:8px;">Resetowac magazyn?</div>'+
-      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan poczatkowy zostanie ustawiony na 0. Stan biezacy zostaje bez zmian.</div>'+
+      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan poczatkowy i biezacy wszystkich produktow zostana ustawione na 0 (puste polki). Licznik „Sprzedano" wyzeruje sie.</div>'+
       '<button id="rst1ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, resetuj</button>'+
       '<button id="rst1no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
     '</div>';
@@ -2123,7 +2207,7 @@ function resetStock(){
       '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
         '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
         '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
-        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Stan poczatkowy wszystkich produktow zostanie ustawiony na 0.</div>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Caly stan magazynowy (poczatkowy i biezacy) zostanie wyzerowany.</div>'+
         '<button id="rst2ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Potwierdz reset</button>'+
         '<button id="rst2no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
       '</div>';
@@ -2135,6 +2219,7 @@ function resetStock(){
       items.forEach(function(it){
         if(stock[it.name]){
           stock[it.name].init=0;
+          stock[it.name].current=0;
         }
       });
       saveStock();
@@ -2152,6 +2237,26 @@ function deductStock(items){
   items.forEach(function(it){
     if(stock[it.name]){
       stock[it.name].current=Math.max(0,(stock[it.name].current||0)-it.qty);
+      changed=true;
+    }
+  });
+  if(changed){
+    saveStock();
+    if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+    if(curV==='w')renderStock();
+  }
+}
+
+// Zwroc pozycje na stan (np. po anulowaniu zamowienia). Nie przekracza stanu poczatkowego.
+function restoreStock(items){
+  if(!items||!items.length)return;
+  ensureStock();
+  var changed=false;
+  items.forEach(function(it){
+    if(stock[it.name]){
+      var back=(stock[it.name].current||0)+it.qty;
+      var cap=stock[it.name].init||0;
+      stock[it.name].current=cap>0?Math.min(cap,back):back;
       changed=true;
     }
   });
@@ -2186,7 +2291,7 @@ function openEditOrder(id){
       '</tr>';
     }).join('');
     var opts=[];
-    ['main','sides','drinks'].forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
+    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
       '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+(o.table==='my'?'MY':'Stolik '+o.table)+'</div>'+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
@@ -2250,7 +2355,7 @@ function openEditOrder(id){
       var sel=document.getElementById('eadd_sel');
       var found=null;
 
-      ['main','sides','drinks'].forEach(function(s){
+      catKeys().forEach(function(s){
         (menu[s]||[]).forEach(function(it){
           if(it.id===sel.value)found=it;
         });
@@ -2300,6 +2405,21 @@ function openEditOrder(id){
 
         var ord=orders[id];
         if(!ord)return;
+
+        // Skoryguj magazyn o roznice miedzy starym a nowym zamowieniem
+        var oldItems=ord.items||[];
+        var newItems=items;
+        var qtyBy={};
+        oldItems.forEach(function(it){qtyBy[it.name]=(qtyBy[it.name]||0)-it.qty;});
+        newItems.forEach(function(it){qtyBy[it.name]=(qtyBy[it.name]||0)+it.qty;});
+        var toDeduct=[],toRestore=[];
+        Object.keys(qtyBy).forEach(function(nm){
+          var d=qtyBy[nm];
+          if(d>0)toDeduct.push({name:nm,qty:d});      // dodano pozycji -> zejdz ze stanu
+          else if(d<0)toRestore.push({name:nm,qty:-d}); // usunieto -> zwroc na stan
+        });
+        if(toDeduct.length)deductStock(toDeduct);
+        if(toRestore.length)restoreStock(toRestore);
 
         ord.items=JSON.parse(JSON.stringify(items));
         ord.note=(document.getElementById('enote')||{}).value||'';
@@ -2528,7 +2648,7 @@ function openAddToOrder(table){
 
   // Menu opcje
   var allItems=[];
-  ['main','sides','drinks'].forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(!it.unavailable)allItems.push(it);});});
+  catKeys().forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(!it.unavailable)allItems.push(it);});});
   var opts=allItems.map(function(it){
     return '<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
   }).join('');
@@ -2620,7 +2740,7 @@ function resetSold(){
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
       '<div style="font-size:2rem;margin-bottom:8px;">&#x1F9F9;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.05rem;font-weight:700;color:#0b1e28;margin-bottom:8px;">Resetowac sprzedaz?</div>'+
-      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Licznik sprzedanych sztuk w magazynie zostanie wyzerowany. Statystyki i historia zamowien zostaja bez zmian.</div>'+
+      '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Licznik „Sprzedano" zostanie wyzerowany — stan poczatkowy kazdego produktu zostanie zrownany z biezacym. Statystyki i historia zamowien zostaja bez zmian.</div>'+
       '<button id="rs1ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#1278a8;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Tak, resetuj sprzedaz</button>'+
       '<button id="rs1no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
     '</div>';
@@ -2634,7 +2754,7 @@ function resetSold(){
       '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
         '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
         '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#1278a8;margin-bottom:10px;">Jestes pewny?</div>'+
-        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Wszystkie dane o sprzedazy zostana wyzerowane.</div>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Licznik sprzedazy zacznie liczyc od zera (od biezacego stanu).</div>'+
         '<button id="rs2ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#1278a8;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Potwierdz reset sprzedazy</button>'+
         '<button id="rs2no" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
       '</div>';
@@ -2642,12 +2762,11 @@ function resetSold(){
     document.getElementById('rs2no').onclick=function(){m2.remove();};
     document.getElementById('rs2ok').onclick=function(){
       m2.remove();
-      // Zapisz aktualny stan ze statystyk jako offset - sprzedaz liczy od teraz
-      var soldStats=calcSoldFromStats();
+      // Sprzedano = init - current. Reset = zrownaj init z current (sprzedano 0 od teraz).
       var items=getAllMenuItems();
       items.forEach(function(it){
-        if(!stock[it.name])stock[it.name]={init:0,current:0,sold:0,soldReset:0};
-        stock[it.name].soldReset=soldStats[it.name]||0;
+        if(!stock[it.name])stock[it.name]={init:0,current:0};
+        stock[it.name].init=Math.max(0,Math.round(stock[it.name].current)||0);
       });
       saveStock();
       if(fbReady)fbBg(fbDB.ref('stock').set(stock));
@@ -2893,21 +3012,23 @@ function renderStats(){
 }
 
 // MENU EDITOR
-var EN={main:'Dania glowne',sides:'Dodatki',drinks:'Napoje'};
 function renderEditor(){
+  ensureCatArrays();
+  var keys=catKeys();
+  // Jesli aktywna kategoria juz nie istnieje - wroc do pierwszej
+  if(keys.indexOf(edSec)<0)edSec=keys[0]||'main';
   var tabs=document.getElementById('etabs');tabs.innerHTML='';
-  var secs=['main','sides','drinks'];
-  for(var i=0;i<secs.length;i++){
-    var sec=secs[i];
+  for(var i=0;i<keys.length;i++){
+    var sec=keys[i];
     var b=document.createElement('button');
     b.className='etab'+(sec===edSec?' on':'');
-    b.textContent=EN[sec];
+    b.textContent=catLabel(sec);
     (function(s){b.addEventListener('click',function(){collectEd();edSec=s;renderEditor();});})(sec);
     tabs.appendChild(b);
   }
   var panel=document.getElementById('epanel');
   var hdr=document.createElement('div');hdr.className='eph';
-  hdr.innerHTML='<span class="epht">'+EN[edSec]+'</span>';
+  hdr.innerHTML='<span class="epht">'+esc(catLabel(edSec))+'</span>';
   var ab=document.createElement('button');ab.className='badd';ab.textContent='+ Dodaj';
   ab.addEventListener('click',function(){collectEd();menu[edSec].push({id:uid(),name:'Nowa pozycja',emoji:'&#x1F37D;',price:0,badge:'',bc:''});renderEditor();});
   hdr.appendChild(ab);
@@ -2937,9 +3058,10 @@ function buildEdRow(sec,idx,item){
   return row;
 }
 function collectEd(){
-  var secs=['main','sides','drinks'];
-  for(var s=0;s<secs.length;s++){
-    var sec=secs[s];
+  var keys=catKeys();
+  for(var s=0;s<keys.length;s++){
+    var sec=keys[s];
+    if(!menu[sec])continue;
     for(var i=0;i<menu[sec].length;i++){
       var nm=document.getElementById('en-'+sec+'-'+i);
       var pr=document.getElementById('ep-'+sec+'-'+i);
@@ -2952,8 +3074,11 @@ function collectEd(){
 }
 function saveMenu(){
   collectEd();
+  // Zapisz aktualna liste kategorii razem z menu
+  menu._cats=cloneObj(getCats());
   lsSet('sp_menu',JSON.stringify(menu));
   savePhoneBackup();
+  dSetInvalidate();countSetInvalidate();
   renderMGs();renderEditor();
   if(fbReady){fbBg(fbDB.ref('menu').set(menu));toast('Menu zapisano i zsynchronizowano!');}
   else toast('Menu zapisano lokalnie');
@@ -2995,7 +3120,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v1.2',
+    v:'v2.0',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -3072,8 +3197,107 @@ function renderCloud(){
   var sL=document.getElementById('setLow');if(sL)sL.value=appSettings.lowStockPct;
   var sV=document.getElementById('setView');if(sV)sV.value=appSettings.startView;
   var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
+  _catsEdit=null; // odswiez z aktualnego stanu
+  renderCatEditor();
   renderCountItems();
   renderDevices();
+}
+
+// ── ZARZADZANIE KATEGORIAMI (w ustawieniach) ──
+var _catsEdit=null; // robocza kopia podczas edycji
+function renderCatEditor(){
+  var box=document.getElementById('catList');
+  if(!box)return;
+  if(!_catsEdit)_catsEdit=cloneObj(getCats());
+  var html='';
+  _catsEdit.forEach(function(c,i){
+    var count=(menu[c.key]||[]).length;
+    html+='<div class="cat-row" data-i="'+i+'">'+
+      '<input class="cat-nm" data-i="'+i+'" value="'+esc(c.label)+'" placeholder="Nazwa kategorii">'+
+      '<span class="cat-cnt">'+count+' szt.</span>'+
+      '<label class="cat-drink"><input type="checkbox" class="cat-drink-cb" data-i="'+i+'"'+(c.isDrink?' checked':'')+'>Bar</label>'+
+      '<button class="cat-mv" data-act="up" data-i="'+i+'" title="W gore">&#x2191;</button>'+
+      '<button class="cat-mv" data-act="down" data-i="'+i+'" title="W dol">&#x2193;</button>'+
+      '<button class="cat-del" data-i="'+i+'" title="Usun">&#x1F5D1;</button>'+
+    '</div>';
+  });
+  box.innerHTML=html;
+  // Podepnij zdarzenia
+  box.querySelectorAll('.cat-nm').forEach(function(inp){
+    inp.oninput=function(){_catsEdit[+inp.getAttribute('data-i')].label=inp.value;};
+  });
+  box.querySelectorAll('.cat-drink-cb').forEach(function(cb){
+    cb.onchange=function(){_catsEdit[+cb.getAttribute('data-i')].isDrink=cb.checked;};
+  });
+  box.querySelectorAll('.cat-mv').forEach(function(btn){
+    btn.onclick=function(){
+      collectCatNames();
+      var i=+btn.getAttribute('data-i');
+      var dir=btn.getAttribute('data-act')==='up'?-1:1;
+      var j=i+dir;
+      if(j<0||j>=_catsEdit.length)return;
+      var tmp=_catsEdit[i];_catsEdit[i]=_catsEdit[j];_catsEdit[j]=tmp;
+      renderCatEditor();
+    };
+  });
+  box.querySelectorAll('.cat-del').forEach(function(btn){
+    btn.onclick=function(){
+      collectCatNames();
+      var i=+btn.getAttribute('data-i');
+      var c=_catsEdit[i];
+      var count=(menu[c.key]||[]).length;
+      if(_catsEdit.length<=1){toast('Musi zostac min. 1 kategoria','#e85c3a');return;}
+      if(count>0){
+        if(!confirm('Kategoria "'+(c.label||c.key)+'" zawiera '+count+' pozycji. Usunac kategorie razem z pozycjami?'))return;
+      }
+      _catsEdit.splice(i,1);
+      renderCatEditor();
+    };
+  });
+}
+function collectCatNames(){
+  // Zbierz aktualne nazwy z inputow (zanim przerysujemy)
+  var box=document.getElementById('catList');if(!box||!_catsEdit)return;
+  box.querySelectorAll('.cat-nm').forEach(function(inp){
+    var i=+inp.getAttribute('data-i');
+    if(_catsEdit[i])_catsEdit[i].label=inp.value;
+  });
+}
+function addCategory(){
+  collectCatNames();
+  if(!_catsEdit)_catsEdit=cloneObj(getCats());
+  _catsEdit.push({key:'cat_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),label:'Nowa kategoria',isDrink:false});
+  renderCatEditor();
+}
+function saveCategories(){
+  collectCatNames();
+  if(!_catsEdit||!_catsEdit.length){toast('Musi zostac min. 1 kategoria','#e85c3a');return;}
+  // Walidacja nazw
+  for(var i=0;i<_catsEdit.length;i++){
+    _catsEdit[i].label=(_catsEdit[i].label||'').trim()||('Kategoria '+(i+1));
+    _catsEdit[i].isDrink=!!_catsEdit[i].isDrink;
+  }
+  var newKeys=_catsEdit.map(function(c){return c.key;});
+  // Usun z menu kategorie ktorych juz nie ma
+  Object.keys(menu).forEach(function(k){
+    if(k==='_cats')return;
+    if(Array.isArray(menu[k])&&newKeys.indexOf(k)<0)delete menu[k];
+  });
+  // Zapisz nowa liste i utworz brakujace tablice
+  menu._cats=cloneObj(_catsEdit);
+  ensureCatArrays();
+  lsSet('sp_menu',JSON.stringify(menu));
+  savePhoneBackup();
+  dSetInvalidate();countSetInvalidate();
+  if(fbReady)fbBg(fbDB.ref('menu').set(menu));
+  // Odswiez wszystko co zalezy od kategorii
+  renderMGs();
+  if(curV==='m')renderEditor();
+  renderCatEditor();
+  renderCountItems();
+  ensureStock();
+  toast('Kategorie zapisane!','#27ae60');
+  vib([10,30,10]);
 }
 
 function renderCountItems(){
@@ -3082,16 +3306,12 @@ function renderCountItems(){
   var ci=appSettings.countItems;
   var all=!ci||!ci.length; // brak listy = wszystkie zaznaczone
   var sel=all?null:new Set(ci.map(norm));
-  var secs=[
-    {key:'main',label:'Dania glowne'},
-    {key:'sides',label:'Dodatki'},
-    {key:'drinks',label:'Napoje'}
-  ];
+  var secs=getCats().map(function(c){return {key:c.key,label:c.label};});
   var html='';
   secs.forEach(function(sec){
     var items=menu[sec.key]||[];
     if(!items.length)return;
-    html+='<div class="cnt-sec">'+sec.label+'</div>';
+    html+='<div class="cnt-sec">'+esc(sec.label)+'</div>';
     items.forEach(function(it){
       var checked=all?true:sel.has(norm(it.name));
       html+='<label class="cnt-row">'+
@@ -3439,6 +3659,8 @@ function bootApp(){
   if(_mc){try{menu=JSON.parse(_mc);}catch(e){menu=cloneObj(DEF);}}
   else{menu=cloneObj(DEF);}
   restorePhoneBackup();
+  ensureCatArrays();
+  dSetInvalidate();countSetInvalidate();
   ensureStock();
   // Domyslny kurs CZK z ustawien
   var _cr=document.getElementById('czkrate');if(_cr)_cr.value=appSettings.czkRate||6.2;
@@ -3516,18 +3738,23 @@ applyProfileUI();
   var mLink=document.getElementById('pwa-manifest');
   if(mLink)mLink.href=mUrl;
 
-  // 4. Service Worker — cache offline
+  // 4. Service Worker — cache offline (skorupa aplikacji + zasoby)
   if('serviceWorker' in navigator){
+    // Adres biezacej strony (skorupa aplikacji) — do cache'owania przy instalacji.
+    var APP_URL=location.href.split('#')[0];
+    var APP_URL_JSON=JSON.stringify(APP_URL);
     var swCode=
-      'var CACHE="smazalnia-v5";'+
+      'var CACHE="smazalnia-v6";'+
+      'var APP_URL='+APP_URL_JSON+';'+
       'self.addEventListener("install",function(e){'+
         'e.waitUntil('+
           'caches.open(CACHE).then(function(c){'+
             'return c.addAll(['+
+              'APP_URL,'+   // sama strona aplikacji (skorupa)
               '"https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap",'+
               '"https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js",'+
               '"https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"'+
-            '].map(function(u){return fetch(u).then(function(r){return c.put(u,r);}).catch(function(){});}))'+
+            '].map(function(u){return fetch(u,{cache:"reload"}).then(function(r){return c.put(u,r);}).catch(function(){});}))'+
           '})'+
         ');'+
         'self.skipWaiting();'+
@@ -3540,6 +3767,19 @@ applyProfileUI();
       '});'+
       'self.addEventListener("fetch",function(e){'+
         'if(e.request.method!=="GET")return;'+
+        // Zadania nawigacyjne (otwarcie strony): network-first, fallback do skorupy w cache.
+        'if(e.request.mode==="navigate"){'+
+          'e.respondWith('+
+            'fetch(e.request).then(function(r){'+
+              'if(r&&r.status===200){var rc=r.clone();caches.open(CACHE).then(function(c){c.put(APP_URL,rc);});}'+
+              'return r;'+
+            '}).catch(function(){'+
+              'return caches.match(APP_URL).then(function(c){return c||caches.match(e.request);});'+
+            '})'+
+          ');'+
+          'return;'+
+        '}'+
+        // Pozostale zasoby: cache-first z odswiezaniem w tle (stale-while-revalidate).
         'e.respondWith('+
           'caches.match(e.request).then(function(cached){'+
             'var network=fetch(e.request).then(function(r){'+
@@ -3553,6 +3793,17 @@ applyProfileUI();
     var swBlob=new Blob([swCode],{type:'application/javascript'});
     var swUrl=URL.createObjectURL(swBlob);
     navigator.serviceWorker.register(swUrl,{scope:'./'}).catch(function(){});
+
+    // Zabezpieczenie dodatkowe: gdy jest internet, zapisz skorupe aplikacji
+    // bezposrednio do Cache API (na wypadek ograniczonego zasiegu SW z blob URL).
+    if('caches' in window && navigator.onLine){
+      try{
+        var _appUrl=location.href.split('#')[0];
+        fetch(_appUrl,{cache:'reload'}).then(function(r){
+          if(r&&r.status===200){caches.open('smazalnia-v6').then(function(c){c.put(_appUrl,r.clone());}).catch(function(){});}
+        }).catch(function(){});
+      }catch(e){}
+    }
   }
 
   // Synchronizacja przy powrocie internetu jest obslugiwana w subAll()
