@@ -394,7 +394,7 @@ touch-action:manipulation;
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.01</span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v1.1</span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1216,7 +1216,10 @@ function sendOrder(paid,currency,czkAmount){
     vib([10,30,10]);
   }
   _send=false;updSend(); // reset przed Firebase call
-  if(fbReady)fbBg(fbDB.ref('orders/'+id).set(order));
+  if(fbReady){
+    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    fbBg(fbDB.ref('orders/'+id).set(order));
+  }
 }
 
 document.getElementById('bsnd').addEventListener('click',function(){doSend();});
@@ -1231,7 +1234,7 @@ function handleDataAction(btn){
   if(action==='setstatus') { setStatus(ids[0], btn.getAttribute('data-status')); return; }
   if(action==='bardone')   { setBarDone(ids[0]); return; }
   if(action==='grpstatus') { var st=btn.getAttribute('data-status'); for(var i=0;i<ids.length;i++)setStatus(ids[i],st); return; }
-  if(action==='markpaid')  { for(var i=0;i<ids.length;i++)setPaid(ids[i]); toast('Zamowienie oplacone!','#27ae60'); return; }
+  if(action==='markpaid')   { setPaidGroup(ids[0],ids); return; }
   if(action==='delgrp')    { for(var i=0;i<ids.length;i++)delOrder(ids[i]); return; }
   if(action==='cancelgrp') {
     var idsToCancel=ids;
@@ -1301,30 +1304,69 @@ function setStatus(id,status){
     fbBg(fbDB.ref('orders/'+id).update(upd));
   }
 }
-function setPaid(id){
-  var o=orders[id];if(!o)return;
-  var rate=getCZK();
-  var czkTot=Math.round((o.total||0)*rate);
+function setPaidGroup(mainId,ids){
+  // Jeden modal dla calej grupy
+  var o=orders[mainId];if(!o)return;
+  var total=ids.reduce(function(s,id){return s+(orders[id]?orders[id].total||0:0);},0);
 
   var m=document.createElement('div');
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
   m.innerHTML=
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">&#x1F4B0; Wybierz walute platnosci</div>'+
-      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+(o.total||0).toFixed(2)+' zl</b> = <b style="color:#1278a8;">'+czkTot+' CZK</b></div>'+
+      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+total.toFixed(2)+' zl</b></div>'+
       '<div style="display:flex;gap:10px;margin-bottom:10px;">'+
-        '<button id="sp_PLN" style="flex:1;padding:14px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;">&#x1F1F5;&#x1F1F1;<br>PLN<br><span style="font-size:.8rem;font-weight:700;">'+(o.total||0).toFixed(2)+' zl</span></button>'+
-        '<button id="sp_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">'+czkTot+' CZK</span></button>'+
+        '<button id="spg_PLN" style="flex:1;padding:14px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1F5;&#x1F1F1;<br>PLN<br><span style="font-size:.8rem;font-weight:700;">'+total.toFixed(2)+' zl</span></button>'+
+        '<button id="spg_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">CZK</span></button>'+
       '</div>'+
-      '<button id="sp_canc" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+      '<button id="spg_canc" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;touch-action:manipulation;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(m);
+
+  document.getElementById('spg_canc').onclick=function(){m.remove();};
+  function doPay(currency){
+    m.remove();
+    saveSnapshot('Oplacono');
+    ids.forEach(function(id){
+      if(!orders[id])return;
+      var upd={paid:true,currency:currency,czkAmount:0,czkRate:0};
+      Object.assign(orders[id],upd);
+      window._fbSkipNext=(window._fbSkipNext||0)+1;
+      if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
+    });
+    saveOrds();
+    onDataImmediate();
+    toast('Oplacono w '+currency,'#27ae60');
+  }
+  document.getElementById('spg_PLN').onclick=function(){doPay('PLN');};
+  document.getElementById('spg_CZK').onclick=function(){doPay('CZK');};
+}
+
+function setPaid(id){
+  var o=orders[id];if(!o)return;
+
+  var m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
+  m.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">&#x1F4B0; Wybierz walute platnosci</div>'+
+      '<div style="font-size:.85rem;color:#666;margin-bottom:16px;">Kwota: <b style="color:#0b1e28;">'+(o.total||0).toFixed(2)+' zl</b></div>'+
+      '<div style="display:flex;gap:10px;margin-bottom:10px;">'+
+        '<button id="sp_PLN" style="flex:1;padding:14px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1F5;&#x1F1F1;<br>PLN<br><span style="font-size:.8rem;font-weight:700;">'+(o.total||0).toFixed(2)+' zl</span></button>'+
+        '<button id="sp_CZK" style="flex:1;padding:14px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-family:Nunito,sans-serif;font-weight:900;font-size:1.1rem;cursor:pointer;touch-action:manipulation;">&#x1F1E8;&#x1F1FF;<br>CZK<br><span style="font-size:.8rem;font-weight:700;">CZK</span></button>'+
+      '</div>'+
+      '<button id="sp_canc" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;touch-action:manipulation;">Anuluj</button>'+
     '</div>';
   document.body.appendChild(m);
 
   document.getElementById('sp_canc').onclick=function(){m.remove();};
-  function doPay(currency,czk){
+  function doPay(currency){
     m.remove();
     saveSnapshot('Oplacono');
-    var upd={paid:true,currency:currency,czkAmount:czk||0,czkRate:rate};
+    var czkRate=0;
+    try{var czkEl=document.getElementById('czkrate');if(czkEl)czkRate=parseFloat(czkEl.value)||0;}catch(e){}
+    var czkTot=currency==='CZK'?Math.round((o.total||0)*(czkRate||1)):0;
+    var upd={paid:true,currency:currency,czkAmount:czkTot,czkRate:czkRate};
     Object.assign(orders[id],upd);
     saveOrds();
     window._fbSkipNext=(window._fbSkipNext||0)+1;
@@ -1332,8 +1374,8 @@ function setPaid(id){
     onDataImmediate();
     toast('Oplacono w '+currency,'#27ae60');
   }
-  document.getElementById('sp_PLN').onclick=function(){doPay('PLN',0);};
-  document.getElementById('sp_CZK').onclick=function(){doPay('CZK',czkTot);};
+  document.getElementById('sp_PLN').onclick=function(){doPay('PLN');};
+  document.getElementById('sp_CZK').onclick=function(){doPay('CZK');};
 }
 function setBarDone(id){
   if(orders[id]){orders[id].barDone=true;saveOrds();renderBar();}
@@ -1466,7 +1508,10 @@ function renderList(){
     if(hasUnpaid){
       var unpaidIds2=grp.filter(function(o){return o.paid===false;}).map(function(o){return o.id;});
       payBtnEl2=tb(document.createElement('button'),
-        (function(ids){return function(){for(var i=0;i<ids.length;i++)setPaid(ids[i]);toast('Zamowienie oplacone!','#27ae60');};})(unpaidIds2));
+        (function(mainId,ids){return function(){
+          // Oznacz wszystkie jako oplacone przez jeden modal
+          setPaidGroup(mainId,ids);
+        };})(mainO.id,unpaidIds2));
       payBtnEl2.className='ba';payBtnEl2.style.cssText='background:var(--gr);color:#fff;min-width:90px;';
       payBtnEl2.innerHTML='&#x1F4B0; Oplacono';
     }
@@ -1867,7 +1912,7 @@ function setStock(name,val){
   if(!stock[name])return;
   val=Math.max(0,Math.round(val)||0);
   stock[name].current=val;
-  if(!stock[name].init||stock[name].init<val)stock[name].init=val;
+  // init nie jest automatycznie zmieniane - uzytkownik ustawia go recznie
   saveStock();
   if(fbReady)fbBg(fbDB.ref('stock').set(stock));
 }
@@ -1923,7 +1968,6 @@ function deductStock(items){
   var changed=false;
   items.forEach(function(it){
     if(stock[it.name]){
-      stock[it.name].sold=(stock[it.name].sold||0)+it.qty;
       stock[it.name].current=Math.max(0,(stock[it.name].current||0)-it.qty);
       changed=true;
     }
@@ -2196,11 +2240,8 @@ function saveSnapshot(label){
   _undoStack.push({
     label:label,
     orders:JSON.parse(JSON.stringify(orders)),
-    archive:JSON.parse(JSON.stringify(archive)),
-    stock:JSON.parse(JSON.stringify(stock)),
     ts:Date.now()
   });
-  // Max 10 snapshots
   if(_undoStack.length>10)_undoStack.shift();
   showUndoBtn(label);
 }
@@ -2225,23 +2266,15 @@ function undoLastAction(){
     return;
   }
   var snap=_undoStack.pop();
-  // Przywroc stan
   orders=snap.orders;
-  archive=snap.archive;
-  stock=snap.stock;
-  saveOrds();saveArc();saveStock();
-  // Synchronizuj z Firebase
+  saveOrds();
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+2;
-    window._fbSkipArchive=(window._fbSkipArchive||0)+1;
     fbBg(fbDB.ref('orders').set(orders));
-    fbBg(fbDB.ref('archive').set(archive));
-    fbBg(fbDB.ref('stock').set(stock));
   }
   onDataImmediate();
   toast('Cofnieto: '+esc(snap.label),'#f5a623');
   vib([10,30,10]);
-  // Jesli sa jeszcze snapshoty - poakz nastepny
   if(_undoStack.length){
     showUndoBtn(_undoStack[_undoStack.length-1].label);
   } else {
@@ -2771,7 +2804,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v1.01',
+    v:'v1.1',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
