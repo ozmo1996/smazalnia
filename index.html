@@ -802,23 +802,60 @@ function initFb(cfg){
 function subAll(){
   var _fbLocalChange=false;
   window._fbSkipNext=0;
-  // Wyslij heartbeat przy starcie i co minutę
+  window._fbSkipArchive=0;
+
+  // Heartbeat
   sendHeartbeat();
   setInterval(sendHeartbeat,60000);
+
+  // ORDERS - chmura nadrzędna
   fbDB.ref('orders').on('value',function(snap){
     if(window._fbSkipNext>0){window._fbSkipNext--;return;}
     if(_fbLocalChange)return;
-    orders=snap.val()||{};
+    var fbOrders=snap.val()||{};
+    // Dopisz lokalnie stworzone ktore nie dotarly jeszcze do chmury
+    Object.keys(orders).forEach(function(k){
+      if(!fbOrders[k])fbOrders[k]=orders[k];
+    });
+    orders=fbOrders;
     saveOrds();
     onData();
   });
-  window._fbSkipArchive=0;
+
+  // ARCHIVE - chmura = źródło prawdy, lokalnie tylko dopisujemy brakujące
+  fbDB.ref('archive').once('value').then(function(snap){
+    var fbArc=snap.val()||{};
+    var localOnly={};
+    // Znajdz lokalne wpisy ktorych nie ma w chmurze
+    Object.keys(archive).forEach(function(k){
+      if(!fbArc[k])localOnly[k]=archive[k];
+    });
+    // Chmura nadpisuje lokalne
+    archive=fbArc;
+    // Dopisz brakujące z lokalnych do chmury
+    if(Object.keys(localOnly).length>0){
+      Object.keys(localOnly).forEach(function(k){
+        archive[k]=localOnly[k];
+        fbBg(fbDB.ref('archive/'+k).set(localOnly[k]));
+      });
+    }
+    saveArc();
+    if(curV==='s')renderStats();
+  }).catch(function(){});
+
   fbDB.ref('archive').on('value',function(snap){
     if(window._fbSkipArchive>0){window._fbSkipArchive--;return;}
-    archive=snap.val()||{};
+    var fbArc=snap.val()||{};
+    // Zachowaj lokalne wpisy ktorych nie ma jeszcze w chmurze
+    Object.keys(archive).forEach(function(k){
+      if(!fbArc[k])fbArc[k]=archive[k];
+    });
+    archive=fbArc;
     saveArc();
     if(curV==='s')renderStats();
   });
+
+  // MENU - chmura nadrzędna
   fbDB.ref('menu').on('value',function(snap){
     var v=snap.val();
     if(v){
@@ -831,13 +868,16 @@ function subAll(){
       fbDB.ref('menu').set(menu).catch(function(){});
     }
   });
+
+  // STOCK - chmura nadrzędna
   fbDB.ref('stock').on('value',function(snap){
     var v=snap.val();
     if(v){stock=v;ensureStock();saveStock();}
-    else{ensureStock();}
+    else{ensureStock();fbBg(fbDB.ref('stock').set(stock));}
     if(curV==='w')renderStock();
   });
 
+  // CONFIG
   fbDB.ref('config').on('value',function(snap){
     var v=snap.val();
     if(v&&v.numT&&parseInt(v.numT)!==numT){
@@ -847,6 +887,43 @@ function subAll(){
       if(el)el.textContent=numT;
       renderTbls();
     }
+  });
+
+  // Powrót internetu - dopisz lokalne do chmury (nie nadpisuj!)
+  window.addEventListener('online',function(){
+    if(!fbReady)return;
+    toast('Internet — synchronizacja...','#27ae60');
+    // Pobierz stan chmury i dopisz tylko brakujące lokalne
+    fbDB.ref('orders').once('value').then(function(snap){
+      var fbOrders=snap.val()||{};
+      var missing={};
+      Object.keys(orders).forEach(function(k){
+        if(!fbOrders[k])missing[k]=orders[k];
+      });
+      if(Object.keys(missing).length>0){
+        Object.keys(missing).forEach(function(k){
+          fbBg(fbDB.ref('orders/'+k).set(missing[k]));
+        });
+      }
+    });
+    fbDB.ref('archive').once('value').then(function(snap){
+      var fbArc=snap.val()||{};
+      var missing={};
+      Object.keys(archive).forEach(function(k){
+        if(!fbArc[k])missing[k]=archive[k];
+      });
+      if(Object.keys(missing).length>0){
+        Object.keys(missing).forEach(function(k){
+          fbBg(fbDB.ref('archive/'+k).set(missing[k]));
+        });
+        toast('Dopisano '+Object.keys(missing).length+' brakujacych wpisow','#27ae60');
+      }
+    });
+    sendHeartbeat();
+  });
+
+  window.addEventListener('offline',function(){
+    toast('Tryb offline — dane zapisywane lokalnie','#f5a623');
   });
 }
 
@@ -1204,13 +1281,23 @@ function setStatus(id,status){
   if(orders[id]){
     orders[id].status=status;
     if(status==='cooking')orders[id].cookingTs=Date.now();
-    if(status==='done')orders[id].doneTs=Date.now();
+    if(status==='done'){
+      orders[id].doneTs=Date.now();
+      // Automatycznie archiwizuj - trafi do statystyk
+      archive[id]=orders[id];
+      saveArc();
+      if(fbReady){
+        window._fbSkipArchive=(window._fbSkipArchive||0)+1;
+        fbBg(fbDB.ref('archive/'+id).set(orders[id]));
+      }
+    }
     saveOrds();onData();
   }
   if(fbReady){
     var upd={status:status};
     if(status==='cooking')upd.cookingTs=Date.now();
     if(status==='done')upd.doneTs=Date.now();
+    window._fbSkipNext=(window._fbSkipNext||0)+1;
     fbBg(fbDB.ref('orders/'+id).update(upd));
   }
 }
