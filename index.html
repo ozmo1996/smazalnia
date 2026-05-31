@@ -12,6 +12,7 @@
 <meta name="description" content="System zamowien dla smazalni pstraga">
 <link rel="manifest" id="pwa-manifest">
 <link rel="apple-touch-icon" id="pwa-icon">
+<link rel="icon" id="pwa-favicon">
 <title>Smazalnia Pstraga</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Nunito:wght@400;700;800;900&display=swap" rel="stylesheet">
 <!-- Firebase SDK - ladowane dynamicznie zeby nie blokowac offline -->
@@ -345,6 +346,9 @@ select.set-inp option{background:#0d3d56;color:#fff}
 .cat-del{background:rgba(232,92,58,.15);color:var(--e)}
 .cat-mv:active,.cat-del:active{filter:brightness(1.2)}
 .cat-cnt{color:rgba(255,255,255,.4);font-size:.68rem;font-weight:800;white-space:nowrap;min-width:34px;text-align:center}
+.clr-range{padding:7px 12px;border-radius:16px;border:1.5px solid #ddd;background:#f5f5f5;color:#666;font-family:'Nunito',sans-serif;font-weight:800;font-size:.76rem;cursor:pointer;touch-action:manipulation}
+.clr-range.on{background:#e85c3a;border-color:#e85c3a;color:#fff}
+.clr-range:active{filter:brightness(1.05)}
 .cst.ok{background:rgba(39,174,96,.12);border:1.5px solid rgba(39,174,96,.3);color:#1a8a45}
 .cst.er{background:rgba(232,92,58,.1);border:1.5px solid rgba(232,92,58,.25);color:var(--e)}
 .cst.of{background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5)}
@@ -400,6 +404,57 @@ select.set-inp option{background:#0d3d56;color:#fff}
 .chpw-inp::placeholder{color:rgba(255,255,255,.25)}
 .chpw-btn{width:100%;padding:10px;border-radius:10px;border:none;background:var(--s);color:#fff;font-family:'Nunito',sans-serif;font-weight:900;font-size:.88rem;cursor:pointer;touch-action:manipulation}
 
+/* AUDYT 2026: dopracowanie przewidywalnosci UI i pracy na telefonach */
+:root{--focus:rgba(245,166,35,.55)}
+html{min-height:100%;scroll-behavior:smooth}
+body{min-height:100svh;background:
+  linear-gradient(180deg,rgba(7,19,27,.96),rgba(11,30,40,.98)),
+  repeating-linear-gradient(135deg,rgba(255,255,255,.025) 0 1px,transparent 1px 12px)}
+button,input,select,textarea{font:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[role="button"]:focus-visible{
+  outline:3px solid var(--focus);
+  outline-offset:2px;
+}
+button:disabled{cursor:not-allowed}
+.nb,.tb,.mc,.ba,.bt,.bsnd,.bsnd2,.set-save,.cnt-mini,.stock-btn,.stock-apply{transition:transform .14s ease,filter .14s ease,box-shadow .14s ease,border-color .14s ease}
+@media(hover:hover) and (pointer:fine){
+  .mc:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,.28)}
+  .nb:hover,.tb:hover,.ba:hover,.bt:hover,.bsnd:hover,.bsnd2:hover,.set-save:hover,.cnt-mini:hover,.stock-btn:hover,.stock-apply:hover{filter:brightness(1.08)}
+}
+@media(max-width:720px){
+  .hdr{flex-wrap:nowrap;align-items:center;gap:8px;padding:8px 10px}
+  .logo{flex:0 0 auto}
+  .logo-t{font-size:.82rem}
+  .nav{flex:1;display:flex;flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 0 4px}
+  .nav::-webkit-scrollbar{display:none}
+  .nb{flex:0 0 auto}
+}
+@media(max-width:420px){
+  .mg{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .mct{min-height:84px;display:flex;align-items:center;justify-content:center}
+  .mcb{min-height:70px}
+  .qb{width:52px;height:52px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
+}
+#iconCtrl{
+  left:auto!important;
+  right:10px!important;
+  bottom:max(10px,env(safe-area-inset-bottom))!important;
+  flex-direction:row!important;
+  gap:3px!important;
+  padding:4px!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+  border-radius:12px!important;
+  background:rgba(7,19,27,.62)!important;
+  backdrop-filter:blur(8px)!important;
+  opacity:.22!important;
+}
+#iconCtrl:hover,#iconCtrl:focus-within{opacity:.9!important}
+#iconCtrl button{width:30px!important;height:30px!important;border-radius:8px!important;font-size:.92rem!important;background:rgba(18,120,168,.62)!important}
+#iconSizeLbl{display:none!important}
+
 </style>
 </head>
 <body>
@@ -410,20 +465,24 @@ select.set-inp option{background:#0d3d56;color:#fff}
     <span class="login-fish">&#x1F41F;</span>
     <div class="login-title">Smazalnia Pstraga</div>
     <div class="login-sub">Wprowadz haslo konta aby kontynuowac</div>
-    <div class="login-pw-wrap">
-      <input class="login-inp" id="loginPw" type="password" placeholder="Haslo" autocomplete="current-password">
-      <button class="login-eye" id="loginEye" type="button">&#x1F441;</button>
-    </div>
-    <div class="login-err" id="loginErr"></div>
-    <button class="login-btn" id="loginBtn" type="button">Zaloguj sie</button>
+    <form id="loginForm" autocomplete="on">
+      <input type="text" name="username" autocomplete="username" value="smazalnia" hidden>
+      <div class="login-pw-wrap">
+        <input class="login-inp" id="loginPw" name="password" type="password" placeholder="Haslo" autocomplete="current-password" aria-label="Haslo">
+        <button class="login-eye" id="loginEye" type="button" aria-label="Pokaz lub ukryj haslo">&#x1F441;</button>
+      </div>
+      <div class="login-err" id="loginErr" role="status" aria-live="polite"></div>
+      <button class="login-btn" id="loginBtn" type="submit">Zaloguj sie</button>
+    </form>
     <button class="login-change" id="loginChangeBtn" type="button">Zmien haslo</button>
-    <div class="chpw-box" id="chpwBox">
+    <form class="chpw-box" id="chpwBox" autocomplete="off">
+      <input type="text" name="username" autocomplete="username" value="smazalnia" hidden>
       <div class="chpw-title">Zmiana hasla (wymagane stare haslo)</div>
-      <input class="chpw-inp" id="chpwOld" type="password" placeholder="Stare haslo">
-      <input class="chpw-inp" id="chpwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)">
-      <input class="chpw-inp" id="chpwNew2" type="password" placeholder="Powtorz nowe haslo">
+      <input class="chpw-inp" id="chpwOld" type="password" placeholder="Stare haslo" autocomplete="current-password">
+      <input class="chpw-inp" id="chpwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)" autocomplete="new-password">
+      <input class="chpw-inp" id="chpwNew2" type="password" placeholder="Powtorz nowe haslo" autocomplete="new-password">
       <button class="chpw-btn" id="chpwSaveBtn" type="button">Zapisz nowe haslo</button>
-    </div>
+    </form>
   </div>
 </div>
 
@@ -520,6 +579,35 @@ select.set-inp option{background:#0d3d56;color:#fff}
 <div class="view" id="vc">
   <div id="cst"></div>
 
+  <!-- WYGLAD / MARKA -->
+  <div style="background:rgba(214,158,46,.1);border:1.5px solid rgba(214,158,46,.35);border-radius:12px;padding:14px;margin:12px 12px 0;">
+    <div style="font-family:'Playfair Display',serif;font-weight:700;color:#e7c06b;font-size:.95rem;margin-bottom:10px;">&#x1F3F7;&#xFE0F; Nazwa i logo aplikacji</div>
+
+    <div id="brandPreview" style="display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+      <span id="brandPrevLogo" style="font-size:2rem;line-height:1;flex-shrink:0;"></span>
+      <div id="brandPrevText" style="font-family:'Playfair Display',serif;color:#fff;font-size:1rem;line-height:1.15;"></div>
+    </div>
+
+    <label class="set-lbl">Nazwa - pierwsza linia</label>
+    <input class="set-inp" id="setBrand1" type="text" maxlength="24" placeholder="np. Smazalnia">
+    <label class="set-lbl">Nazwa - druga linia (wyrozniona)</label>
+    <input class="set-inp" id="setBrand2" type="text" maxlength="24" placeholder="np. Pstraga (moze byc puste)">
+
+    <label class="set-lbl">Logo - emoji</label>
+    <input class="set-inp" id="setBrandEmoji" type="text" maxlength="8" placeholder="np. 🐟 🍔 🍕">
+    <div class="set-hint">Wpisz jedno emoji, albo wgraj obrazek ponizej (obrazek ma pierwszenstwo).</div>
+
+    <label class="set-lbl">Logo - wlasny obrazek</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <input type="file" id="setBrandFile" accept="image/*" style="display:none;" onchange="onBrandFile(this)">
+      <button class="cnt-mini" onclick="document.getElementById('setBrandFile').click()">&#x1F4F7; Wgraj obrazek</button>
+      <button class="cnt-mini" id="brandImgClear" onclick="clearBrandImage()" style="display:none;">&#x274C; Usun obrazek</button>
+    </div>
+    <div class="set-hint">Najlepiej kwadratowy obrazek (PNG/JPG). Zostanie zmniejszony automatycznie.</div>
+
+    <button class="set-save" style="background:linear-gradient(135deg,#b8860b,#e7c06b);" onclick="saveBrand()">&#x1F4BE; Zapisz nazwe i logo</button>
+  </div>
+
   <!-- USTAWIENIA APLIKACJI -->
   <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:12px;">&#x2699;&#xFE0F; Ustawienia ogolne</div>
@@ -573,11 +661,14 @@ select.set-inp option{background:#0d3d56;color:#fff}
   <!-- ZMIANA HASLA -->
   <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;margin-bottom:10px;">&#x1F510; Haslo aplikacji</div>
-    <input class="set-inp" id="setPwOld" type="password" placeholder="Stare haslo">
-    <input class="set-inp" id="setPwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)">
-    <input class="set-inp" id="setPwNew2" type="password" placeholder="Powtorz nowe haslo">
-    <div id="setPwErr" style="color:var(--e);font-size:.78rem;font-weight:800;min-height:16px;margin:2px 0;"></div>
-    <button class="set-save" style="background:linear-gradient(135deg,#0d4a6a,#1278a8);" onclick="changePwFromSettings()">Zmien haslo</button>
+    <form id="setPwForm" autocomplete="off">
+      <input type="text" name="username" autocomplete="username" value="smazalnia" hidden>
+      <input class="set-inp" id="setPwOld" type="password" placeholder="Stare haslo" autocomplete="current-password">
+      <input class="set-inp" id="setPwNew" type="password" placeholder="Nowe haslo (min. 4 znaki)" autocomplete="new-password">
+      <input class="set-inp" id="setPwNew2" type="password" placeholder="Powtorz nowe haslo" autocomplete="new-password">
+      <div id="setPwErr" style="color:var(--e);font-size:.78rem;font-weight:800;min-height:16px;margin:2px 0;"></div>
+      <button class="set-save" type="button" style="background:linear-gradient(135deg,#0d4a6a,#1278a8);" onclick="changePwFromSettings()">Zmien haslo</button>
+    </form>
     <div class="set-hint">Nowe haslo obowiazuje na wszystkich urzadzeniach.</div>
   </div>
 
@@ -596,6 +687,13 @@ select.set-inp option{background:#0d3d56;color:#fff}
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <button onclick="downloadBackup()" style="background:var(--a);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-family:Nunito,sans-serif;font-weight:900;font-size:.85rem;cursor:pointer;touch-action:manipulation;">&#x2B07; Pobierz backup</button>
       <span id="backupStatus" style="color:rgba(255,255,255,.5);font-size:.75rem;"></span>
+    </div>
+  </div>
+  <div style="background:rgba(232,92,58,.08);border:1.5px solid rgba(232,92,58,.3);border-radius:12px;padding:12px 14px;margin:10px 12px 0;display:flex;gap:10px;align-items:flex-start;">
+    <div style="font-size:1.2rem;flex-shrink:0;margin-top:1px;">&#x26A0;&#xFE0F;</div>
+    <div>
+      <div style="font-family:'Nunito',sans-serif;font-weight:800;color:#ffb1a1;font-size:.82rem;margin-bottom:3px;">Nie czyszcz danych przegladarki na tym urzadzeniu</div>
+      <div style="color:rgba(255,255,255,.55);font-size:.75rem;line-height:1.5;">Lokalna kopia zamowien i archiwum przechowywana jest w pamieci przegladarki. Wyczyszczenie historii / danych strony (Safari, Chrome) lub reset tabletu <b style="color:#ffb1a1;">usunie te dane bez mozliwosci odzyskania</b> — chyba ze Firebase jest aktywny i zsynchronizowany.</div>
     </div>
   </div>
   <div style="margin:22px 12px 4px;display:flex;align-items:center;gap:8px;">
@@ -642,11 +740,16 @@ select.set-inp option{background:#0d3d56;color:#fff}
 </div>
 
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="epbg" id="epbg" style="display:none" onclick="if(event.target===this)closeEp()">
   <div class="epbox">
-    <div class="eptit">Wybierz emoji</div>
+    <div class="eptit">Wybierz emoji lub miniaturke</div>
     <div class="epgrid" id="epg"></div>
+    <input type="file" id="epFile" accept="image/*" style="display:none;" onchange="onCustomEmojiFile(this)">
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="epcl" style="flex:1;background:rgba(18,120,168,.15);color:#7ec8e3;" onclick="addCustomEmojiPrompt()">&#x1F600; Dodaj emoji</button>
+      <button class="epcl" style="flex:1;background:rgba(39,174,96,.15);color:#5fd896;" onclick="document.getElementById('epFile').click()">&#x1F4F7; Wgraj obrazek</button>
+    </div>
     <button class="epcl" onclick="closeEp()">Zamknij</button>
   </div>
 </div>
@@ -666,6 +769,9 @@ function sha256(msg){
 function lsGet(k){try{return localStorage.getItem(lsKey(k));}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
 function cloneObj(o){return JSON.parse(JSON.stringify(o));}
+function safeObj(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}
+function readObj(k){try{var r=lsGet(k);return r?safeObj(JSON.parse(r)):{};}catch(e){return {};}}
+function clampNum(v,min,max,fallback){v=parseFloat(v);if(!isFinite(v))v=fallback;return Math.max(min,Math.min(max,v));}
 function mkDID(){var d=Math.random().toString(36).slice(2,6);lsSet('sp_did',d);return d;}
 // ═══════════════════════════════════════
 var DEF={main:[
@@ -740,7 +846,9 @@ var DEFAULT_CATS=[
 ];
 // Zwraca aktualna liste kategorii (z menu._cats lub domyslna).
 function getCats(){
-  if(menu._cats&&menu._cats.length)return menu._cats;
+  if(menu&&Array.isArray(menu._cats)&&menu._cats.length){
+    return menu._cats.filter(function(c){return c&&c.key&&c.label;});
+  }
   return DEFAULT_CATS;
 }
 // Lista kluczy kategorii (zamiennik dawnego ['main','sides','drinks']).
@@ -759,8 +867,8 @@ var archive={};
 var cart={};
 var selTbl=null;
 var wynos=false;
-var ordSeq=parseInt(lsGet('sp_seq'))||1;
-var numT=parseInt(lsGet('sp_tbls'))||29;
+var ordSeq=Math.max(1,parseInt(lsGet('sp_seq'))||1);
+var numT=Math.max(1,Math.min(99,parseInt(lsGet('sp_tbls'))||29));
 var curV='o';
 var edSec='main';
 var sfilt='today';
@@ -776,11 +884,20 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[]};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
-  try{var raw=lsGet('sp_settings');if(raw){var p=JSON.parse(raw);for(var k in SETTINGS_DEF){if(p[k]!==undefined)s[k]=p[k];}}}catch(e){}
+  try{
+    var raw=lsGet('sp_settings');
+    if(raw){
+      var p=safeObj(JSON.parse(raw));
+      for(var k in SETTINGS_DEF){if(p[k]!==undefined)s[k]=p[k];}
+    }
+  }catch(e){}
+  s.czkRate=clampNum(s.czkRate,.1,50,SETTINGS_DEF.czkRate);
+  s.lowStockPct=Math.round(clampNum(s.lowStockPct,1,100,SETTINGS_DEF.lowStockPct));
+  if(typeof VL!=='undefined'&&VL.indexOf&&VL.indexOf(s.startView)<0)s.startView=SETTINGS_DEF.startView;
   return s;
 }
 function saveSettings(){
@@ -789,23 +906,48 @@ function saveSettings(){
   if(fbReady)fbBg(fbDB.ref('settings/app').set(appSettings));
 }
 
+function brandLogoHtml(size){
+  var lg=(appSettings&&appSettings.brandLogo)||'\uD83D\uDC1F';
+  if(typeof lg==='string'&&lg.indexOf('data:image')===0){
+    return '<img src="'+lg+'" alt="logo" style="width:'+size+';height:'+size+';object-fit:contain;border-radius:6px;vertical-align:middle;">';
+  }
+  return lg; // emoji / tekst
+}
 function applyProfileUI(){
-  // Profil sp - dane na stale
-  document.title='Smazalnia Pstraga';
-  var lf=document.querySelector('.logo-f');if(lf)lf.innerHTML='&#x1F41F;';
-  var lt=document.querySelector('.logo-t');if(lt)lt.innerHTML='Smazalnia<br><em>Pstraga</em>';
-  var li=document.querySelector('.login-fish');if(li)li.innerHTML='&#x1F41F;';
-  var title=document.querySelector('.login-title');if(title)title.textContent='Smazalnia Pstraga';
+  var s=appSettings||SETTINGS_DEF;
+  var l1=(s.brandLine1||'Smazalnia');
+  var l2=(s.brandLine2||'');
+  var fullName=(l1+(l2?' '+l2:'')).trim();
+  document.title=fullName;
+  var lf=document.querySelector('.logo-f');if(lf)lf.innerHTML=brandLogoHtml('1.7rem');
+  var lt=document.querySelector('.logo-t');if(lt)lt.innerHTML=esc(l1)+(l2?'<br><em>'+esc(l2)+'</em>':'');
+  var li=document.querySelector('.login-fish');if(li)li.innerHTML=brandLogoHtml('64px');
+  var title=document.querySelector('.login-title');if(title)title.textContent=fullName;
 }
 
 function uid(){return DID+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
-function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function jsStr(s){return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');}
+function jsArg(s){return esc(jsStr(s));}
 function norm(s){return String(s||'').trim().toLowerCase();}
+// Czy wartosc "emoji" jest wgranym obrazkiem (miniaturka)?
+function isImgEmoji(v){return typeof v==='string'&&v.indexOf('data:image')===0;}
+// Zwraca HTML do wyswietlenia emoji LUB miniaturki obrazka. size = CSS (np. '1.6rem' lub '36px').
+function emo(v,size){
+  if(isImgEmoji(v)){
+    var s=size||'1.4em';
+    return '<img src="'+v+'" alt="" style="width:'+s+';height:'+s+';object-fit:cover;border-radius:6px;vertical-align:middle;display:inline-block;">';
+  }
+  return v||'';
+}
+// Dla kontekstow czysto tekstowych (np. <option>) - obrazka nie da sie pokazac, daj placeholder.
+function emoText(v){return isImgEmoji(v)?'\uD83C\uDF7D\uFE0F':(v||'');}
 function xv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 function fbBg(p){if(p&&p.catch)p.catch(function(e){console.warn('fb:',e);});}
 
 function toast(msg,color){
   var t=document.getElementById('toast');
+  if(!t)return;
   t.innerHTML=msg;t.style.background=color||'#27ae60';
   t.classList.add('show');
   setTimeout(function(){t.classList.remove('show');},2800);
@@ -860,15 +1002,15 @@ function kitchenRows(items){
   var sorted=sortItemsByMenu(items);
   for(var j=0;j<sorted.length;j++){
     var it=sorted[j];
-    rows+='<div class="tki"><span class="tie">'+it.emoji+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq fo">'+it.qty+'</span></div>';
+    rows+='<div class="tki"><span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq fo">'+it.qty+'</span></div>';
   }
   return rows;
 }
 
 function saveOrds(){lsSet('sp_orders',JSON.stringify(orders));savePhoneBackup();}
-function loadOrds(){try{var r=lsGet('sp_orders');if(r)orders=JSON.parse(r);}catch(e){}}
+function loadOrds(){orders=readObj('sp_orders');}
 function saveArc(){lsSet('sp_archive',JSON.stringify(archive));savePhoneBackup();}
-function loadArc(){try{var r=lsGet('sp_archive');if(r)archive=JSON.parse(r);}catch(e){}}
+function loadArc(){archive=readObj('sp_archive');}
 
 function phoneBackupData(){
   return {
@@ -929,9 +1071,26 @@ var FIREBASE_CFG={
 function getCfg(){
   // Najpierw sprawdz czy uzytkownik nadpisal w zakladce Chmura
   try{var c=JSON.parse(lsGet('sp_fbcfg'));if(c&&c.apiKey)return c;}catch(e){}
+  if(lsGet('sp_fbskip')==='1')return null;
   if(activeProfileId!=='sp')return null;
   // Fallback: wbudowane dane
   return FIREBASE_CFG;
+}
+
+var _fbSubscribed=false;
+var _fbHeartbeatTimer=null;
+var _fbOnlineHandler=null;
+var _fbOfflineHandler=null;
+function detachFb(){
+  if(fbDB&&fbReady){
+    ['orders','archive','menu','stock','config','settings/app'].forEach(function(path){
+      try{fbDB.ref(path).off();}catch(e){}
+    });
+  }
+  if(_fbHeartbeatTimer){clearInterval(_fbHeartbeatTimer);_fbHeartbeatTimer=null;}
+  if(_fbOnlineHandler){window.removeEventListener('online',_fbOnlineHandler);_fbOnlineHandler=null;}
+  if(_fbOfflineHandler){window.removeEventListener('offline',_fbOfflineHandler);_fbOfflineHandler=null;}
+  _fbSubscribed=false;
 }
 
 function initFb(cfg){
@@ -939,6 +1098,7 @@ function initFb(cfg){
     toast('Brak danych Firebase - sprawdz zakladke Chmura','#e85c3a');
     return;
   }
+  if(_fbSubscribed)detachFb();
   loadFirebaseSDK(function(){
     try{
       var fb=typeof firebase!=='undefined'?firebase:window._fbOffline;
@@ -965,13 +1125,15 @@ function initFb(cfg){
 }
 
 function subAll(){
+  detachFb();
+  _fbSubscribed=true;
   var _fbLocalChange=false;
   window._fbSkipNext=0;
   window._fbSkipArchive=0;
 
   // Heartbeat
   sendHeartbeat();
-  setInterval(sendHeartbeat,60000);
+  _fbHeartbeatTimer=setInterval(sendHeartbeat,60000);
 
   // ORDERS - chmura nadrzędna
   fbDB.ref('orders').on('value',function(snap){
@@ -988,6 +1150,7 @@ function subAll(){
   });
 
   // ARCHIVE - chmura = źródło prawdy, lokalnie tylko dopisujemy brakujące
+  var _arcInitDone=false;
   fbDB.ref('archive').once('value').then(function(snap){
     var fbArc=snap.val()||{};
     var localOnly={};
@@ -1005,10 +1168,12 @@ function subAll(){
       });
     }
     saveArc();
+    _arcInitDone=true;
     if(curV==='s')renderStats();
-  }).catch(function(){});
+  }).catch(function(){_arcInitDone=true;});
 
   fbDB.ref('archive').on('value',function(snap){
+    if(!_arcInitDone)return;
     if(window._fbSkipArchive>0){window._fbSkipArchive--;return;}
     var fbArc=snap.val()||{};
     // Zachowaj lokalne wpisy ktorych nie ma jeszcze w chmurze
@@ -1052,7 +1217,7 @@ function subAll(){
   fbDB.ref('config').on('value',function(snap){
     var v=snap.val();
     if(v&&v.numT&&parseInt(v.numT)!==numT){
-      numT=parseInt(v.numT);
+      numT=Math.max(1,Math.min(99,parseInt(v.numT)||29));
       lsSet('sp_tbls',numT);
       var el=document.getElementById('tnd');
       if(el)el.textContent=numT;
@@ -1067,6 +1232,7 @@ function subAll(){
     for(var k in SETTINGS_DEF){if(v[k]!==undefined)appSettings[k]=v[k];}
     lsSet('sp_settings',JSON.stringify(appSettings));
     countSetInvalidate();
+    applyProfileUI(); // odswiez nazwe i logo (moga sie zmienic z innego urzadzenia)
     // Zaktualizuj pole kursu tylko gdy koszyk jest pusty (zeby nie zmieniac w trakcie zamowienia)
     var cr=document.getElementById('czkrate');
     if(cr&&Object.keys(cart||{}).length===0)cr.value=appSettings.czkRate;
@@ -1077,7 +1243,7 @@ function subAll(){
   });
 
   // Powrót internetu - dopisz lokalne do chmury (nie nadpisuj!)
-  window.addEventListener('online',function(){
+  _fbOnlineHandler=function(){
     if(!fbReady)return;
     toast('Internet — synchronizacja...','#27ae60');
     // Pobierz stan chmury i dopisz tylko brakujące lokalne
@@ -1107,15 +1273,18 @@ function subAll(){
       }
     });
     sendHeartbeat();
-  });
+  };
+  window.addEventListener('online',_fbOnlineHandler);
 
-  window.addEventListener('offline',function(){
+  _fbOfflineHandler=function(){
     toast('Tryb offline — dane zapisywane lokalnie','#f5a623');
-  });
+  };
+  window.addEventListener('offline',_fbOfflineHandler);
 }
 
 function dot(s){
   var d=document.getElementById('fbd');
+  if(!d)return;
   d.className='fbd'+(s?' '+s:'');
 }
 
@@ -1284,7 +1453,7 @@ function renderMG(id,items){
     var bdg=unavail
       ?'<span class="mcbg" style="background:#888;">BRAK</span>'
       :(item.badge?'<span class="mcbg '+(item.bc||'')+'">'+esc(item.badge)+'</span>':'');
-    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+item.emoji+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
+    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+emo(item.emoji,'2.4rem')+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
     (function(it,unav){
       c.addEventListener('click',function(){
         if(unav){
@@ -1328,7 +1497,7 @@ function chQty(id,d){
   if(cart[id].qty<=0)delete cart[id];
   renderCart();updSend();
 }
-function getCZK(){var el=document.getElementById('czkrate');return (el&&parseFloat(el.value))||appSettings.czkRate||6.2;}
+function getCZK(){var el=document.getElementById('czkrate');return clampNum(el?el.value:appSettings.czkRate,.1,50,appSettings.czkRate||6.2);}
 function updateCZK(tot){
   var czk=Math.round(tot*getCZK());
   var el=document.getElementById('otczk');if(el)el.textContent=czk;
@@ -1348,7 +1517,7 @@ function renderCart(){
   for(var i=0;i<keys.length;i++){
     var id=keys[i];var it=cart[id];tot+=it.price*it.qty;
     var r=document.createElement('div');r.className='or';
-    r.innerHTML='<span class="orem">'+it.emoji+'</span><span class="ornm">'+esc(it.name)+'</span><div class="qc"><button class="qb" onclick="chQty(\''+id+'\',-1)">-</button><span class="qn">'+it.qty+'</span><button class="qb" onclick="chQty(\''+id+'\',1)">+</button></div><span class="orpr">'+(it.price*it.qty).toFixed(2)+' zl</span>';
+    r.innerHTML='<span class="orem">'+emo(it.emoji,'1.5rem')+'</span><span class="ornm">'+esc(it.name)+'</span><div class="qc"><button class="qb" onclick="chQty(\''+id+'\',-1)">-</button><span class="qn">'+it.qty+'</span><button class="qb" onclick="chQty(\''+id+'\',1)">+</button></div><span class="orpr">'+(it.price*it.qty).toFixed(2)+' zl</span>';
     el.appendChild(r);
   }
   document.getElementById('otot').textContent=tot.toFixed(2)+' zl';
@@ -1748,7 +1917,7 @@ function renderList(){
     var rows='';
     for(var k=0;k<allItems.length;k++){
       var it=allItems[k];
-      rows+='<div class="olin"><span class="ole">'+it.emoji+'</span><span class="oln">'+esc(it.name)+'</span><span class="olq">x'+it.qty+'</span></div>';
+      rows+='<div class="olin"><span class="ole">'+emo(it.emoji,'1.2rem')+'</span><span class="oln">'+esc(it.name)+'</span><span class="olq">x'+it.qty+'</span></div>';
     }
 
     var c=document.createElement('div');c.className='oc';
@@ -1858,7 +2027,7 @@ function renderBCounter(){
   if(!keys.length){el.innerHTML='';return;}
   var html='';
   Object.values(totals).sort(function(a,b){return b.qty-a.qty;}).forEach(function(item){
-    html+='<div class="kcnt"><span class="kcnt-em">'+item.emoji+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
+    html+='<div class="kcnt"><span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
     var pq=pending[item.name]?pending[item.name].qty:0;
     if(pq>0)html+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F37A;</span><div class="kcnt-info"><span class="kcnt-num">'+pq+'</span><span class="kcnt-lbl">do wydania</span></div></div>';
   });
@@ -1876,7 +2045,7 @@ function renderBar(){
     var o=act[i];
     var dr=o.items.filter(function(i){return ds.has(norm(i.name));});
     var done=!!o.barDone;
-    var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+='<div class="tki"><span class="tie">'+it.emoji+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span></div>';}
+    var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+='<div class="tki"><span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span></div>';}
     var btn=done?'<span style="color:var(--gr);font-weight:800;font-size:.82rem;padding:6px">Wydane</span>':'<button class="bt btbar" data-action="bardone" data-ids="'+o.id+'">Wydano napoje</button>';
     var t=document.createElement('div');t.className='tkt '+(done?'bd':'bn');
     t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
@@ -1916,7 +2085,7 @@ function renderKCounter(){
   });
 
   function mkTile(item,cls){
-    return '<div class="kcnt'+(cls?' '+cls:'')+'">'+'<span class="kcnt-em">'+item.emoji+'</span>'+'<div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+item.name+'</span></div></div>';
+    return '<div class="kcnt'+(cls?' '+cls:'')+'">'+'<span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span>'+'<div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+item.name+'</span></div></div>';
   }
 
   var leftHtml='';
@@ -2053,7 +2222,7 @@ function setDateRange(){
 // MAGAZYN
 // ═══════════════════════════════════════
 function saveStock(){lsSet('sp_stock',JSON.stringify(stock));savePhoneBackup();}
-function loadStock(){try{var r=lsGet('sp_stock');if(r)stock=JSON.parse(r);}catch(e){}}
+function loadStock(){stock=readObj('sp_stock');}
 
 function getAllMenuItems(){
   var all=[];
@@ -2103,11 +2272,11 @@ function renderStock(){
       // Sprzedano = ile ubylo ze stanu poczatkowego (spojne ze stanem biezacym)
       var soldCount=Math.max(0,initV-curV2);
       var low=(initV>0 && curV2<=Math.ceil(initV*((appSettings.lowStockPct||20)/100)));
-      var safeName=it.name.replace(/'/g,"\\'");
-      var idBase=safeName.replace(/[^a-z0-9]/gi,'_');
+      var safeName=jsArg(it.name);
+      var idBase=String(it.id||norm(it.name)||'item').replace(/[^a-z0-9]/gi,'_');
       html+=
         '<div class="stock-item">'+
-          '<span class="stock-em">'+it.emoji+'</span>'+
+          '<span class="stock-em">'+emo(it.emoji,'1.6rem')+'</span>'+
           '<div class="stock-name" style="flex:1">'+
             '<div>'+esc(it.name)+'</div>'+
             '<div class="stock-sold'+(low?' stock-low':'')+'">'+
@@ -2215,6 +2384,7 @@ function resetStock(){
     document.getElementById('rst2no').onclick=function(){m2.remove();};
     document.getElementById('rst2ok').onclick=function(){
       m2.remove();
+      saveSnapshot('Reset magazynu');
       var items=getAllMenuItems();
       items.forEach(function(it){
         if(stock[it.name]){
@@ -2225,7 +2395,7 @@ function resetStock(){
       saveStock();
       if(fbReady)fbBg(fbDB.ref('stock').set(stock));
       renderStock();
-      toast('Stan magazynowy zresetowany','#27ae60');
+      toast('Stan magazynowy zresetowany — mozna Cofnac','#27ae60');
     };
   };
 }
@@ -2280,7 +2450,7 @@ function openEditOrder(id){
   function getHTML(){
     var rows=items.map(function(it,i){
       return '<tr>'+
-        '<td style="padding:6px 4px;font-size:1.2rem;">'+it.emoji+'</td>'+
+        '<td style="padding:6px 4px;font-size:1.2rem;">'+emo(it.emoji,'1.2rem')+'</td>'+
         '<td style="padding:6px 4px;font-size:.85rem;font-weight:700;color:#111;flex:1;">'+esc(it.name)+'</td>'+
         '<td style="padding:6px 4px;white-space:nowrap;">'+
           '<button id="emb'+i+'" style="width:34px;height:34px;font-size:1.1rem;font-weight:900;border:none;border-radius:7px;background:#eee;cursor:pointer;">-</button>'+
@@ -2291,7 +2461,7 @@ function openEditOrder(id){
       '</tr>';
     }).join('');
     var opts=[];
-    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
+    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
       '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+(o.table==='my'?'MY':'Stolik '+o.table)+'</div>'+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
@@ -2543,6 +2713,7 @@ function saveSnapshot(label){
   _undoStack.push({
     label:label,
     orders:JSON.parse(JSON.stringify(orders)),
+    archive:JSON.parse(JSON.stringify(archive)),
     stock:JSON.parse(JSON.stringify(stock)),
     ts:Date.now()
   });
@@ -2572,9 +2743,17 @@ function undoLastAction(){
   var snap=_undoStack.pop();
   orders=snap.orders;
   saveOrds();
+  if(snap.archive){
+    archive=snap.archive;
+    saveArc();
+  }
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+2;
     fbBg(fbDB.ref('orders').set(orders));
+    if(snap.archive){
+      window._fbSkipArchive=(window._fbSkipArchive||0)+2;
+      fbBg(fbDB.ref('archive').set(archive));
+    }
   }
   // Przywroc stan magazynowy (np. cofniecie zamowienia oddaje produkty na stan)
   if(snap.stock){
@@ -2636,7 +2815,7 @@ function openAddToOrder(table){
     return keys.map(function(k){
       var it=newItems[k];
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;">'+
-        '<span style="font-size:1.2rem;">'+it.emoji+'</span>'+
+        '<span style="font-size:1.2rem;">'+emo(it.emoji,'1.2rem')+'</span>'+
         '<span style="flex:1;font-size:.85rem;font-weight:700;color:#0b1e28;">'+esc(it.name)+'</span>'+
         '<button id="atom_'+k+'" data-k="'+k+'" class="atobm" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">-</button>'+
         '<span id="atoq_'+k+'" style="min-width:24px;text-align:center;font-weight:900;">'+it.qty+'</span>'+
@@ -2650,7 +2829,7 @@ function openAddToOrder(table){
   var allItems=[];
   catKeys().forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(!it.unavailable)allItems.push(it);});});
   var opts=allItems.map(function(it){
-    return '<option value="'+it.id+'">'+it.emoji+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
+    return '<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
   }).join('');
 
   var tblLabel=table==='my'?'MY - obsluga':(typeof table==='string'&&table.indexOf('odbior')===0?'Odbior '+table.slice(7):'Stolik '+table);
@@ -2762,6 +2941,7 @@ function resetSold(){
     document.getElementById('rs2no').onclick=function(){m2.remove();};
     document.getElementById('rs2ok').onclick=function(){
       m2.remove();
+      saveSnapshot('Reset sprzedazy');
       // Sprzedano = init - current. Reset = zrownaj init z current (sprzedano 0 od teraz).
       var items=getAllMenuItems();
       items.forEach(function(it){
@@ -2771,7 +2951,7 @@ function resetSold(){
       saveStock();
       if(fbReady)fbBg(fbDB.ref('stock').set(stock));
       renderStock();
-      toast('Sprzedaz zresetowana','#27ae60');
+      toast('Sprzedaz zresetowana — mozna Cofnac','#27ae60');
     };
   };
 }
@@ -2875,12 +3055,12 @@ function renderStats(){
   var bh={};done.forEach(function(o){var h=new Date(o.ts).getHours();bh[h]=(bh[h]||0)+1;});
   var mh=Math.max.apply(null,Object.values(bh).concat([1]));
   var topRows='';
-  for(var i=0;i<top.length;i++){var it=top[i];topRows+='<tr><td>'+it.emoji+' '+esc(it.name)+'</td><td><b>'+it.qty+' szt.</b></td><td>'+it.rev.toFixed(2)+' zl</td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(it.qty/mq*110)+'px"></div></div></td></tr>';}
+  for(var i=0;i<top.length;i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1.1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+' szt.</b></td><td>'+it.rev.toFixed(2)+' zl</td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(it.qty/mq*110)+'px"></div></div></td></tr>';}
   var bhKeys=Object.keys(bh).sort(function(a,b){return +a-+b;});
   var bhRows='';for(var i=0;i<bhKeys.length;i++){var hh=bhKeys[i],c=bh[hh];bhRows+='<tr><td>'+String(hh).padStart(2,'0')+':00</td><td><b>'+c+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(c/mh*130)+'px;background:linear-gradient(90deg,var(--w),var(--gr))"></div></div></td></tr>';}
   var histRows='';
   var doneSorted=done.slice().reverse();
-  for(var i=0;i<doneSorted.length;i++){var o=doneSorted[i];var istr=o.items.map(function(it){return it.emoji+esc(it.name)+' x'+it.qty;}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+o.timeStr+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+o.total.toFixed(2)+' zl</span></div>';}
+  for(var i=0;i<doneSorted.length;i++){var o=doneSorted[i];var istr=o.items.map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+it.qty;}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+o.timeStr+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+o.total.toFixed(2)+' zl</span></div>';}
 
   // Sredni czas wydawania - wszystkie zamowienia z doneTs (niezaleznie od statusu)
   var timeData=[];
@@ -3038,7 +3218,7 @@ function renderEditor(){
 }
 function buildEdRow(sec,idx,item){
   var row=document.createElement('div');row.className='eit';
-  var emb=document.createElement('button');emb.className='eemb';emb.innerHTML=item.emoji;
+  var emb=document.createElement('button');emb.className='eemb';emb.innerHTML=emo(item.emoji,'1.5rem');
   (function(s,i){emb.addEventListener('click',function(){collectEd();epTgt={sec:s,idx:i};openEp();});})(sec,idx);
   var nm=document.createElement('input');nm.className='einp';nm.id='en-'+sec+'-'+idx;nm.value=item.name;nm.placeholder='Nazwa';
   var pr=document.createElement('input');pr.className='epri';pr.id='ep-'+sec+'-'+idx;pr.type='number';pr.value=item.price;pr.min=0;pr.step=0.5;
@@ -3089,19 +3269,88 @@ var EPLIST=null;
 function openEp(){
   var g=document.getElementById('epg');g.innerHTML='';
   if(!EPLIST)EPLIST=EMOJIS;
+  // 1) Wlasne emoji / miniaturki (na gorze, z mozliwoscia usuniecia)
+  var custom=(appSettings&&appSettings.customEmojis)||[];
+  custom.forEach(function(val,ci){
+    var wrap=document.createElement('div');
+    wrap.style.cssText='position:relative;display:inline-flex;';
+    var b=document.createElement('button');b.className='epbtn';b.innerHTML=emo(val,'1.6rem');
+    b.addEventListener('click',function(){
+      if(epTgt)menu[epTgt.sec][epTgt.idx].emoji=val;
+      closeEp();renderEditor();
+    });
+    var del=document.createElement('button');
+    del.textContent='\u00D7';
+    del.title='Usun z listy';
+    del.style.cssText='position:absolute;top:-5px;right:-5px;width:18px;height:18px;border-radius:50%;border:none;background:#e85c3a;color:#fff;font-weight:900;font-size:.8rem;line-height:1;cursor:pointer;z-index:2;padding:0;';
+    (function(idx){del.addEventListener('click',function(e){e.stopPropagation();removeCustomEmoji(idx);});})(ci);
+    wrap.appendChild(b);wrap.appendChild(del);
+    g.appendChild(wrap);
+  });
+  // 2) Standardowy zestaw emoji
   for(var i=0;i<EPLIST.length;i++){
     var b=document.createElement('button');b.className='epbtn';b.innerHTML=EPLIST[i];
-    (function(em,raw){
+    (function(raw){
       b.addEventListener('click',function(){
         if(epTgt)menu[epTgt.sec][epTgt.idx].emoji=raw;
         closeEp();renderEditor();
       });
-    })(EPLIST[i],EPLIST[i]);
+    })(EPLIST[i]);
     g.appendChild(b);
   }
   document.getElementById('epbg').style.display='flex';
 }
-function closeEp(){document.getElementById('epbg').style.display='none';}
+function closeEp(){document.getElementById('epbg').style.display='none';var fi=document.getElementById('epFile');if(fi)fi.value='';}
+
+// Dodaj wlasne emoji (wpisane recznie)
+function addCustomEmojiPrompt(){
+  var v=prompt('Wpisz emoji (np. \uD83C\uDF63 \uD83C\uDF70 \uD83E\uDD58):');
+  if(v==null)return;
+  v=v.trim();
+  if(!v)return;
+  if(v.length>8){toast('Wpisz pojedyncze emoji','#e85c3a');return;}
+  addCustomEmojiValue(v);
+}
+// Wgraj obrazek jako miniaturke
+function onCustomEmojiFile(input){
+  var f=input&&input.files&&input.files[0];
+  if(!f)return;
+  if(f.size>6*1024*1024){toast('Obrazek za duzy (max 6MB)','#e85c3a');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var max=128; // miniaturki sa male - 128px wystarczy
+      var w=img.width,h=img.height,side=Math.min(w,h);
+      // przytnij do kwadratu (srodek) i przeskaluj
+      var canvas=document.createElement('canvas');canvas.width=max;canvas.height=max;
+      var sx=(w-side)/2, sy=(h-side)/2;
+      canvas.getContext('2d').drawImage(img,sx,sy,side,side,0,0,max,max);
+      try{
+        addCustomEmojiValue(canvas.toDataURL('image/png'));
+      }catch(err){toast('Nie udalo sie przetworzyc obrazka','#e85c3a');}
+    };
+    img.onerror=function(){toast('Niepoprawny plik obrazu','#e85c3a');};
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(f);
+  if(input)input.value='';
+}
+function addCustomEmojiValue(val){
+  if(!appSettings.customEmojis)appSettings.customEmojis=[];
+  if(appSettings.customEmojis.indexOf(val)>=0){toast('Ta miniaturka juz jest na liscie','#f5a623');return;}
+  appSettings.customEmojis.unshift(val); // najnowsze na gorze
+  if(appSettings.customEmojis.length>60)appSettings.customEmojis=appSettings.customEmojis.slice(0,60);
+  saveSettings();
+  openEp(); // odswiez picker
+  toast('Dodano miniaturke','#27ae60');
+}
+function removeCustomEmoji(idx){
+  if(!appSettings.customEmojis)return;
+  appSettings.customEmojis.splice(idx,1);
+  saveSettings();
+  openEp();
+}
 
 // STOLIKI EDYCJA
 function tblP(){if(numT>=99)return;numT++;saveTbls();}
@@ -3200,6 +3449,12 @@ function renderCloud(){
   _catsEdit=null; // odswiez z aktualnego stanu
   renderCatEditor();
   renderCountItems();
+  renderBrandSettings();
+  // Podglad na zywo brandingu
+  ['setBrand1','setBrand2','setBrandEmoji'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.oninput=updateBrandPreview;
+  });
   renderDevices();
 }
 
@@ -3316,7 +3571,7 @@ function renderCountItems(){
       var checked=all?true:sel.has(norm(it.name));
       html+='<label class="cnt-row">'+
         '<input type="checkbox" class="cnt-cb" data-name="'+esc(it.name)+'"'+(checked?' checked':'')+'>'+
-        '<span class="cnt-em">'+it.emoji+'</span>'+
+        '<span class="cnt-em">'+emo(it.emoji,'1.2rem')+'</span>'+
         '<span class="cnt-nm">'+esc(it.name)+'</span>'+
       '</label>';
     });
@@ -3346,6 +3601,91 @@ function saveCountItems(){
   if(curV==='b'){renderBar();}
   var msg=appSettings.countItems?('Zliczane pozycje: '+chosen.length):'Zliczane: wszystkie pozycje';
   toast(msg,'#27ae60');
+  vib([10,30,10]);
+}
+
+// ── BRANDING (nazwa + logo) ──
+var _brandImg=null; // tymczasowy data-URL wgranego obrazka (null = bez zmian z UI)
+function renderBrandSettings(){
+  var s=appSettings||SETTINGS_DEF;
+  var b1=document.getElementById('setBrand1');if(b1)b1.value=s.brandLine1||'';
+  var b2=document.getElementById('setBrand2');if(b2)b2.value=s.brandLine2||'';
+  var lg=s.brandLogo||'\uD83D\uDC1F';
+  var isImg=(typeof lg==='string'&&lg.indexOf('data:image')===0);
+  var em=document.getElementById('setBrandEmoji');if(em)em.value=isImg?'':lg;
+  _brandImg=isImg?lg:null;
+  var clr=document.getElementById('brandImgClear');if(clr)clr.style.display=isImg?'':'none';
+  updateBrandPreview();
+}
+function currentBrandLogoForPreview(){
+  if(_brandImg)return _brandImg;
+  var em=document.getElementById('setBrandEmoji');
+  var v=em?em.value.trim():'';
+  return v||((appSettings&&appSettings.brandLogo)||'\uD83D\uDC1F');
+}
+function updateBrandPreview(){
+  var pl=document.getElementById('brandPrevLogo');
+  var pt=document.getElementById('brandPrevText');
+  if(!pl||!pt)return;
+  var lg=currentBrandLogoForPreview();
+  if(typeof lg==='string'&&lg.indexOf('data:image')===0){
+    pl.innerHTML='<img src="'+lg+'" alt="logo" style="width:40px;height:40px;object-fit:contain;border-radius:6px;">';
+  } else {
+    pl.textContent=lg;
+  }
+  var b1=(document.getElementById('setBrand1')||{}).value||'Smazalnia';
+  var b2=(document.getElementById('setBrand2')||{}).value||'';
+  pt.innerHTML=esc(b1)+(b2?'<br><em style="color:var(--a);font-style:normal;">'+esc(b2)+'</em>':'');
+}
+function onBrandFile(input){
+  var f=input&&input.files&&input.files[0];
+  if(!f)return;
+  if(f.size>6*1024*1024){toast('Obrazek za duzy (max 6MB)','#e85c3a');return;}
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      // Zmniejsz do max 256px (zachowaj proporcje) i zapisz jako PNG data-URL
+      var max=256;
+      var w=img.width,h=img.height;
+      if(w>h){if(w>max){h=Math.round(h*max/w);w=max;}}
+      else{if(h>max){w=Math.round(w*max/h);h=max;}}
+      var canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      try{
+        _brandImg=canvas.toDataURL('image/png');
+        var clr=document.getElementById('brandImgClear');if(clr)clr.style.display='';
+        updateBrandPreview();
+        toast('Obrazek zaladowany - kliknij Zapisz','#27ae60');
+      }catch(err){toast('Nie udalo sie przetworzyc obrazka','#e85c3a');}
+    };
+    img.onerror=function(){toast('Niepoprawny plik obrazu','#e85c3a');};
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(f);
+}
+function clearBrandImage(){
+  _brandImg=null;
+  var clr=document.getElementById('brandImgClear');if(clr)clr.style.display='none';
+  var fi=document.getElementById('setBrandFile');if(fi)fi.value='';
+  updateBrandPreview();
+}
+function saveBrand(){
+  var b1=((document.getElementById('setBrand1')||{}).value||'').trim();
+  var b2=((document.getElementById('setBrand2')||{}).value||'').trim();
+  if(!b1){toast('Pierwsza linia nazwy nie moze byc pusta','#e85c3a');return;}
+  appSettings.brandLine1=b1.slice(0,24);
+  appSettings.brandLine2=b2.slice(0,24);
+  if(_brandImg){
+    appSettings.brandLogo=_brandImg;
+  } else {
+    var em=((document.getElementById('setBrandEmoji')||{}).value||'').trim();
+    appSettings.brandLogo=em||'\uD83D\uDC1F';
+  }
+  saveSettings();
+  applyProfileUI();
+  toast('Nazwa i logo zapisane!','#27ae60');
   vib([10,30,10]);
 }
 
@@ -3400,6 +3740,7 @@ function saveFb(){
 }
 function discFb(){
   if(!confirm('Rozlaczyc Firebase?'))return;
+  detachFb();
   rawRemove(lsKey('sp_fbcfg'));
   lsSet('sp_fbskip','1');
   fbReady=false;fbDB=null;dot('');
@@ -3532,9 +3873,11 @@ function doClrOrders(){
   toast('Usunieto '+count+' zamowien','#27ae60');
 }
 
+var _clrStatsRange='all';
 function confirmClearStats(){
   var existing=document.getElementById('clearStatsModal');
   if(existing)existing.parentNode.removeChild(existing);
+  _clrStatsRange='all';
   var modal=document.createElement('div');
   modal.id='clearStatsModal';
   modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px;';
@@ -3542,13 +3885,36 @@ function confirmClearStats(){
     '<div style="background:#fff;border-radius:14px;padding:22px;max-width:340px;width:100%;text-align:center;">'+
       '<div style="font-size:2rem;margin-bottom:8px;">&#x1F4CA;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:6px;">Wyczysc statystyki</div>'+
-      '<div style="color:#666;font-size:.83rem;margin-bottom:14px;">Wpisz haslo do aplikacji aby potwierdzic.</div>'+
+      '<div style="color:#666;font-size:.83rem;margin-bottom:10px;">Wybierz zakres do usuniecia:</div>'+
+      '<div id="clrRangeBtns" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px;">'+
+        '<button type="button" class="clr-range" data-range="hour">Ostatnia godzina</button>'+
+        '<button type="button" class="clr-range" data-range="today">Dzisiaj</button>'+
+        '<button type="button" class="clr-range" data-range="week">Ostatni tydzien</button>'+
+        '<button type="button" class="clr-range on" data-range="all">Wszystko</button>'+
+      '</div>'+
+      '<div id="clrRangeInfo" style="color:#1278a8;font-size:.78rem;font-weight:800;min-height:16px;margin-bottom:10px;"></div>'+
+      '<div style="color:#666;font-size:.83rem;margin-bottom:6px;">Wpisz haslo do aplikacji aby potwierdzic.</div>'+
       '<input id="clearStatsPw" type="password" placeholder="Haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
       '<div id="clearStatsErr" style="color:#e85c3a;font-size:.8rem;font-weight:800;min-height:18px;margin-bottom:8px;"></div>'+
       '<button id="clrStOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Dalej</button>'+
       '<button id="clrStNo" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
     '</div>';
   document.body.appendChild(modal);
+
+  function updRangeInfo(){
+    var info=document.getElementById('clrRangeInfo');
+    if(info)info.textContent='Do usuniecia: '+countStatsInRange(_clrStatsRange)+' zamowien';
+  }
+  var rb=modal.querySelectorAll('.clr-range');
+  for(var i=0;i<rb.length;i++){
+    rb[i].onclick=function(){
+      _clrStatsRange=this.getAttribute('data-range');
+      for(var j=0;j<rb.length;j++)rb[j].classList.remove('on');
+      this.classList.add('on');
+      updRangeInfo();
+    };
+  }
+  updRangeInfo();
 
   document.getElementById('clrStNo').onclick=function(){modal.parentNode.removeChild(modal);};
   document.getElementById('clrStOk').onclick=function(){doClrStats();};
@@ -3557,6 +3923,23 @@ function confirmClearStats(){
     inp.onkeydown=function(e){if(e.key==='Enter')doClrStats();};
     setTimeout(function(){inp.focus();},100);
   }
+}
+
+// Granica czasowa (ts) dla danego zakresu; null = wszystko (bez granicy).
+function statsRangeCutoff(range){
+  var now=Date.now();
+  if(range==='hour')return now-3600*1000;
+  if(range==='today'){var d=new Date();d.setHours(0,0,0,0);return d.getTime();}
+  if(range==='week')return now-7*24*3600*1000;
+  return null; // all
+}
+function countStatsInRange(range){
+  var cut=statsRangeCutoff(range);
+  var keys=Object.keys(archive);
+  if(cut===null)return keys.length;
+  var n=0;
+  keys.forEach(function(k){var o=archive[k];if(o&&o.ts>=cut)n++;});
+  return n;
 }
 
 function doClrStats(){
@@ -3569,6 +3952,14 @@ function doClrStats(){
       pw.value='';
       return;
     }
+    var range=_clrStatsRange||'all';
+    var cut=statsRangeCutoff(range);
+    var cnt=countStatsInRange(range);
+    var rangeLabel={hour:'z ostatniej godziny',today:'z dzisiaj',week:'z ostatniego tygodnia',all:''}[range]||'';
+    if(cnt===0){
+      err.textContent='Brak zamowien w tym zakresie';
+      return;
+    }
     // Haslo OK - drugie potwierdzenie
     var m1=document.getElementById('clearStatsModal');
     if(m1)m1.parentNode.removeChild(m1);
@@ -3579,8 +3970,8 @@ function doClrStats(){
       '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
         '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
         '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
-        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Wszystkie statystyki i historia zamowien zostana trwale usuniete.</div>'+
-        '<button id="clrSt2Ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Tak, wyczysc wszystko</button>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Zostanie trwale usunietych <b style="color:#e85c3a;">'+cnt+'</b> zamowien'+(rangeLabel?' '+rangeLabel:'')+'.</div>'+
+        '<button id="clrSt2Ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Tak, usun ('+cnt+')</button>'+
         '<button id="clrSt2No" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
       '</div>';
     document.body.appendChild(m2);
@@ -3588,14 +3979,28 @@ function doClrStats(){
     document.getElementById('clrSt2No').onclick=function(){m2.parentNode.removeChild(m2);};
     document.getElementById('clrSt2Ok').onclick=function(){
       m2.parentNode.removeChild(m2);
-      archive={};
-      saveArc();
-      if(fbReady){
-        window._fbSkipArchive=(window._fbSkipArchive||0)+1;
-        fbBg(fbDB.ref('archive').remove());
+      if(cut===null){
+        // Wszystko
+        archive={};
+        saveArc();
+        if(fbReady){
+          window._fbSkipArchive=(window._fbSkipArchive||0)+1;
+          fbBg(fbDB.ref('archive').remove());
+        }
+      } else {
+        // Tylko wpisy w wybranym zakresie
+        var removed=[];
+        Object.keys(archive).forEach(function(k){
+          if(archive[k]&&archive[k].ts>=cut){removed.push(k);delete archive[k];}
+        });
+        saveArc();
+        if(fbReady&&removed.length){
+          window._fbSkipArchive=(window._fbSkipArchive||0)+1;
+          removed.forEach(function(k){fbBg(fbDB.ref('archive/'+k).remove());});
+        }
       }
       renderStats();
-      toast('Statystyki wyczyszczone!','#27ae60');
+      toast('Usunieto '+cnt+' zamowien ze statystyk','#27ae60');
     };
   });
 }
@@ -3638,25 +4043,25 @@ function startKitchTimer(){
   },1000);
 }
 function bootApp(){
-  applyProfileUI();
-  loadIconSize();
   orders={};
   archive={};
   stock={};
   cart={};
   selTbl=null;
   wynos=false;
-  ordSeq=parseInt(lsGet('sp_seq'))||1;
-  numT=parseInt(lsGet('sp_tbls'))||29;
+  ordSeq=Math.max(1,parseInt(lsGet('sp_seq'))||1);
+  numT=Math.max(1,Math.min(99,parseInt(lsGet('sp_tbls'))||29));
   DID=lsGet('sp_did')||mkDID();
   menu=cloneObj(DEF);
   appSettings=loadSettings();
+  applyProfileUI();
+  loadIconSize();
   countSetInvalidate();
   loadOrds();
   loadArc();
   loadStock();
   var _mc=lsGet('sp_menu');
-  if(_mc){try{menu=JSON.parse(_mc);}catch(e){menu=cloneObj(DEF);}}
+  if(_mc){try{menu=safeObj(JSON.parse(_mc));if(!Object.keys(menu).length)menu=cloneObj(DEF);}catch(e){menu=cloneObj(DEF);}}
   else{menu=cloneObj(DEF);}
   restorePhoneBackup();
   ensureCatArrays();
@@ -3665,10 +4070,9 @@ function bootApp(){
   // Domyslny kurs CZK z ustawien
   var _cr=document.getElementById('czkrate');if(_cr)_cr.value=appSettings.czkRate||6.2;
   var _td=document.getElementById('tnd');if(_td)_td.textContent=numT;
-  // Widok startowy z ustawien (jesli inny niz domyslny 'o')
-  if(appSettings.startView&&appSettings.startView!=='o'&&VL.indexOf(appSettings.startView)>=0){
-    gv(appSettings.startView);
-  }
+  // Widok startowy zawsze ustawiaj jawnie, takze po ponownym logowaniu.
+  curV='';
+  gv((appSettings.startView&&VL.indexOf(appSettings.startView)>=0)?appSettings.startView:'o');
   renderTbls();
   renderMGs();
   renderEditor();
@@ -3684,59 +4088,80 @@ applyProfileUI();
 
 
 (function(){
-  // 1. Generuj ikonę rybki jako canvas PNG
-  function makeIcon(size){
+  var s=(typeof appSettings!=='undefined'&&appSettings)?appSettings:{};
+  var brandName=(s.brandLine1||'Smazalnia');
+  var brandLogo=s.brandLogo||'\uD83D\uDC1F';
+  var logoIsImg=(typeof brandLogo==='string'&&brandLogo.indexOf('data:image')===0);
+  var logoImgEl=null;
+
+  // 1. Generuj ikonę jako canvas PNG (logo + nazwa)
+  function drawIcon(size){
     var cv=document.createElement('canvas');
     cv.width=size;cv.height=size;
     var ctx=cv.getContext('2d');
-    // Tło gradient
     var g=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
     g.addColorStop(0,'#0d4a6a');g.addColorStop(1,'#07131b');
     ctx.fillStyle=g;
     ctx.beginPath();ctx.roundRect?ctx.roundRect(0,0,size,size,size*0.18):ctx.rect(0,0,size,size);
     ctx.fill();
-    // Obwódka złota
     ctx.strokeStyle='#f5a623';ctx.lineWidth=size*0.04;
     ctx.beginPath();ctx.roundRect?ctx.roundRect(size*0.03,size*0.03,size*0.94,size*0.94,size*0.15):ctx.rect(size*0.03,size*0.03,size*0.94,size*0.94);
     ctx.stroke();
-    // Emoji rybka
-    ctx.font=Math.round(size*0.52)+'px serif';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText('\uD83D\uDC1F',size/2,size*0.47);
-    // Napis
+    if(logoIsImg&&logoImgEl&&logoImgEl.complete&&logoImgEl.naturalWidth){
+      var d=size*0.52;
+      try{ctx.drawImage(logoImgEl,(size-d)/2,size*0.16,d,d);}catch(e){}
+    } else {
+      ctx.font=Math.round(size*0.52)+'px serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(logoIsImg?'\uD83D\uDC1F':brandLogo,size/2,size*0.47);
+    }
     ctx.font='bold '+Math.round(size*0.12)+'px sans-serif';
     ctx.fillStyle='#f5a623';
-    ctx.fillText('Smazalnia',size/2,size*0.82);
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(brandName.slice(0,14),size/2,size*0.82);
     return cv.toDataURL('image/png');
   }
+  function makeIcon(size){return drawIcon(size);}
 
-  var icon192=makeIcon(192);
-  var icon512=makeIcon(512);
+  function buildIconsAndManifest(){
+    var icon192=makeIcon(192);
+    var icon512=makeIcon(512);
+    var appleIcon=document.getElementById('pwa-icon');
+    if(appleIcon)appleIcon.href=icon192;
+    var favIcon=document.getElementById('pwa-favicon');
+    if(favIcon){favIcon.href=icon192;favIcon.type='image/png';}
+    var fullName=(brandName+(s.brandLine2?' '+s.brandLine2:'')).trim()||'Smazalnia';
+    var manifest={
+      name:fullName,
+      short_name:brandName.slice(0,18)||'Smazalnia',
+      description:'System zamowien',
+      start_url:'.',
+      display:'standalone',
+      background_color:'#0b1e28',
+      theme_color:'#f5a623',
+      orientation:'any',
+      lang:'pl',
+      icons:[
+        {src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
+        {src:icon512,sizes:'512x512',type:'image/png',purpose:'any maskable'}
+      ]
+    };
+    var mBlob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
+    var mUrl=URL.createObjectURL(mBlob);
+    var mLink=document.getElementById('pwa-manifest');
+    if(mLink)mLink.href=mUrl;
+  }
 
-  // 2. Ustaw apple-touch-icon
-  var appleIcon=document.getElementById('pwa-icon');
-  if(appleIcon)appleIcon.href=icon192;
-
-  // 3. Manifest jako blob URL
-  var manifest={
-    name:'Smazalnia Pstraga',
-    short_name:'Smazalnia',
-    description:'System zamowien dla smazalni pstraga',
-    start_url:'.',
-    display:'standalone',
-    background_color:'#0b1e28',
-    theme_color:'#f5a623',
-    orientation:'any',
-    lang:'pl',
-    icons:[
-      {src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-      {src:icon512,sizes:'512x512',type:'image/png',purpose:'any maskable'}
-    ]
-  };
-  var mBlob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
-  var mUrl=URL.createObjectURL(mBlob);
-  var mLink=document.getElementById('pwa-manifest');
-  if(mLink)mLink.href=mUrl;
+  if(logoIsImg){
+    // Najpierw zbuduj z fallbackiem (emoji), potem podmien po wczytaniu obrazka
+    buildIconsAndManifest();
+    logoImgEl=new Image();
+    logoImgEl.onload=function(){buildIconsAndManifest();};
+    logoImgEl.onerror=function(){logoIsImg=false;buildIconsAndManifest();};
+    logoImgEl.src=brandLogo;
+  } else {
+    buildIconsAndManifest();
+  }
 
   // 4. Service Worker — cache offline (skorupa aplikacji + zasoby)
   if('serviceWorker' in navigator){
@@ -3744,7 +4169,7 @@ applyProfileUI();
     var APP_URL=location.href.split('#')[0];
     var APP_URL_JSON=JSON.stringify(APP_URL);
     var swCode=
-      'var CACHE="smazalnia-v6";'+
+      'var CACHE="smazalnia-v7";'+
       'var APP_URL='+APP_URL_JSON+';'+
       'self.addEventListener("install",function(e){'+
         'e.waitUntil('+
@@ -3800,7 +4225,7 @@ applyProfileUI();
       try{
         var _appUrl=location.href.split('#')[0];
         fetch(_appUrl,{cache:'reload'}).then(function(r){
-          if(r&&r.status===200){caches.open('smazalnia-v6').then(function(c){c.put(_appUrl,r.clone());}).catch(function(){});}
+          if(r&&r.status===200){caches.open('smazalnia-v7').then(function(c){c.put(_appUrl,r.clone());}).catch(function(){});}
         }).catch(function(){});
       }catch(e){}
     }
@@ -3994,11 +4419,16 @@ applyProfileUI();
     }
   }
 
-  var btn=document.getElementById('loginBtn');if(btn)btn.onclick=function(){window.doLogin();};
+  var form=document.getElementById('loginForm');
+  var btn=document.getElementById('loginBtn');
+  if(form)form.onsubmit=function(e){e.preventDefault();window.doLogin();};
+  else if(btn)btn.onclick=function(){window.doLogin();};
   var eye=document.getElementById('loginEye');if(eye)eye.onclick=function(){window.togglePwVis();};
   var chg=document.getElementById('loginChangeBtn');if(chg)chg.onclick=function(){window.toggleChangePw();};
   var sav=document.getElementById('chpwSaveBtn');if(sav)sav.onclick=function(){window.doChangePw();};
-  var inp=document.getElementById('loginPw');if(inp)inp.onkeydown=function(e){if(e.key==='Enter')window.doLogin();};
+  var chpwForm=document.getElementById('chpwBox');if(chpwForm)chpwForm.onsubmit=function(e){e.preventDefault();window.doChangePw();};
+  var setPwForm=document.getElementById('setPwForm');if(setPwForm)setPwForm.onsubmit=function(e){e.preventDefault();if(typeof changePwFromSettings==='function')changePwFromSettings();};
+  var inp=document.getElementById('loginPw');if(inp&&!form)inp.onkeydown=function(e){if(e.key==='Enter')window.doLogin();};
 
   checkSessionAndSync();
 })();
