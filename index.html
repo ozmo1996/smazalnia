@@ -1084,6 +1084,7 @@ var FIREBASE_CFG={
 var CLOUD_LOGIN_EMAIL="smazalnia@ryby-4bda7.web.app";
 var fbAuthReady=false;   // czy zalogowano do chmury (auth)
 var _fbAuthInProgress=false;
+var _sessionStartTs=Date.now(); // start sesji — wpisy nowsze sa "swieze" i moga byc dosylane do chmury
 
 function getCfg(){
   // Najpierw sprawdz czy uzytkownik nadpisal w zakladce Chmura
@@ -1229,35 +1230,24 @@ function subAll(){
     onData();
   });
 
-  // ARCHIVE - chmura = źródło prawdy, lokalnie tylko dopisujemy brakujące
+  // ARCHIVE - chmura jest NADRZEDNA (jedyne zrodlo prawdy).
+  // Lokalne archiwum tylko odzwierciedla chmure; NIE dopisujemy hurtowo lokalnych wpisow do chmury,
+  // bo to wgrywalo z powrotem stare/usuniete dane. Swiezo wydane offline zamowienia trafiaja do chmury
+  // osobno (przez setStatus/delOrder oraz _fbOnlineHandler po powrocie internetu).
+  var _arcInitDone=false;
   fbDB.ref('archive').once('value').then(function(snap){
     var fbArc=snap.val()||{};
-    var localOnly={};
-    // Znajdz lokalne wpisy ktorych nie ma w chmurze
-    Object.keys(archive).forEach(function(k){
-      if(!fbArc[k])localOnly[k]=archive[k];
-    });
-    // Chmura nadpisuje lokalne
-    archive=fbArc;
-    // Dopisz brakujące z lokalnych do chmury
-    if(Object.keys(localOnly).length>0){
-      Object.keys(localOnly).forEach(function(k){
-        archive[k]=localOnly[k];
-        fbBg(fbDB.ref('archive/'+k).set(localOnly[k]));
-      });
-    }
+    archive=fbArc;          // chmura nadpisuje lokalne w calosci
     saveArc();
+    _arcInitDone=true;
     if(curV==='s')renderStats();
-  }).catch(function(){});
+  }).catch(function(){_arcInitDone=true;});
 
   fbDB.ref('archive').on('value',function(snap){
+    if(!_arcInitDone)return;
     if(window._fbSkipArchive>0){window._fbSkipArchive--;return;}
     var fbArc=snap.val()||{};
-    // Zachowaj lokalne wpisy ktorych nie ma jeszcze w chmurze
-    Object.keys(archive).forEach(function(k){
-      if(!fbArc[k])fbArc[k]=archive[k];
-    });
-    archive=fbArc;
+    archive=fbArc;          // chmura nadrzedna — bez dopisywania lokalnych
     saveArc();
     if(curV==='s')renderStats();
   });
@@ -1319,11 +1309,11 @@ function subAll(){
     if(curV==='b')renderBar();
   });
 
-  // Powrót internetu - dopisz lokalne do chmury (nie nadpisuj!)
+  // Powrót internetu - dopisz tylko ŚWIEŻE lokalne do chmury (nie stare zalegające).
   _fbOnlineHandler=function(){
-    if(!fbReady)return;
+    if(!fbReady||!fbAuthReady)return;
     toast('Internet — synchronizacja...','#27ae60');
-    // Pobierz stan chmury i dopisz tylko brakujące lokalne
+    // Aktywne zamowienia: dopisz brakujace (to swieze dane, bezpieczne)
     fbDB.ref('orders').once('value').then(function(snap){
       var fbOrders=snap.val()||{};
       var missing={};
@@ -1336,17 +1326,21 @@ function subAll(){
         });
       }
     });
+    // Archiwum: chmura jest NADRZEDNA. Dopisujemy WYLACZNIE wpisy wydane w tej sesji
+    // (nowsze niz start aplikacji), zeby nie wgrac z powrotem starych/usunietych danych.
     fbDB.ref('archive').once('value').then(function(snap){
       var fbArc=snap.val()||{};
       var missing={};
       Object.keys(archive).forEach(function(k){
-        if(!fbArc[k])missing[k]=archive[k];
+        var o=archive[k];
+        var fresh=o&&o.doneTs&&o.doneTs>=_sessionStartTs;
+        if(!fbArc[k]&&fresh)missing[k]=o;
       });
       if(Object.keys(missing).length>0){
         Object.keys(missing).forEach(function(k){
           fbBg(fbDB.ref('archive/'+k).set(missing[k]));
         });
-        toast('Dopisano '+Object.keys(missing).length+' brakujacych wpisow','#27ae60');
+        toast('Dopisano '+Object.keys(missing).length+' wpisow z tej sesji','#27ae60');
       }
     });
     sendHeartbeat();
@@ -1380,7 +1374,7 @@ function gv(name){
   if(name==='l')renderList();
   if(name==='b')renderBar();
   if(name==='k')renderKitch();
-  if(name==='s')renderStats();
+  if(name==='s'){renderStats();refreshStatsFromCloud();}
   if(name==='m'){renderEditor();var el=document.getElementById('tnd');if(el)el.textContent=numT;}
   if(name==='w')renderStock();
   if(name==='c')renderCloud();
@@ -3094,11 +3088,29 @@ function openStats(){
   setTimeout(function(){inp.focus();},100);
 }
 
+// Dociaga PELNE archiwum z chmury i przerysowuje statystyki.
+// Dzieki temu kazda sesja (zwykla / incognito / nowe urzadzenie) pokazuje
+// te same dane z chmury jako zrodla prawdy, niezaleznie od stanu lokalnego.
+function refreshStatsFromCloud(){
+  if(!fbReady||!fbAuthReady||!fbDB)return;
+  fbDB.ref('archive').once('value').then(function(snap){
+    var fbArc=snap.val()||{};
+    // Zachowaj lokalne wpisy ktorych nie ma jeszcze w chmurze (np. swiezo wydane offline)
+    Object.keys(archive).forEach(function(k){
+      if(!fbArc[k])fbArc[k]=archive[k];
+    });
+    archive=fbArc;
+    saveArc();
+    if(curV==='s')renderStats();
+  }).catch(function(){});
+}
+
 function renderStats(){
   var wrap=document.getElementById('sw');if(!wrap)return;
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
   var all=Object.values(Object.assign({},archive,orders));
   var filt=all.filter(function(o){
+    if(!o||!o.ts)return sfilt==='all'; // wpisy bez daty tylko w widoku Wszystko
     if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
     if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
     if(sfilt==='range'){
@@ -3111,8 +3123,8 @@ function renderStats(){
     return true;
   });
   var done=filt.filter(function(o){return o.status==='done';});
-  var rev=done.reduce(function(s,o){return s+o.total;},0);
-  var n=done.length,ni=done.reduce(function(s,o){return s+o.items.reduce(function(ss,i){return ss+i.qty;},0);},0);
+  var rev=done.reduce(function(s,o){return s+(o.total||0);},0);
+  var n=done.length,ni=done.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
 
   // Podział walutowy
   var revPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).reduce(function(s,o){return s+o.total;},0);
@@ -3124,7 +3136,7 @@ function renderStats(){
   var pctCZK=rev>0?Math.round(revCZK/rev*100):0;
   var avg=n?rev/n:0;
   var im={};
-  done.forEach(function(o){o.items.forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=it.qty;im[it.name].rev+=it.qty*it.price;});});
+  done.forEach(function(o){(o.items||[]).forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=(it.qty||0);im[it.name].rev+=(it.qty||0)*(it.price||0);});});
   var top=Object.values(im).sort(function(a,b){return b.qty-a.qty;});
   var mq=top.length?top[0].qty:1;
   var bh={};done.forEach(function(o){var h=new Date(o.ts).getHours();bh[h]=(bh[h]||0)+1;});
@@ -3135,7 +3147,7 @@ function renderStats(){
   var bhRows='';for(var i=0;i<bhKeys.length;i++){var hh=bhKeys[i],c=bh[hh];bhRows+='<tr><td>'+String(hh).padStart(2,'0')+':00</td><td><b>'+c+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(c/mh*130)+'px;background:linear-gradient(90deg,var(--w),var(--gr))"></div></div></td></tr>';}
   var histRows='';
   var doneSorted=done.slice().reverse();
-  for(var i=0;i<doneSorted.length;i++){var o=doneSorted[i];var istr=o.items.map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+it.qty;}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+o.timeStr+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+o.total.toFixed(2)+' zl</span></div>';}
+  for(var i=0;i<doneSorted.length;i++){var o=doneSorted[i];var istr=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+(o.timeStr||'')+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+(o.total||0).toFixed(2)+' zl</span></div>';}
 
   // Sredni czas wydawania - wszystkie zamowienia z doneTs (niezaleznie od statusu)
   var timeData=[];
