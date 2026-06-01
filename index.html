@@ -342,11 +342,19 @@ select.set-inp option{background:#0d3d56;color:#fff}
 .cnt-mini{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.8);border-radius:8px;padding:6px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;touch-action:manipulation}
 .cnt-mini:active{background:rgba(255,255,255,.2)}
 .cnt-sec{color:rgba(255,255,255,.5);font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px}
-.cnt-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer;user-select:none}
+.cnt-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:6px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);user-select:none}
 .cnt-row:last-child{border:none}
 .cnt-row input{width:21px;height:21px;accent-color:var(--gr);flex-shrink:0;cursor:pointer}
 .cnt-row .cnt-em{font-size:1.2rem;width:26px;text-align:center;flex-shrink:0}
-.cnt-row .cnt-nm{flex:1;color:#fff;font-weight:700;font-size:.85rem}
+.cnt-row .cnt-nm{flex:1;color:#fff;font-weight:700;font-size:.85rem;min-width:0}
+.cnt-main{display:flex;align-items:center;gap:10px;flex:1;min-width:130px;cursor:pointer}
+.cnt-ord{display:flex;gap:4px;flex-shrink:0}
+.cord-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border:1.5px solid rgba(255,255,255,.15);border-radius:7px;font-size:.62rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0}
+.cord-btn:disabled{opacity:.25;cursor:default}
+.cnt-side{display:flex;flex-shrink:0;border:1.5px solid rgba(255,255,255,.18);border-radius:8px;overflow:hidden}
+.cside-btn{background:rgba(255,255,255,.05);color:rgba(255,255,255,.55);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;padding:6px 10px;cursor:pointer;line-height:1}
+.cside-btn:first-child{border-right:1.5px solid rgba(255,255,255,.18)}
+.cside-btn.active{background:#1278a8;color:#fff}
 .cat-row{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)}
 .cat-row:last-child{border:none}
 .cat-row .cat-nm{flex:1;min-width:0;padding:9px 10px;border-radius:8px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-family:'Nunito',sans-serif;font-size:.86rem;font-weight:700;outline:none}
@@ -467,6 +475,24 @@ button:disabled{cursor:not-allowed}
 #iconCtrl button{width:30px!important;height:30px!important;border-radius:8px!important;font-size:.92rem!important;background:rgba(18,120,168,.62)!important}
 #iconSizeLbl{display:none!important}
 
+/* ── v3.2: lepszy kontrast najsłabszego tekstu (czytelność w jasnym świetle / WCAG AA) ── */
+.tlbl{color:rgba(255,255,255,.66)}
+.oczk{color:rgba(255,255,255,.66)}
+.dkc{color:rgba(255,255,255,.6)}
+.tksc{color:rgba(255,255,255,.58)}
+.kcnt-lbl{color:rgba(255,255,255,.62)}
+.ni{color:rgba(255,255,255,.5)}
+.notk{color:rgba(255,255,255,.4)}
+.set-hint{color:rgba(255,255,255,.6)}
+.cnt-sec{color:rgba(255,255,255,.64)}
+.cat-cnt{color:rgba(255,255,255,.58)}
+.etblh{color:rgba(255,255,255,.6)}
+.sdlbl{color:rgba(255,255,255,.66)}
+.dk{color:rgba(255,255,255,.6)}
+.login-sub{color:rgba(255,255,255,.6)}
+.login-change{color:rgba(255,255,255,.55)}
+.on2::placeholder,.login-inp::placeholder,.chpw-inp::placeholder,.set-inp::placeholder{color:rgba(255,255,255,.42)}
+
 </style>
 </head>
 <body>
@@ -500,7 +526,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.0</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.4</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -593,7 +619,7 @@ button:disabled{cursor:not-allowed}
   <div id="cst"></div>
 
   <!-- WYGLAD / MARKA -->
-  <div style="background:rgba(214,158,46,.1);border:1.5px solid rgba(214,158,46,.35);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#e7c06b;font-size:.95rem;margin-bottom:10px;">&#x1F3F7;&#xFE0F; Nazwa i logo aplikacji</div>
 
     <div id="brandPreview" style="display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
@@ -622,7 +648,7 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- USTAWIENIA APLIKACJI -->
-  <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:12px;">&#x2699;&#xFE0F; Ustawienia ogolne</div>
 
     <label class="set-lbl">&#x1F1E8;&#x1F1FF; Domyslny kurs (1 PLN = ? CZK)</label>
@@ -650,9 +676,9 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- POZYCJE ZLICZANE W LICZNIKACH -->
-  <div style="background:rgba(39,174,96,.08);border:1.5px solid rgba(39,174,96,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#5fd896;font-size:.95rem;margin-bottom:4px;">&#x1F522; Pozycje zliczane w licznikach</div>
-    <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Zaznacz, ktore pozycje maja byc sumowane w pasku licznikow Kuchni (smazenie/przygotowanie) i Baru (wydawanie). Domyslnie liczone sa wszystkie.</div>
+    <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Zaznacz, ktore pozycje maja byc sumowane w pasku licznikow Kuchni (smazenie/przygotowanie) i Baru (wydawanie). Domyslnie liczone sa wszystkie. Przyciskiem <b>Lewa</b>/<b>Prawa</b> wybierasz, po ktorej stronie paska pojawi sie dany licznik.</div>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
       <button class="cnt-mini" onclick="setCountAll(true)">Zaznacz wszystkie</button>
       <button class="cnt-mini" onclick="setCountAll(false)">Odznacz wszystkie</button>
@@ -662,7 +688,7 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- KATEGORIE MENU -->
-  <div style="background:rgba(146,109,222,.1);border:1.5px solid rgba(146,109,222,.35);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#c4a8ff;font-size:.95rem;margin-bottom:4px;">&#x1F5C2;&#xFE0F; Kategorie menu</div>
     <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Dodawaj wlasne zakladki menu (np. Desery, Przystawki). Zaznacz „Bar" jesli pozycje maja trafiac do zakladki Bar (napoje), w przeciwnym razie ida do Kuchni.</div>
     <div id="catList"></div>
@@ -672,7 +698,7 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- ZMIANA HASLA -->
-  <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;margin-bottom:10px;">&#x1F510; Haslo aplikacji</div>
     <form id="setPwForm" autocomplete="off">
       <input type="text" name="username" autocomplete="username" value="smazalnia" hidden>
@@ -687,14 +713,14 @@ button:disabled{cursor:not-allowed}
 
   <!-- BACKUP -->
   <!-- URZADZENIA -->
-  <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;">&#x1F4F1; Podłączone urządzenia</div>
       <button onclick="renderDevices()" style="background:rgba(18,120,168,.2);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:800;cursor:pointer;">&#x21BB; Odśwież</button>
     </div>
     <div id="devList"><div style="color:rgba(255,255,255,.4);font-size:.8rem;">Ładowanie...</div></div>
   </div>
-  <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:4px;">&#x1F4BE; Backup lokalny</div>
     <div style="color:rgba(255,255,255,.6);font-size:.78rem;margin-bottom:10px;">Automatyczny zapis co 5 minut. Kliknij aby pobrac plik .txt z wszystkimi zamowieniami.</div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -894,7 +920,7 @@ var sDateTo='';
 var epTgt=null;
 var DID=lsGet('sp_did')||mkDID();
 var fbReady=false;
-var stock={}; // {itemName: {init:N, current:N, sold:N}}
+var stock={}; // {itemName: {init:N, current:N}} — sprzedaz liczona z archiwum, nie z pola sold
 var fbDB=null;
 var _send=false;
 var _lth=0;
@@ -993,6 +1019,19 @@ function countSet(){
 }
 function countSetInvalidate(){_countSetCache=null;}
 function isCounted(i){var cs=countSet();return cs===false?true:cs.has(norm(i.name||i));}
+// Strona paska licznikow dla danej pozycji: 'left' (domyslnie) albo 'right'.
+function itemSide(name){var m=appSettings&&appSettings.countSides;if(!m)return 'left';return m[norm(name)]==='right'?'right':'left';}
+// Kolejnosc pozycji na pasku licznikow. Jesli ustawiono countOrder, sortuj wg niej
+// (pozycje spoza listy ida na koniec). Bez ustawienia — jak dotychczas: wg ilosci malejaco.
+function cmpCount(a,b){
+  var arr=appSettings&&appSettings.countOrder;
+  if(arr&&arr.length){
+    var ia=arr.indexOf(norm(a.name));if(ia<0)ia=9999;
+    var ib=arr.indexOf(norm(b.name));if(ib<0)ib=9999;
+    if(ia!==ib)return ia-ib;
+  }
+  return b.qty-a.qty;
+}
 function dSetInvalidate(){_dSetCache=null;}
 function isDrink(i){return dSet().has(norm(i.name));}
 function menuOrderMap(){
@@ -1612,7 +1651,9 @@ function updSend(){
 function doSend(){sendOrder(true,'PLN');}
 function doSendCZK(){
   var rate=getCZK();
-  var tot=parseFloat((document.getElementById('otot')||{}).textContent)||0;
+  // Licz sume bezposrednio z koszyka (zrodlo prawdy), nie z tekstu w DOM —
+  // dzieki temu kwota CZK jest poprawna niezaleznie od formatu wyswietlania.
+  var tot=0;Object.keys(cart).forEach(function(k){tot+=cart[k].price*cart[k].qty;});
   var czkTot=Math.round(tot*rate);
   sendOrder(true,'CZK',czkTot);
 }
@@ -1938,6 +1979,9 @@ function renderList(){
       // Szukaj po stoliku - dokladne dopasowanie dla liczb
       var tbl=String(o.table||'').toLowerCase();
       if(tbl===q)return true;
+      // Szukaj po numerze zamowienia (#seq) — np. "12" albo "#12"
+      var qn=q.replace(/^#/,'');
+      if(qn&&String(o.seq)===qn)return true;
       // Szukaj po nazwie dania
       if(o.items&&o.items.some(function(it){return (it.name||'').toLowerCase().indexOf(q)>=0;}))return true;
       // Szukaj po uwagach
@@ -2140,6 +2184,17 @@ function renderList(){
   }
 }
 
+// Wyszukiwanie na zywo na liscie zamowien (z lekkim opoznieniem, by nie
+// przerysowywac przy kazdym wcisnieciu klawisza). Pole #listSearch jest poza
+// kontenerem #ordl, wiec nie traci fokusu przy przerysowaniu listy.
+var _listSearchTimer=null;
+document.addEventListener('input',function(e){
+  if(e.target&&e.target.id==='listSearch'){
+    if(_listSearchTimer)clearTimeout(_listSearchTimer);
+    _listSearchTimer=setTimeout(function(){if(curV==='l')renderList();},160);
+  }
+});
+
 
 // BAR
 function renderBCounter(){
@@ -2166,13 +2221,20 @@ function renderBCounter(){
   });
   var keys=Object.keys(totals);
   if(!keys.length){el.innerHTML='';return;}
-  var html='';
-  Object.values(totals).sort(function(a,b){return b.qty-a.qty;}).forEach(function(item){
-    html+='<div class="kcnt"><span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
+  var leftHtml='',rightHtml='';
+  Object.values(totals).sort(cmpCount).forEach(function(item){
+    var tile='<div class="kcnt"><span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
     var pq=pending[item.name]?pending[item.name].qty:0;
-    if(pq>0)html+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F37A;</span><div class="kcnt-info"><span class="kcnt-num">'+pq+'</span><span class="kcnt-lbl">do wydania</span></div></div>';
+    if(pq>0)tile+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F37A;</span><div class="kcnt-info"><span class="kcnt-num">'+pq+'</span><span class="kcnt-lbl">do wydania</span></div></div>';
+    if(itemSide(item.name)==='right')rightHtml+=tile;else leftHtml+=tile;
   });
-  el.innerHTML=html;
+  if(rightHtml){
+    el.innerHTML=
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;">'+leftHtml+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+rightHtml+'</div>';
+  } else {
+    el.innerHTML=leftHtml;
+  }
 }
 
 function renderBar(){
@@ -2206,7 +2268,7 @@ function renderKCounter(){
 
   var totals={};
   var cooking={};
-  // Lewa kolumna licznika = pierwsza kategoria (dania glowne / ryby); reszta po prawej
+  // Najpierw pierwsza kategoria (dania glowne / ryby = pstragi), potem reszta — wszystko od LEWEJ.
   var fishNames=new Set();
   var firstFoodCat=catKeys().filter(function(k){return !catIsDrink(k);})[0];
   if(firstFoodCat)(menu[firstFoodCat]||[]).forEach(function(it){fishNames.add(norm(it.name));});
@@ -2232,20 +2294,28 @@ function renderKCounter(){
   var leftHtml='';
   var rightHtml='';
 
-  Object.values(totals).sort(function(a,b){return b.qty-a.qty;}).forEach(function(item){
+  Object.values(totals).sort(cmpCount).forEach(function(item){
     var cookQty=cooking[item.name]?cooking[item.name].qty:0;
-    if(item.isFish){
-      leftHtml+=mkTile(item,'');
-      if(cookQty>0)leftHtml+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F525;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">smazone</span></div></div>';
-    } else {
-      rightHtml+=mkTile(item,'');
-      if(cookQty>0)rightHtml+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F374;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">do przyg.</span></div></div>';
+    // Etykieta kafelka "w trakcie" zalezy od TYPU pozycji (ryba=smazone, reszta=do przyg.),
+    // a strona (lewa/prawa) zalezy od ustawienia uzytkownika — to dwie niezalezne rzeczy.
+    var tile=mkTile(item,'');
+    if(cookQty>0){
+      tile+=item.isFish
+        ?'<div class="kcnt cooking"><span class="kcnt-em">&#x1F525;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">smazone</span></div></div>'
+        :'<div class="kcnt cooking"><span class="kcnt-em">&#x1F374;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">do przyg.</span></div></div>';
     }
+    if(itemSide(item.name)==='right')rightHtml+=tile;else leftHtml+=tile;
   });
 
-  el.innerHTML=
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;">'+leftHtml+'</div>'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+rightHtml+'</div>';
+  // Domyslnie wszystko od LEWEJ. Jesli jakies pozycje przypisano do prawej,
+  // pokazuje sie druga grupa dosunieta do prawej krawedzi.
+  if(rightHtml){
+    el.innerHTML=
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;">'+leftHtml+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+rightHtml+'</div>';
+  } else {
+    el.innerHTML=leftHtml;
+  }
 }
 
 function renderKitch(){
@@ -3954,7 +4024,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.0',
+    v:'v3.4',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -4167,27 +4237,68 @@ function renderCountItems(){
   var ci=appSettings.countItems;
   var all=!ci||!ci.length; // brak listy = wszystkie zaznaczone
   var sel=all?null:new Set(ci.map(norm));
-  var secs=getCats().map(function(c){return {key:c.key,label:c.label};});
+  // Plaska lista wszystkich pozycji menu (bez podzialu na kategorie) — kolejnosc wierszy = kolejnosc na pasku.
+  var seen={},items=[];
+  getCats().forEach(function(c){(menu[c.key]||[]).forEach(function(it){var k=norm(it.name);if(!seen[k]){seen[k]=1;items.push(it);}});});
+  var ord=appSettings.countOrder;
+  if(ord&&ord.length){
+    items.sort(function(a,b){
+      var ia=ord.indexOf(norm(a.name));if(ia<0)ia=9999;
+      var ib=ord.indexOf(norm(b.name));if(ib<0)ib=9999;
+      return ia-ib; // pozycje spoza zapisanej kolejnosci ida na koniec
+    });
+  }
   var html='';
-  secs.forEach(function(sec){
-    var items=menu[sec.key]||[];
-    if(!items.length)return;
-    html+='<div class="cnt-sec">'+esc(sec.label)+'</div>';
-    items.forEach(function(it){
-      var checked=all?true:sel.has(norm(it.name));
-      html+='<label class="cnt-row">'+
+  items.forEach(function(it){
+    var checked=all?true:sel.has(norm(it.name));
+    var side=itemSide(it.name);
+    html+='<div class="cnt-row">'+
+      '<span class="cnt-ord">'+
+        '<button type="button" class="cord-btn cord-up" onclick="moveCountRow(this,-1)" title="W gore">&#x25B2;</button>'+
+        '<button type="button" class="cord-btn cord-dn" onclick="moveCountRow(this,1)" title="W dol">&#x25BC;</button>'+
+      '</span>'+
+      '<label class="cnt-main">'+
         '<input type="checkbox" class="cnt-cb" data-name="'+esc(it.name)+'"'+(checked?' checked':'')+'>'+
         '<span class="cnt-em">'+emo(it.emoji,'1.2rem')+'</span>'+
         '<span class="cnt-nm">'+esc(it.name)+'</span>'+
-      '</label>';
-    });
+      '</label>'+
+      '<span class="cnt-side" data-name="'+esc(it.name)+'" data-side="'+side+'">'+
+        '<button type="button" class="cside-btn'+(side==='left'?' active':'')+'" onclick="pickSide(this,\'left\')">Lewa</button>'+
+        '<button type="button" class="cside-btn'+(side==='right'?' active':'')+'" onclick="pickSide(this,\'right\')">Prawa</button>'+
+      '</span>'+
+    '</div>';
   });
   box.innerHTML=html||'<div class="set-hint" style="margin-top:0;">Brak pozycji w menu.</div>';
+  updateOrderBtns();
 }
 
 function setCountAll(val){
   var cbs=document.querySelectorAll('#countItemsList .cnt-cb');
   for(var i=0;i<cbs.length;i++)cbs[i].checked=!!val;
+}
+
+// Wybor strony paska (Lewa/Prawa) dla pojedynczej pozycji — stan zapisuje sie z przyciskiem "Zapisz".
+function pickSide(btn,side){
+  var wrap=btn.parentNode;
+  wrap.setAttribute('data-side',side);
+  var bs=wrap.querySelectorAll('.cside-btn');
+  for(var i=0;i<bs.length;i++)bs[i].classList.toggle('active',bs[i]===btn);
+}
+
+// Przesun pozycje w gore/w dol na liscie (= kolejnosc na pasku). Zapis z przyciskiem "Zapisz".
+function moveCountRow(btn,dir){
+  var row=btn.closest('.cnt-row');if(!row)return;
+  if(dir<0){var p=row.previousElementSibling;if(p)row.parentNode.insertBefore(row,p);}
+  else{var n=row.nextElementSibling;if(n)row.parentNode.insertBefore(n,row);}
+  updateOrderBtns();
+}
+function updateOrderBtns(){
+  var rows=document.querySelectorAll('#countItemsList .cnt-row');
+  for(var i=0;i<rows.length;i++){
+    var up=rows[i].querySelector('.cord-up'),dn=rows[i].querySelector('.cord-dn');
+    if(up)up.disabled=(i===0);
+    if(dn)dn.disabled=(i===rows.length-1);
+  }
 }
 
 function saveCountItems(){
@@ -4201,6 +4312,20 @@ function saveCountItems(){
   } else {
     appSettings.countItems=chosen;
   }
+  // Strony licznikow: zapisz tylko pozycje ustawione na 'right' (brak wpisu = lewa).
+  var sides={};
+  var sw=document.querySelectorAll('#countItemsList .cnt-side');
+  for(var k=0;k<sw.length;k++){
+    if((sw[k].getAttribute('data-side')||'left')==='right'){
+      sides[norm(sw[k].getAttribute('data-name'))]='right';
+    }
+  }
+  appSettings.countSides=Object.keys(sides).length?sides:null;
+  // Kolejnosc na pasku = kolejnosc wierszy na liscie.
+  var order=[];
+  var rows=document.querySelectorAll('#countItemsList .cnt-row .cnt-cb');
+  for(var r=0;r<rows.length;r++)order.push(norm(rows[r].getAttribute('data-name')));
+  appSettings.countOrder=order.length?order:null;
   countSetInvalidate();
   saveSettings();
   if(curV==='k'){renderKCounter();}
@@ -4727,6 +4852,20 @@ applyProfileUI();
     var cv=document.createElement('canvas');
     cv.width=size;cv.height=size;
     var ctx=cv.getContext('2d');
+
+    // Wgrany wlasny obrazek: wypelnij CALY kwadrat grafika (cover) — bez ramki i nazwy,
+    // zeby grafika byla duza, a nie malutka w srodku kafelka.
+    if(logoIsImg&&logoImgEl&&logoImgEl.complete&&logoImgEl.naturalWidth){
+      ctx.fillStyle='#07131b';                        // tlo pod ewentualna przezroczystoscia
+      ctx.fillRect(0,0,size,size);
+      var iw=logoImgEl.naturalWidth, ih=logoImgEl.naturalHeight;
+      var sc=Math.max(size/iw,size/ih);               // skala "cover" — wypelnia kwadrat
+      var dw=iw*sc, dh=ih*sc;
+      try{ctx.drawImage(logoImgEl,(size-dw)/2,(size-dh)/2,dw,dh);}catch(e){}
+      return cv.toDataURL('image/png');
+    }
+
+    // Domyslnie (emoji): gradientowe tlo + ramka + emoji + nazwa.
     var g=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
     g.addColorStop(0,'#0d4a6a');g.addColorStop(1,'#07131b');
     ctx.fillStyle=g;
@@ -4735,14 +4874,9 @@ applyProfileUI();
     ctx.strokeStyle='#f5a623';ctx.lineWidth=size*0.04;
     ctx.beginPath();ctx.roundRect?ctx.roundRect(size*0.03,size*0.03,size*0.94,size*0.94,size*0.15):ctx.rect(size*0.03,size*0.03,size*0.94,size*0.94);
     ctx.stroke();
-    if(logoIsImg&&logoImgEl&&logoImgEl.complete&&logoImgEl.naturalWidth){
-      var d=size*0.52;
-      try{ctx.drawImage(logoImgEl,(size-d)/2,size*0.16,d,d);}catch(e){}
-    } else {
-      ctx.font=Math.round(size*0.52)+'px serif';
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(logoIsImg?'\uD83D\uDC1F':brandLogo,size/2,size*0.47);
-    }
+    ctx.font=Math.round(size*0.52)+'px serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(brandLogo,size/2,size*0.47);
     ctx.font='bold '+Math.round(size*0.12)+'px sans-serif';
     ctx.fillStyle='#f5a623';
     ctx.textAlign='center';ctx.textBaseline='middle';
@@ -4759,6 +4893,9 @@ applyProfileUI();
     var favIcon=document.getElementById('pwa-favicon');
     if(favIcon){favIcon.href=icon192;favIcon.type='image/png';}
     var fullName=(brandName+(s.brandLine2?' '+s.brandLine2:'')).trim()||'Smazalnia';
+    // Wlasna grafika wypelnia kafelek (cover) -> NIE 'maskable' (system by ja przycial po brzegach).
+    // Domyslna ikona (emoji) ma srodkowy uklad z marginesem, wiec moze byc 'maskable'.
+    var iconPurpose=logoIsImg?'any':'any maskable';
     var manifest={
       name:fullName,
       short_name:brandName.slice(0,18)||'Smazalnia',
@@ -4770,8 +4907,8 @@ applyProfileUI();
       orientation:'any',
       lang:'pl',
       icons:[
-        {src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-        {src:icon512,sizes:'512x512',type:'image/png',purpose:'any maskable'}
+        {src:icon192,sizes:'192x192',type:'image/png',purpose:iconPurpose},
+        {src:icon512,sizes:'512x512',type:'image/png',purpose:iconPurpose}
       ]
     };
     var mBlob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
