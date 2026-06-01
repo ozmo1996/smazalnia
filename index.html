@@ -526,7 +526,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.4</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.5</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -777,6 +777,7 @@ button:disabled{cursor:not-allowed}
         <button onclick="resetSold()" style="background:rgba(18,120,168,.1);border:1.5px solid rgba(18,120,168,.3);color:#7ec8e3;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;touch-action:manipulation;">&#x1F9F9; Reset sprzedazy</button>
       </div>
     </div>
+    <div class="set-hint" style="margin:0 0 10px;">&#x2139;&#xFE0F; „Stan pocz." ustawia ilosc na start (i od razu biezaca) — „Sprzedano" liczy sie od tej wartosci. Przyciskami &minus;/+ i „Zatwierdz" korygujesz tylko biezacy stan.</div>
     <div id="stockWrap"></div>
     <div style="height:24px"></div>
   </div>
@@ -2541,17 +2542,18 @@ function applyStock(src,name){
   vib([10,30,10]);
 }
 
-// Ustawienie stanu poczatkowego (baza do liczenia "Sprzedano" i alertu niskiego stanu)
+// Ustawienie stanu poczatkowego = deklaracja "tyle mam na start".
+// Ustawiamy te sama wartosc jako biezaca, dzieki czemu "Sprzedano" (init - current) = 0,
+// a nie fałszywe init (gdy biezacy byl mniejszy). Sprzedaz nalicza sie dopiero od zamowien.
 function applyInit(inp,name){
   if(!inp||!stock[name])return;
   var val=Math.max(0,Math.round(+inp.value)||0);
   stock[name].init=val;
-  // Stan poczatkowy nie moze byc mniejszy niz biezacy (nie da sie sprzedac wiecej niz bylo)
-  if((stock[name].current||0)>val)stock[name].current=val;
+  stock[name].current=val;
   saveStock();
   if(fbReady)fbBg(fbDB.ref('stock').set(stock));
   renderStock();
-  toast('&#x2714; Stan poczatkowy: '+esc(name)+' = '+val,'#27ae60');
+  toast('&#x2714; Stan ustawiony: '+esc(name)+' = '+val+' (sprzedano 0)','#27ae60');
   vib([10,30,10]);
 }
 
@@ -4024,7 +4026,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.4',
+    v:'v3.5',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
