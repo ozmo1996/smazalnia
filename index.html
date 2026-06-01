@@ -3311,18 +3311,39 @@ function startWeatherAutoRefresh(){
 
 // ── WYKRES: sprzedaż w czasie + pogoda ──
 var _chartExpandedDay=null; // klucz "YYYY-MM-DD" rozwinietego dnia, lub null
+var _chartItemFilter=[]; // nazwy dan do liczenia (puste = wszystkie)
 
 function _dateKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+// Czy pozycja przechodzi przez filtr dan
+function _itemPasses(it){
+  if(!_chartItemFilter.length)return true;
+  return _chartItemFilter.indexOf(it.name)>=0;
+}
+// Sztuki z zamowienia po zastosowaniu filtra dan
+function _orderQty(o){
+  return (o.items||[]).reduce(function(s,i){return s+(_itemPasses(i)?(i.qty||0):0);},0);
+}
+// Przychod z zamowienia po filtrze (gdy filtr aktywny, liczymy tylko wybrane pozycje)
+function _orderRev(o){
+  if(!_chartItemFilter.length)return (o.total||0);
+  return (o.items||[]).reduce(function(s,i){return s+(_itemPasses(i)?(i.qty||0)*(i.price||0):0);},0);
+}
+// Czy zamowienie zawiera jakiekolwiek wybrane danie (do liczenia n)
+function _orderMatches(o){
+  if(!_chartItemFilter.length)return true;
+  return (o.items||[]).some(_itemPasses);
+}
 
 // Agreguj wydane zamowienia (done) wg dnia: sztuki dan + przychod
 function aggregateSalesByDay(doneArr){
   var byDay={};
   doneArr.forEach(function(o){
-    if(!o.ts)return;
+    if(!o.ts||!_orderMatches(o))return;
     var k=_dateKey(o.ts);
     if(!byDay[k])byDay[k]={qty:0,rev:0,n:0};
-    byDay[k].qty+=(o.items||[]).reduce(function(s,i){return s+(i.qty||0);},0);
-    byDay[k].rev+=(o.total||0);
+    byDay[k].qty+=_orderQty(o);
+    byDay[k].rev+=_orderRev(o);
     byDay[k].n+=1;
   });
   return byDay;
@@ -3331,10 +3352,10 @@ function aggregateSalesByHour(doneArr,dayKey){
   var byHour={};
   for(var h=0;h<24;h++)byHour[h]={qty:0,rev:0,n:0};
   doneArr.forEach(function(o){
-    if(!o.ts||_dateKey(o.ts)!==dayKey)return;
+    if(!o.ts||_dateKey(o.ts)!==dayKey||!_orderMatches(o))return;
     var hr=new Date(o.ts).getHours();
-    byHour[hr].qty+=(o.items||[]).reduce(function(s,i){return s+(i.qty||0);},0);
-    byHour[hr].rev+=(o.total||0);
+    byHour[hr].qty+=_orderQty(o);
+    byHour[hr].rev+=_orderRev(o);
     byHour[hr].n+=1;
   });
   return byHour;
@@ -3371,6 +3392,38 @@ function _statsFilterMatch(o){
   return true; // 'all'
 }
 
+// Pasek filtra dan nad wykresem — chipy z daniami wystepujacymi w danych
+function _chartFilterBar(done){
+  // zbierz unikalne dania z danych
+  var seen={};
+  done.forEach(function(o){(o.items||[]).forEach(function(it){if(it.name&&!seen[it.name])seen[it.name]={name:it.name,emoji:it.emoji};});});
+  var items=Object.values(seen).sort(function(a,b){return a.name.localeCompare(b.name);});
+  if(!items.length)return '';
+  var chips='<button class="wch-chip" data-item="__all__" style="background:'+(_chartItemFilter.length?'rgba(255,255,255,.08)':'var(--a)')+';color:#fff;border:1.5px solid rgba(255,255,255,.18);border-radius:14px;padding:4px 11px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;white-space:nowrap;">Wszystkie</button>';
+  items.forEach(function(it){
+    var on=_chartItemFilter.indexOf(it.name)>=0;
+    chips+='<button class="wch-chip" data-item="'+esc(it.name)+'" style="background:'+(on?'var(--gr)':'rgba(255,255,255,.08)')+';color:#fff;border:1.5px solid rgba(255,255,255,.18);border-radius:14px;padding:4px 11px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;white-space:nowrap;">'+emoText(it.emoji)+esc(it.name)+'</button>';
+  });
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'+chips+'</div>';
+}
+// Podepnij obsluge klikniec chipow filtra
+function _wireChartFilter(host){
+  var chips=host.querySelectorAll('.wch-chip');
+  for(var i=0;i<chips.length;i++){
+    chips[i].addEventListener('click',function(){
+      var name=this.getAttribute('data-item');
+      if(name==='__all__'){
+        _chartItemFilter=[];
+      } else {
+        var idx=_chartItemFilter.indexOf(name);
+        if(idx>=0)_chartItemFilter.splice(idx,1);
+        else _chartItemFilter.push(name);
+      }
+      renderWeatherSalesChart();
+    });
+  }
+}
+
 function renderWeatherSalesChart(){
   var host=document.getElementById('weatherChart');
   if(!host)return;
@@ -3393,30 +3446,38 @@ function renderWeatherSalesChart(){
   var bars='';
   days.forEach(function(d){
     var v=byDay[d];
-    var hpct=Math.round((v.qty/maxQty)*100);
+    var hpct=v.qty>0?Math.max(Math.round((v.qty/maxQty)*100),6):0;
     var w=weatherForDay(d);
     var icon=w?wmoToInfo(w.code)[0]:'';
-    var rain=(w&&w.precip>0.2)?'<div style="font-size:.6rem;color:#7ec8e3;">'+w.precip.toFixed(1)+'mm</div>':'';
+    var rain=(w&&w.precip>0.2)?'<div style="font-size:.55rem;color:#7ec8e3;line-height:1;">'+w.precip.toFixed(1)+'mm</div>':'';
     var dd=new Date(d+'T12:00');
     var label=String(dd.getDate()).padStart(2,'0')+'.'+String(dd.getMonth()+1).padStart(2,'0');
     bars+=
-      '<div class="wch-bar" data-day="'+d+'" style="flex:1;min-width:34px;display:flex;flex-direction:column;align-items:center;cursor:pointer;gap:3px;">'+
-        '<div style="font-size:1rem;line-height:1;">'+icon+'</div>'+
+      '<div class="wch-bar" data-day="'+d+'" style="flex:1;min-width:32px;display:flex;flex-direction:column;align-items:center;cursor:pointer;height:100%;">'+
+        '<div style="font-size:.95rem;line-height:1;margin-bottom:2px;">'+icon+'</div>'+
         rain+
-        '<div style="font-size:.62rem;color:rgba(255,255,255,.5);">'+v.qty+'</div>'+
-        '<div style="width:60%;background:linear-gradient(180deg,var(--a),var(--gr));border-radius:5px 5px 0 0;height:'+Math.max(hpct,3)+'%;min-height:4px;transition:height .3s;"></div>'+
-        '<div style="font-size:.6rem;color:rgba(255,255,255,.45);">'+label+'</div>'+
+        '<div style="font-size:.62rem;color:rgba(255,255,255,.55);margin-bottom:2px;">'+v.qty+'</div>'+
+        '<div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;">'+
+          '<div style="width:64%;background:linear-gradient(180deg,var(--a),var(--gr));border-radius:5px 5px 0 0;height:'+hpct+'%;min-height:3px;transition:height .3s;"></div>'+
+        '</div>'+
+        '<div style="font-size:.6rem;color:rgba(255,255,255,.45);margin-top:3px;">'+label+'</div>'+
       '</div>';
   });
+  var filterActive=_chartItemFilter.length>0;
+  var subtitle=filterActive
+    ? 'Liczba sztuk: '+_chartItemFilter.map(esc).join(', ')+' • dotknij słupek, aby rozbić na godziny'
+    : 'Liczba dań dziennie • dotknij słupek, aby rozbić na godziny';
   host.innerHTML=
     '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:4px;">📊 Sprzedaż i pogoda</div>'+
-    '<div style="font-size:.66rem;color:rgba(255,255,255,.4);margin-bottom:10px;">Liczba dań dziennie • dotknij słupek, aby rozbić na godziny</div>'+
+    '<div style="font-size:.66rem;color:rgba(255,255,255,.4);margin-bottom:10px;">'+subtitle+'</div>'+
+    _chartFilterBar(done)+
     '<div style="display:flex;align-items:flex-end;gap:4px;height:160px;padding:8px 4px;background:rgba(0,0,0,.15);border-radius:10px;">'+bars+'</div>';
   // klik w slupek -> rozwin dzien
   var barsEls=host.querySelectorAll('.wch-bar');
   for(var i=0;i<barsEls.length;i++){
     barsEls[i].addEventListener('click',function(){_chartExpandedDay=this.getAttribute('data-day');renderWeatherSalesChart();});
   }
+  _wireChartFilter(host);
 }
 
 function renderHourlyChart(host,done,dayKey){
@@ -3430,30 +3491,34 @@ function renderHourlyChart(host,done,dayKey){
   var bars='';
   for(var hr=from;hr<=to;hr++){
     var v=byHour[hr];
-    var hpct=Math.round((v.qty/maxQty)*100);
+    var hpct=v.qty>0?Math.max(Math.round((v.qty/maxQty)*100),6):0;
     var w=weatherForHour(dayKey,hr);
     var icon=w?wmoToInfo(w.code)[0]:'';
     var rain=(w&&w.precip>0.2);
     var barColor=rain?'linear-gradient(180deg,#5a8fb0,#3a6d8f)':'linear-gradient(180deg,var(--a),var(--gr))';
     var clickable=v.n>0;
     bars+=
-      '<div class="'+(clickable?'wch-hbar':'')+'" '+(clickable?'data-hour="'+hr+'"':'')+' style="flex:1;min-width:22px;display:flex;flex-direction:column;align-items:center;gap:2px;'+(clickable?'cursor:pointer;':'')+'">'+
-        '<div style="font-size:.8rem;line-height:1;" title="'+(w?wmoToInfo(w.code)[1]:'')+'">'+icon+'</div>'+
-        '<div style="font-size:.58rem;color:rgba(255,255,255,.5);">'+(v.qty||'')+'</div>'+
-        '<div style="width:64%;background:'+barColor+';border-radius:4px 4px 0 0;height:'+Math.max(hpct,2)+'%;min-height:'+(v.qty?4:1)+'px;"></div>'+
-        '<div style="font-size:.55rem;color:rgba(255,255,255,.4);">'+hr+'</div>'+
+      '<div class="'+(clickable?'wch-hbar':'')+'" '+(clickable?'data-hour="'+hr+'"':'')+' style="flex:1;min-width:20px;display:flex;flex-direction:column;align-items:center;height:100%;'+(clickable?'cursor:pointer;':'')+'">'+
+        '<div style="font-size:.72rem;line-height:1;margin-bottom:2px;" title="'+(w?wmoToInfo(w.code)[1]:'')+'">'+icon+'</div>'+
+        '<div style="font-size:.56rem;color:rgba(255,255,255,.55);margin-bottom:2px;">'+(v.qty||'')+'</div>'+
+        '<div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;">'+
+          '<div style="width:68%;background:'+barColor+';border-radius:4px 4px 0 0;height:'+hpct+'%;min-height:'+(v.qty?3:0)+'px;"></div>'+
+        '</div>'+
+        '<div style="font-size:.55rem;color:rgba(255,255,255,.4);margin-top:3px;">'+hr+'</div>'+
       '</div>';
   }
   var dd=new Date(dayKey+'T12:00');
   var dayLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
   var dayW=weatherForDay(dayKey);
   var dayWStr=dayW?wmoToInfo(dayW.code)[0]+' '+wmoToInfo(dayW.code)[1]+(dayW.temp!=null?', '+dayW.temp+'°C':''):'brak danych pogodowych';
+  var filterNote=_chartItemFilter.length?' • filtr: '+_chartItemFilter.map(esc).join(', '):'';
   host.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
       '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);">📊 '+dayLabel+'</div>'+
       '<button id="wchBack" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:7px;padding:5px 12px;font-size:.72rem;font-weight:800;cursor:pointer;">← Wróć</button>'+
     '</div>'+
-    '<div style="font-size:.66rem;color:rgba(255,255,255,.45);margin-bottom:10px;">'+dayWStr+' • rozbicie godzinowe (niebieskie słupki = padało) • dotknij godzinę, aby zobaczyć zamówienia</div>'+
+    '<div style="font-size:.66rem;color:rgba(255,255,255,.45);margin-bottom:10px;">'+dayWStr+' • rozbicie godzinowe (niebieskie słupki = padało) • dotknij godzinę, aby zobaczyć zamówienia'+filterNote+'</div>'+
+    _chartFilterBar(done)+
     '<div style="display:flex;align-items:flex-end;gap:3px;height:150px;padding:8px 4px;background:rgba(0,0,0,.15);border-radius:10px;">'+bars+'</div>';
   var back=document.getElementById('wchBack');
   if(back)back.addEventListener('click',function(){_chartExpandedDay=null;renderWeatherSalesChart();});
@@ -3464,6 +3529,7 @@ function renderHourlyChart(host,done,dayKey){
       showHourOrders(dayKey,parseInt(this.getAttribute('data-hour'),10));
     });
   }
+  _wireChartFilter(host);
 }
 
 // Modal: pelna historia sprzedazy w danej godzinie konkretnego dnia
