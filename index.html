@@ -188,6 +188,12 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tknote{background:rgba(245,166,35,.15);border:1.5px solid rgba(245,166,35,.4);border-radius:8px;color:#ffd080;font-size:.82rem;font-weight:800;margin-top:7px;padding:6px 10px;line-height:1.4}
 .tkf{padding:6px 9px;display:flex;gap:6px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05)}
 .bt{flex:1;padding:9px;border-radius:8px;border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;cursor:pointer;touch-action:manipulation;min-height:38px;-webkit-tap-highlight-color:transparent}
+/* Przyciski kuchni: przytrzymaj aby potwierdzic (chroni przed przypadkowym kliknieciem przy przewijaniu) */
+.bt[data-hold]{position:relative;overflow:hidden;touch-action:pan-y}
+.bt[data-hold]::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.28);pointer-events:none;transition:none}
+.bt[data-hold].holding::before{width:100%;transition:width .3s linear}
+.bt[data-hold].holding{transform:scale(.97)}
+.bt[data-hold]>span{position:relative;z-index:1;pointer-events:none}
 .bt:active{filter:brightness(1.15)}
 .btc{background:var(--a);color:#fff}.btr{background:var(--gr);color:#fff}.btd{background:#556;color:#fff}.btbar{background:var(--s);color:#fff}
 .notk{grid-column:1/-1;text-align:center;padding:20px;color:rgba(255,255,255,.17);font-size:.9rem}
@@ -494,7 +500,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v2.0</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.0</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -560,6 +566,7 @@ button:disabled{cursor:not-allowed}
 </div>
 <div class="view" id="vk">
   <div class="dkh"><span class="dkt">Kuchnia</span><span class="dkc" id="kclk"></span></div>
+  <div style="font-size:.68rem;color:rgba(255,255,255,.45);padding:4px 10px;background:rgba(0,0,0,.2);text-align:center;letter-spacing:.02em;">&#x1F446; Przytrzymaj przycisk, aby zmienic status (chroni przed przypadkowym dotknieciem)</div>
   <div id="kcounter" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;background:rgba(0,0,0,.3);border-bottom:2px solid rgba(255,255,255,.08);"></div>
   <div class="tkg" id="kg"></div>
 </div>
@@ -1703,9 +1710,59 @@ function handleDataAction(btn){
   if(action==='closeClrStats') { var m=document.getElementById('clearStatsModal');if(m)m.remove(); return; }
 }
 var _lastDelegateTouch=0;
+// ── Przytrzymaj-aby-potwierdzic dla przyciskow kuchni (data-hold) ──
+// Chroni przed przypadkowym kliknieciem przy przewijaniu listy zamowien.
+var _holdTimer=null,_holdBtn=null,_holdStartXY=null;
+var HOLD_MS=300;
+function _holdStart(btn,x,y){
+  _holdCancel();
+  _holdBtn=btn;_holdStartXY=[x,y];
+  btn.classList.add('holding');
+  _holdTimer=setTimeout(function(){
+    btn.classList.remove('holding');
+    if(navigator.vibrate)try{navigator.vibrate(30);}catch(e){}
+    handleDataAction(btn);
+    _holdBtn=null;
+  },HOLD_MS);
+}
+function _holdCancel(){
+  if(_holdTimer){clearTimeout(_holdTimer);_holdTimer=null;}
+  if(_holdBtn){_holdBtn.classList.remove('holding');}
+  _holdBtn=null;
+}
+// Jesli palec sie przesunie (przewijanie) — anuluj
+function _holdMove(x,y){
+  if(!_holdBtn||!_holdStartXY)return;
+  var dx=Math.abs(x-_holdStartXY[0]),dy=Math.abs(y-_holdStartXY[1]);
+  if(dx>10||dy>10)_holdCancel();
+}
+document.addEventListener('touchstart',function(e){
+  var btn=e.target.closest('[data-hold]');
+  if(!btn)return;
+  var t=e.touches[0];
+  _holdStart(btn,t.clientX,t.clientY);
+},{passive:true});
+document.addEventListener('touchmove',function(e){
+  if(!_holdBtn)return;
+  var t=e.touches[0];_holdMove(t.clientX,t.clientY);
+},{passive:true});
+document.addEventListener('touchend',function(e){
+  if(e.target.closest('[data-hold]')){_holdCancel();}
+},{passive:true});
+document.addEventListener('touchcancel',function(){_holdCancel();},{passive:true});
+// Mysz (komputer): przytrzymanie lewego przycisku
+document.addEventListener('mousedown',function(e){
+  var btn=e.target.closest('[data-hold]');
+  if(!btn||e.button!==0)return;
+  _holdStart(btn,e.clientX,e.clientY);
+});
+document.addEventListener('mousemove',function(e){if(_holdBtn)_holdMove(e.clientX,e.clientY);});
+document.addEventListener('mouseup',function(){_holdCancel();});
+
 document.addEventListener('touchend',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
+  if(btn.hasAttribute('data-hold')){e.preventDefault();return;} // obsluzone przez hold
   e.preventDefault();
   _lastDelegateTouch=Date.now();
   handleDataAction(btn);
@@ -1713,6 +1770,7 @@ document.addEventListener('touchend',function(e){
 document.addEventListener('click',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
+  if(btn.hasAttribute('data-hold'))return; // obsluzone przez hold (mousedown)
   // Ghost click guard tylko dla przyciskow z data-action
   if(Date.now()-_lastDelegateTouch<600)return;
   handleDataAction(btn);
@@ -1909,6 +1967,18 @@ function renderList(){
     used[o.id]=true;
     grouped.push(group);
   }
+
+  // Sortuj grupy: nieoplacone zawsze nad oplaconymi.
+  // paid===false => "na rachunek" (nieoplacone). W kazdej kategorii zachowaj os czasu (najnowsze gora).
+  grouped.sort(function(ga,gb){
+    var aUnpaid=ga.some(function(o){return o.paid===false;})?1:0;
+    var bUnpaid=gb.some(function(o){return o.paid===false;})?1:0;
+    if(aUnpaid!==bUnpaid)return bUnpaid-aUnpaid; // nieoplacone (1) przed oplaconymi (0)
+    // ta sama kategoria — sortuj po czasie najnowszego zamowienia w grupie (malejaco)
+    var aTs=Math.max.apply(null,ga.map(function(o){return o.ts;}));
+    var bTs=Math.max.apply(null,gb.map(function(o){return o.ts;}));
+    return bTs-aTs;
+  });
 
   el.innerHTML='';
   for(var g=0;g<grouped.length;g++){
@@ -2223,9 +2293,9 @@ function renderKitch(){
 
       // Zawsze odswież przyciski (status mógł się zmienić z Firebase)
       var btns2='';
-      if(o.status==='pending')     btns2='<button class="bt btc" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking">Zaczynam</button>';
-      else if(o.status==='cooking')btns2='<button class="bt btr" data-action="setstatus" data-ids="'+o.id+'" data-status="ready">Gotowe!</button>';
-      else if(o.status==='ready')  btns2='<button class="bt btd" data-action="setstatus" data-ids="'+o.id+'" data-status="done">Wydane</button>';
+      if(o.status==='pending')     btns2='<button class="bt btc" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking"><span>Zaczynam</span></button>';
+      else if(o.status==='cooking')btns2='<button class="bt btr" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="ready"><span>Gotowe!</span></button>';
+      else if(o.status==='ready')  btns2='<button class="bt btd" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="done"><span>Wydane</span></button>';
       var tkf=tkt.querySelector('.tkf');
       if(tkf)tkf.innerHTML=btns2;
 
@@ -2251,9 +2321,9 @@ function renderKitch(){
     } else {
       // Nowy bilet — zbuduj HTML
       var btns='';
-      if(o.status==='pending')     btns='<button class="bt btc" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking">Zaczynam</button>';
-      else if(o.status==='cooking')btns='<button class="bt btr" data-action="setstatus" data-ids="'+o.id+'" data-status="ready">Gotowe!</button>';
-      else if(o.status==='ready')  btns='<button class="bt btd" data-action="setstatus" data-ids="'+o.id+'" data-status="done">Wydane</button>';
+      if(o.status==='pending')     btns='<button class="bt btc" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking"><span>Zaczynam</span></button>';
+      else if(o.status==='cooking')btns='<button class="bt btr" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="ready"><span>Gotowe!</span></button>';
+      else if(o.status==='ready')  btns='<button class="bt btd" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="done"><span>Wydane</span></button>';
       var rows=kitchenRows(food);
       var t=document.createElement('div');
       t.className=cls;
@@ -2278,6 +2348,7 @@ function renderKitch(){
 // STATYSTYKI
 function setSF(f){
   sfilt=f;
+  _chartExpandedDay=null;
   if(f!=='range'){sDateFrom='';sDateTo='';}
   renderStats();
 }
@@ -2287,6 +2358,7 @@ function setDateRange(){
   if(df)sDateFrom=df.value;
   if(dt)sDateTo=dt.value;
   sfilt='range';
+  _chartExpandedDay=null;
   renderStats();
 }
 // ═══════════════════════════════════════
@@ -3093,16 +3165,371 @@ function openStats(){
 // te same dane z chmury jako zrodla prawdy, niezaleznie od stanu lokalnego.
 function refreshStatsFromCloud(){
   if(!fbReady||!fbAuthReady||!fbDB)return;
+  // Chmura jest NADRZEDNA — odzwierciedlamy ja bez dopisywania starych lokalnych wpisow
+  // (spojne z logika subAll). Swiezo wydane offline trafiaja do chmury osobno.
   fbDB.ref('archive').once('value').then(function(snap){
-    var fbArc=snap.val()||{};
-    // Zachowaj lokalne wpisy ktorych nie ma jeszcze w chmurze (np. swiezo wydane offline)
-    Object.keys(archive).forEach(function(k){
-      if(!fbArc[k])fbArc[k]=archive[k];
-    });
-    archive=fbArc;
+    archive=snap.val()||{};
     saveArc();
     if(curV==='s')renderStats();
   }).catch(function(){});
+}
+
+// ── POGODA (Przełęcz Spalona, Góry Bystrzyckie) ──
+// Dane z Open-Meteo (darmowe, bez klucza, dziala w przegladarce/CORS).
+// Te same modele meteo co yr.no. Odswiezanie co godzine + cache w localStorage.
+var WEATHER_LAT=50.1027, WEATHER_LON=16.4324;
+var WEATHER_PLACE='Przełęcz Spalona';
+var _weatherData=null, _weatherTimer=null;
+
+function wmoToInfo(code){
+  // Mapowanie kodow WMO na ikone i opis PL
+  var m={
+    0:['☀️','Bezchmurnie'],1:['🌤️','Przeważnie słonecznie'],2:['⛅','Częściowe zachmurzenie'],3:['☁️','Pochmurno'],
+    45:['🌫️','Mgła'],48:['🌫️','Mgła osadzająca szron'],
+    51:['🌦️','Mżawka'],53:['🌦️','Mżawka'],55:['🌦️','Gęsta mżawka'],
+    56:['🌧️','Marznąca mżawka'],57:['🌧️','Marznąca mżawka'],
+    61:['🌧️','Słaby deszcz'],63:['🌧️','Deszcz'],65:['🌧️','Ulewny deszcz'],
+    66:['🌧️','Marznący deszcz'],67:['🌧️','Marznący deszcz'],
+    71:['🌨️','Słaby śnieg'],73:['🌨️','Śnieg'],75:['❄️','Intensywny śnieg'],77:['❄️','Ziarna śniegu'],
+    80:['🌦️','Przelotny deszcz'],81:['🌧️','Przelotny deszcz'],82:['⛈️','Gwałtowne opady'],
+    85:['🌨️','Przelotny śnieg'],86:['❄️','Intensywny śnieg'],
+    95:['⛈️','Burza'],96:['⛈️','Burza z gradem'],99:['⛈️','Burza z gradem']
+  };
+  return m[code]||['🌡️','—'];
+}
+
+function loadWeatherCache(){
+  try{var c=JSON.parse(lsGet('sp_weather'));if(c&&c.ts)return c;}catch(e){}
+  return null;
+}
+
+var _weatherHistCache=null;
+function loadWeatherHist(){
+  if(_weatherHistCache)return _weatherHistCache;
+  try{var h=JSON.parse(lsGet('sp_weatherHist'));if(h){_weatherHistCache=h;return h;}}catch(e){}
+  _weatherHistCache={};
+  return _weatherHistCache;
+}
+function saveWeatherHist(h){_weatherHistCache=h;lsSet('sp_weatherHist',JSON.stringify(h));}
+
+function fetchWeather(force){
+  var cached=loadWeatherCache();
+  // Uzyj cache jesli swiezy (< 60 min) i nie wymuszono
+  if(!force&&cached&&(Date.now()-cached.ts)<60*60*1000){
+    _weatherData=cached;renderWeather();
+  } else {
+    if(cached){_weatherData=cached;renderWeather();} // pokaz stare zanim przyjda nowe
+  }
+  // current = panel u gory; hourly+past_days = historia godzinowa do wykresu
+  var url='https://api.open-meteo.com/v1/forecast?latitude='+WEATHER_LAT+'&longitude='+WEATHER_LON+
+          '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,precipitation'+
+          '&hourly=temperature_2m,weather_code,precipitation'+
+          '&past_days=7&forecast_days=1&timezone=Europe%2FWarsaw';
+  fetch(url).then(function(r){return r.json();}).then(function(d){
+    if(d&&d.current){
+      var cur=d.current;
+      _weatherData={
+        ts:Date.now(),
+        temp:Math.round(cur.temperature_2m),
+        feels:Math.round(cur.apparent_temperature),
+        code:cur.weather_code,
+        wind:Math.round(cur.wind_speed_10m),
+        humidity:cur.relative_humidity_2m,
+        precip:cur.precipitation
+      };
+      lsSet('sp_weather',JSON.stringify(_weatherData));
+    }
+    // Zapisz historie godzinowa (klucz: "YYYY-MM-DDTHH")
+    if(d&&d.hourly&&d.hourly.time){
+      var h=loadWeatherHist();
+      var H=d.hourly;
+      for(var i=0;i<H.time.length;i++){
+        var key=H.time[i].slice(0,13); // "2026-06-01T14"
+        if(H.temperature_2m[i]==null&&H.weather_code[i]==null)continue; // pomin puste godziny (przyszlosc)
+        h[key]={
+          temp:H.temperature_2m[i]!=null?Math.round(H.temperature_2m[i]):null,
+          code:H.weather_code[i]!=null?H.weather_code[i]:0,
+          precip:H.precipitation[i]!=null?H.precipitation[i]:0
+        };
+      }
+      // Ogranicz historie do ~60 dni (sprzataj stare klucze)
+      var keys=Object.keys(h);
+      if(keys.length>1500){
+        keys.sort();
+        for(var k=0;k<keys.length-1500;k++)delete h[keys[k]];
+      }
+      saveWeatherHist(h);
+    }
+    renderWeather();
+    if(curV==='s'&&document.getElementById('weatherChart'))renderWeatherSalesChart();
+  }).catch(function(){
+    if(_weatherData)renderWeather();
+  });
+}
+
+function renderWeather(){
+  var el=document.getElementById('weatherPanel');
+  if(!el)return;
+  if(!_weatherData){
+    el.innerHTML='<div style="background:rgba(255,255,255,.05);border-radius:12px;padding:12px;margin-bottom:12px;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem;">Pobieranie pogody...</div>';
+    return;
+  }
+  var w=_weatherData;
+  var info=wmoToInfo(w.code);
+  var age=Math.floor((Date.now()-w.ts)/60000);
+  var ageStr=age<1?'przed chwilą':age+' min temu';
+  var tempColor=w.temp<=0?'#7ec8e3':w.temp<10?'#9fd8ef':w.temp<20?'#27ae60':w.temp<28?'#f5a623':'#e85c3a';
+  el.innerHTML=
+    '<div style="background:linear-gradient(135deg,rgba(18,120,168,.15),rgba(39,174,96,.08));border:1.5px solid rgba(126,200,227,.25);border-radius:12px;padding:14px;margin-bottom:12px;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">'+
+        '<div style="display:flex;align-items:center;gap:12px;">'+
+          '<div style="font-size:2.4rem;line-height:1;">'+info[0]+'</div>'+
+          '<div>'+
+            '<div style="font-size:1.8rem;font-weight:900;color:'+tempColor+';line-height:1;">'+w.temp+'°C</div>'+
+            '<div style="font-size:.74rem;color:rgba(255,255,255,.6);margin-top:3px;">'+info[1]+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="text-align:right;font-size:.72rem;color:rgba(255,255,255,.55);line-height:1.7;">'+
+          '<div>🌡️ Odczuwalna '+w.feels+'°C</div>'+
+          '<div>💨 Wiatr '+w.wind+' km/h</div>'+
+          '<div>💧 Wilgotność '+w.humidity+'%</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);font-size:.66rem;color:rgba(255,255,255,.4);">'+
+        '<span>📍 '+WEATHER_PLACE+'</span>'+
+        '<span>Aktualizacja: '+ageStr+'</span>'+
+      '</div>'+
+    '</div>';
+}
+
+// Odswiezaj pogode co godzine niezaleznie od widoku
+function startWeatherAutoRefresh(){
+  if(_weatherTimer)return;
+  fetchWeather(false);
+  _weatherTimer=setInterval(function(){fetchWeather(true);},60*60*1000);
+}
+
+// ── WYKRES: sprzedaż w czasie + pogoda ──
+var _chartExpandedDay=null; // klucz "YYYY-MM-DD" rozwinietego dnia, lub null
+
+function _dateKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+// Agreguj wydane zamowienia (done) wg dnia: sztuki dan + przychod
+function aggregateSalesByDay(doneArr){
+  var byDay={};
+  doneArr.forEach(function(o){
+    if(!o.ts)return;
+    var k=_dateKey(o.ts);
+    if(!byDay[k])byDay[k]={qty:0,rev:0,n:0};
+    byDay[k].qty+=(o.items||[]).reduce(function(s,i){return s+(i.qty||0);},0);
+    byDay[k].rev+=(o.total||0);
+    byDay[k].n+=1;
+  });
+  return byDay;
+}
+function aggregateSalesByHour(doneArr,dayKey){
+  var byHour={};
+  for(var h=0;h<24;h++)byHour[h]={qty:0,rev:0,n:0};
+  doneArr.forEach(function(o){
+    if(!o.ts||_dateKey(o.ts)!==dayKey)return;
+    var hr=new Date(o.ts).getHours();
+    byHour[hr].qty+=(o.items||[]).reduce(function(s,i){return s+(i.qty||0);},0);
+    byHour[hr].rev+=(o.total||0);
+    byHour[hr].n+=1;
+  });
+  return byHour;
+}
+
+// Reprezentatywna pogoda dnia: bierzemy odczyt z godzin pracy (np. 12:00) lub srednia
+function weatherForDay(dayKey){
+  var h=loadWeatherHist();
+  // preferuj poludnie, potem dowolna dostepna godzina dnia
+  var prefer=['12','13','11','14','10','15','09','16'];
+  for(var i=0;i<prefer.length;i++){
+    var w=h[dayKey+'T'+prefer[i]];
+    if(w)return w;
+  }
+  for(var k in h){if(k.slice(0,10)===dayKey)return h[k];}
+  return null;
+}
+function weatherForHour(dayKey,hour){
+  var h=loadWeatherHist();
+  return h[dayKey+'T'+String(hour).padStart(2,'0')]||null;
+}
+
+function _statsFilterMatch(o){
+  if(!o||!o.ts)return false;
+  var now=new Date(),tod=now.toLocaleDateString('pl-PL');
+  if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+  if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
+  if(sfilt==='range'){
+    var d=new Date(o.ts),ok=true;
+    if(sDateFrom){var from=new Date(sDateFrom);from.setHours(0,0,0,0);ok=ok&&d>=from;}
+    if(sDateTo){var to=new Date(sDateTo);to.setHours(23,59,59,999);ok=ok&&d<=to;}
+    return ok;
+  }
+  return true; // 'all'
+}
+
+function renderWeatherSalesChart(){
+  var host=document.getElementById('weatherChart');
+  if(!host)return;
+  // Zbierz wydane zamowienia respektujac aktywny filtr statystyk
+  var all=Object.values(Object.assign({},archive,orders));
+  var done=all.filter(function(o){return o&&o.status==='done'&&o.ts&&_statsFilterMatch(o);});
+  if(!done.length){host.innerHTML='<div style="color:rgba(255,255,255,.4);font-size:.8rem;text-align:center;padding:16px;">Brak danych do wykresu w wybranym zakresie</div>';return;}
+
+  if(_chartExpandedDay){
+    renderHourlyChart(host,done,_chartExpandedDay);
+    return;
+  }
+  // Widok dzienny
+  var byDay=aggregateSalesByDay(done);
+  var days=Object.keys(byDay).sort();
+  // ogranicz do ostatnich 14 dni dla czytelnosci (gdy filtr szeroki)
+  if(days.length>14)days=days.slice(days.length-14);
+  var maxQty=Math.max.apply(null,days.map(function(d){return byDay[d].qty;}).concat([1]));
+
+  var bars='';
+  days.forEach(function(d){
+    var v=byDay[d];
+    var hpct=Math.round((v.qty/maxQty)*100);
+    var w=weatherForDay(d);
+    var icon=w?wmoToInfo(w.code)[0]:'';
+    var rain=(w&&w.precip>0.2)?'<div style="font-size:.6rem;color:#7ec8e3;">'+w.precip.toFixed(1)+'mm</div>':'';
+    var dd=new Date(d+'T12:00');
+    var label=String(dd.getDate()).padStart(2,'0')+'.'+String(dd.getMonth()+1).padStart(2,'0');
+    bars+=
+      '<div class="wch-bar" data-day="'+d+'" style="flex:1;min-width:34px;display:flex;flex-direction:column;align-items:center;cursor:pointer;gap:3px;">'+
+        '<div style="font-size:1rem;line-height:1;">'+icon+'</div>'+
+        rain+
+        '<div style="font-size:.62rem;color:rgba(255,255,255,.5);">'+v.qty+'</div>'+
+        '<div style="width:60%;background:linear-gradient(180deg,var(--a),var(--gr));border-radius:5px 5px 0 0;height:'+Math.max(hpct,3)+'%;min-height:4px;transition:height .3s;"></div>'+
+        '<div style="font-size:.6rem;color:rgba(255,255,255,.45);">'+label+'</div>'+
+      '</div>';
+  });
+  host.innerHTML=
+    '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:4px;">📊 Sprzedaż i pogoda</div>'+
+    '<div style="font-size:.66rem;color:rgba(255,255,255,.4);margin-bottom:10px;">Liczba dań dziennie • dotknij słupek, aby rozbić na godziny</div>'+
+    '<div style="display:flex;align-items:flex-end;gap:4px;height:160px;padding:8px 4px;background:rgba(0,0,0,.15);border-radius:10px;">'+bars+'</div>';
+  // klik w slupek -> rozwin dzien
+  var barsEls=host.querySelectorAll('.wch-bar');
+  for(var i=0;i<barsEls.length;i++){
+    barsEls[i].addEventListener('click',function(){_chartExpandedDay=this.getAttribute('data-day');renderWeatherSalesChart();});
+  }
+}
+
+function renderHourlyChart(host,done,dayKey){
+  var byHour=aggregateSalesByHour(done,dayKey);
+  // pokaz godziny pracy: od pierwszej do ostatniej ze sprzedaza (lub 8-20 domyslnie)
+  var active=[];for(var h=0;h<24;h++)if(byHour[h].n>0)active.push(h);
+  var from=active.length?Math.max(0,active[0]-1):8;
+  var to=active.length?Math.min(23,active[active.length-1]+1):20;
+  var maxQty=1;for(var h=from;h<=to;h++)maxQty=Math.max(maxQty,byHour[h].qty);
+
+  var bars='';
+  for(var hr=from;hr<=to;hr++){
+    var v=byHour[hr];
+    var hpct=Math.round((v.qty/maxQty)*100);
+    var w=weatherForHour(dayKey,hr);
+    var icon=w?wmoToInfo(w.code)[0]:'';
+    var rain=(w&&w.precip>0.2);
+    var barColor=rain?'linear-gradient(180deg,#5a8fb0,#3a6d8f)':'linear-gradient(180deg,var(--a),var(--gr))';
+    var clickable=v.n>0;
+    bars+=
+      '<div class="'+(clickable?'wch-hbar':'')+'" '+(clickable?'data-hour="'+hr+'"':'')+' style="flex:1;min-width:22px;display:flex;flex-direction:column;align-items:center;gap:2px;'+(clickable?'cursor:pointer;':'')+'">'+
+        '<div style="font-size:.8rem;line-height:1;" title="'+(w?wmoToInfo(w.code)[1]:'')+'">'+icon+'</div>'+
+        '<div style="font-size:.58rem;color:rgba(255,255,255,.5);">'+(v.qty||'')+'</div>'+
+        '<div style="width:64%;background:'+barColor+';border-radius:4px 4px 0 0;height:'+Math.max(hpct,2)+'%;min-height:'+(v.qty?4:1)+'px;"></div>'+
+        '<div style="font-size:.55rem;color:rgba(255,255,255,.4);">'+hr+'</div>'+
+      '</div>';
+  }
+  var dd=new Date(dayKey+'T12:00');
+  var dayLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
+  var dayW=weatherForDay(dayKey);
+  var dayWStr=dayW?wmoToInfo(dayW.code)[0]+' '+wmoToInfo(dayW.code)[1]+(dayW.temp!=null?', '+dayW.temp+'°C':''):'brak danych pogodowych';
+  host.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
+      '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);">📊 '+dayLabel+'</div>'+
+      '<button id="wchBack" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:7px;padding:5px 12px;font-size:.72rem;font-weight:800;cursor:pointer;">← Wróć</button>'+
+    '</div>'+
+    '<div style="font-size:.66rem;color:rgba(255,255,255,.45);margin-bottom:10px;">'+dayWStr+' • rozbicie godzinowe (niebieskie słupki = padało) • dotknij godzinę, aby zobaczyć zamówienia</div>'+
+    '<div style="display:flex;align-items:flex-end;gap:3px;height:150px;padding:8px 4px;background:rgba(0,0,0,.15);border-radius:10px;">'+bars+'</div>';
+  var back=document.getElementById('wchBack');
+  if(back)back.addEventListener('click',function(){_chartExpandedDay=null;renderWeatherSalesChart();});
+  // klik w slupek godzinowy -> lista zamowien tej godziny
+  var hbars=host.querySelectorAll('.wch-hbar');
+  for(var i=0;i<hbars.length;i++){
+    hbars[i].addEventListener('click',function(){
+      showHourOrders(dayKey,parseInt(this.getAttribute('data-hour'),10));
+    });
+  }
+}
+
+// Modal: pelna historia sprzedazy w danej godzinie konkretnego dnia
+function showHourOrders(dayKey,hour){
+  var all=Object.values(Object.assign({},archive,orders));
+  var list=all.filter(function(o){
+    return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey&&new Date(o.ts).getHours()===hour;
+  }).sort(function(a,b){return a.ts-b.ts;});
+
+  var w=weatherForHour(dayKey,hour);
+  var wStr=w?wmoToInfo(w.code)[0]+' '+wmoToInfo(w.code)[1]+(w.temp!=null?', '+w.temp+'°C':'')+(w.precip>0.2?' • '+w.precip.toFixed(1)+'mm deszczu':''):'brak danych pogodowych';
+  var dd=new Date(dayKey+'T12:00');
+  var dateLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
+
+  var totalRev=list.reduce(function(s,o){return s+(o.total||0);},0);
+  var totalQty=list.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
+
+  var rows='';
+  if(!list.length){
+    rows='<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px;">Brak zamówień w tej godzinie</div>';
+  } else {
+    list.forEach(function(o){
+      var t=new Date(o.ts);
+      var tStr=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+      var items=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');
+      var cur=o.currency==='CZK'?' <span style="color:#7ec8e3;">(CZK)</span>':'';
+      var paid=o.paid===false?' <span style="color:var(--e);font-size:.65rem;">NIEOPŁ.</span>':'';
+      var wynos=o.wynos?' <span style="color:#7ec8e3;font-size:.65rem;">WYNOS</span>':'';
+      rows+=
+        '<div style="background:rgba(255,255,255,.04);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
+            '<span style="font-weight:800;color:#fff;font-size:.85rem;">'+(o.table==='my'?'👪 MY':'Stolik '+o.table)+' #'+o.seq+cur+paid+wynos+'</span>'+
+            '<span style="color:rgba(255,255,255,.5);font-size:.72rem;">'+tStr+'</span>'+
+          '</div>'+
+          '<div style="color:rgba(255,255,255,.7);font-size:.78rem;margin-bottom:4px;">'+items+'</div>'+
+          (o.note?'<div style="color:var(--a);font-size:.7rem;margin-bottom:4px;">⚠️ '+esc(o.note)+'</div>':'')+
+          '<div style="text-align:right;font-weight:900;color:var(--gr);font-size:.85rem;">'+(o.total||0).toFixed(2)+' zl</div>'+
+        '</div>';
+    });
+  }
+
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML=
+    '<div style="background:#1a1d24;width:100%;max-width:520px;max-height:82vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+      '<div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08);">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+          '<div>'+
+            '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;">'+String(hour).padStart(2,'0')+':00 – '+String(hour).padStart(2,'0')+':59</div>'+
+            '<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;text-transform:capitalize;">'+dateLabel+'</div>'+
+          '</div>'+
+          '<button id="hoClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">✕</button>'+
+        '</div>'+
+        '<div style="color:rgba(255,255,255,.6);font-size:.72rem;margin-top:8px;">'+wStr+'</div>'+
+        '<div style="display:flex;gap:14px;margin-top:8px;">'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+list.length+'</b> zam.</span>'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+totalQty+'</b> dań</span>'+
+          '<span style="color:var(--gr);font-size:.78rem;font-weight:800;">'+totalRev.toFixed(2)+' zl</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="overflow-y:auto;padding:14px 16px;flex:1;">'+rows+'</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function close(){if(modal.parentNode)modal.parentNode.removeChild(modal);}
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
 function renderStats(){
@@ -3127,9 +3554,9 @@ function renderStats(){
   var n=done.length,ni=done.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
 
   // Podział walutowy
-  var revPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).reduce(function(s,o){return s+o.total;},0);
-  var revCZK=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+o.total;},0);
-  var revCZKamt=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.czkAmount||Math.round(o.total*(o.czkRate||getCZK())));},0);
+  var revPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).reduce(function(s,o){return s+(o.total||0);},0);
+  var revCZK=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.total||0);},0);
+  var revCZKamt=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.czkAmount||Math.round((o.total||0)*(o.czkRate||getCZK())));},0);
   var nPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).length;
   var nCZK=done.filter(function(o){return o.currency==='CZK';}).length;
   var pctPLN=rev>0?Math.round(revPLN/rev*100):0;
@@ -3139,7 +3566,7 @@ function renderStats(){
   done.forEach(function(o){(o.items||[]).forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=(it.qty||0);im[it.name].rev+=(it.qty||0)*(it.price||0);});});
   var top=Object.values(im).sort(function(a,b){return b.qty-a.qty;});
   var mq=top.length?top[0].qty:1;
-  var bh={};done.forEach(function(o){var h=new Date(o.ts).getHours();bh[h]=(bh[h]||0)+1;});
+  var bh={};done.forEach(function(o){if(!o.ts)return;var h=new Date(o.ts).getHours();bh[h]=(bh[h]||0)+1;});
   var mh=Math.max.apply(null,Object.values(bh).concat([1]));
   var topRows='';
   for(var i=0;i<top.length;i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1.1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+' szt.</b></td><td>'+it.rev.toFixed(2)+' zl</td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(it.qty/mq*110)+'px"></div></div></td></tr>';}
@@ -3232,6 +3659,7 @@ function renderStats(){
       '<input class="sdinp" id="sdt" type="date" value="'+dtVal+'">'+
       '<button class="sdbtn" onclick="setDateRange()">Filtruj</button>'+
     '</div>'+
+    '<div id="weatherPanel"></div>'+
     '<div class="sbs">'+
       '<div class="sb"><div class="sbv">'+rev.toFixed(0)+' zl</div><div class="sbl">Przychod</div></div>'+
       '<div class="sb"><div class="sbv">'+n+'</div><div class="sbl">Zamowien</div></div>'+
@@ -3240,6 +3668,7 @@ function renderStats(){
       (avgTime!==null?'<div class="sb"><div class="sbv">'+avgTime+' min</div><div class="sbl">Sr. czas wydania</div></div>':'')+
       (avgFryTime!==null?'<div class="sb"><div class="sbv">&#x1F525; '+avgFryTime+' min</div><div class="sbl">Sr. czas smazenia</div></div>':'')+
     '</div>'+
+    '<div id="weatherChart" style="background:rgba(255,255,255,.05);border-radius:12px;padding:14px;margin-bottom:12px;"></div>'+
     (n>0?
     '<div style="background:rgba(255,255,255,.05);border-radius:12px;padding:14px;margin-bottom:12px;">'+
       '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:10px;">&#x1F4B1; Podział walutowy</div>'+
@@ -3276,6 +3705,9 @@ function renderStats(){
       '<button class="sf" onclick="confirmClearStats()" style="background:rgba(232,92,58,.15);border-color:rgba(232,92,58,.3);color:var(--e);">&#x1F5D1; Wyczysc statystyki</button>'+
     '</div>'+
     '<div class="hl">'+(histRows||'<div class="ni">Brak wydanych zamowien</div>')+'</div>';
+  renderWeather();
+  renderWeatherSalesChart();
+  startWeatherAutoRefresh();
 }
 
 // MENU EDITOR
@@ -3456,7 +3888,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v2.0',
+    v:'v3.0',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -3873,7 +4305,7 @@ function discFb(){
   detachFb();
   rawRemove(lsKey('sp_fbcfg'));
   lsSet('sp_fbskip','1');
-  fbReady=false;fbDB=null;dot('');
+  fbReady=false;fbAuthReady=false;fbDB=null;dot('');
   toast('Rozlaczono','#778');
   renderCloud();
 }
@@ -3931,9 +4363,9 @@ setInterval(function(){
         var needStatus=o.status==='pending'?'cooking':o.status==='cooking'?'ready':o.status==='ready'?'done':'';
         if(currentStatus!==needStatus){
           var btns3='';
-          if(o.status==='pending')     btns3='<button class="bt btc" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking">Zaczynam</button>';
-          else if(o.status==='cooking')btns3='<button class="bt btr" data-action="setstatus" data-ids="'+o.id+'" data-status="ready">Gotowe!</button>';
-          else if(o.status==='ready')  btns3='<button class="bt btd" data-action="setstatus" data-ids="'+o.id+'" data-status="done">Wydane</button>';
+          if(o.status==='pending')     btns3='<button class="bt btc" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking"><span>Zaczynam</span></button>';
+          else if(o.status==='cooking')btns3='<button class="bt btr" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="ready"><span>Gotowe!</span></button>';
+          else if(o.status==='ready')  btns3='<button class="bt btd" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="done"><span>Wydane</span></button>';
           tkf.innerHTML=btns3;
         }
       }
@@ -4144,7 +4576,7 @@ function logoutApp(){
   savePhoneBackup();
   rawRemove(lsKey('sp_session'));
   try{localStorage.removeItem('sp_session');}catch(e){}
-  fbReady=false;fbDB=null;dot('');
+  fbReady=false;fbAuthReady=false;fbDB=null;dot('');
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   var pw=document.getElementById('loginPw');if(pw)pw.value='';
@@ -4210,7 +4642,7 @@ function bootApp(){
   savePhoneBackup();
   var _cfg=getCfg();
   if(_cfg)initFb(_cfg);
-  else{fbReady=false;fbDB=null;dot('');if(curV==='c')renderCloud();}
+  else{fbReady=false;fbAuthReady=false;fbDB=null;dot('');if(curV==='c')renderCloud();}
 }
 
 // Sprawdz sesje przy starcie - obslugiwane przez skrypt logowania
@@ -4299,7 +4731,7 @@ applyProfileUI();
     var APP_URL=location.href.split('#')[0];
     var APP_URL_JSON=JSON.stringify(APP_URL);
     var swCode=
-      'var CACHE="smazalnia-v7";'+
+      'var CACHE="smazalnia-v8";'+
       'var APP_URL='+APP_URL_JSON+';'+
       'self.addEventListener("install",function(e){'+
         'e.waitUntil('+
