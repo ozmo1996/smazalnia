@@ -85,6 +85,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .mc-unavail{opacity:.6;cursor:not-allowed;}
 .mc-unavail:active{opacity:.6;transform:none;}
 .mct{background:linear-gradient(135deg,#def0ff,#bfdfff);padding:18px 6px 12px;text-align:center;font-size:2.8rem;line-height:1}
+/* Wlasny wgrany obrazek pozycji: duzy, wypelnia strefe ikony kafelka (zamiast malego inline). Skaluje sie z kontrolka rozmiaru ikon (rem). */
+.mct-img{height:3.8rem;max-height:4.2rem;width:auto;max-width:90%;object-fit:contain;border-radius:10px;display:inline-block;vertical-align:middle}
 .mcb{padding:8px 10px 10px}.mcn{font-weight:800;font-size:.88rem;color:#0b1e28;line-height:1.2}.mcp{color:var(--s);font-weight:700;font-size:.82rem;margin-top:3px}
 .mcbg{position:absolute;top:5px;right:5px;font-size:.6rem;font-weight:900;padding:2px 6px;border-radius:6px;background:var(--e);color:#fff;text-transform:uppercase}
 .mcbg.chef{background:var(--s)}.mcbg.new{background:var(--gr)}
@@ -526,7 +528,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.5</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.6</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1571,7 +1573,10 @@ function renderMG(id,items){
     var bdg=unavail
       ?'<span class="mcbg" style="background:#888;">BRAK</span>'
       :(item.badge?'<span class="mcbg '+(item.bc||'')+'">'+esc(item.badge)+'</span>':'');
-    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+emo(item.emoji,'2.4rem')+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
+    var iconHtml=isImgEmoji(item.emoji)
+      ?'<img class="mct-img" src="'+item.emoji+'" alt="">'
+      :emo(item.emoji,'2.4rem');
+    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+iconHtml+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
     (function(it,unav){
       c.addEventListener('click',function(){
         if(unav){
@@ -4026,7 +4031,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.5',
+    v:'v3.6',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
