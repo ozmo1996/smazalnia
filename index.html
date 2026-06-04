@@ -193,7 +193,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 /* Przyciski kuchni: przytrzymaj aby potwierdzic (chroni przed przypadkowym kliknieciem przy przewijaniu) */
 .bt[data-hold]{position:relative;overflow:hidden;touch-action:pan-y}
 .bt[data-hold]::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.28);pointer-events:none;transition:none}
-.bt[data-hold].holding::before{width:100%;transition:width .3s linear}
+.bt[data-hold].holding::before{width:100%;transition:width var(--hold-dur,.1s) linear}
 .bt[data-hold].holding{transform:scale(.97)}
 .bt[data-hold]>span{position:relative;z-index:1;pointer-events:none}
 .bt:active{filter:brightness(1.15)}
@@ -528,7 +528,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.9</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.11</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -659,6 +659,10 @@ button:disabled{cursor:not-allowed}
     <label class="set-lbl">&#x1F4E6; Prog niskiego stanu magazynu (%)</label>
     <input class="set-inp" id="setLow" type="number" min="1" max="100" step="1">
     <div class="set-hint">Produkt oznaczany jako NISKI STAN gdy zostanie tyle % stanu poczatkowego.</div>
+
+    <label class="set-lbl">&#x23F1;&#xFE0F; Czas przytrzymania przyciskow (ms)</label>
+    <input class="set-inp" id="setHold" type="number" min="50" max="1000" step="50">
+    <div class="set-hint">Jak dlugo trzeba przytrzymac przyciski Kuchni/Baru (Zaczynam, Gotowe!, Wydane). Mniej = szybciej, ale latwiej o przypadkowe klikniecie. Domyslnie 100.</div>
 
     <label class="set-lbl">&#x1F3E0; Widok po zalogowaniu</label>
     <select class="set-inp" id="setView">
@@ -930,7 +934,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[]};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -944,6 +948,7 @@ function loadSettings(){
   s.czkRate=clampNum(s.czkRate,.1,50,SETTINGS_DEF.czkRate);
   s.lowStockPct=Math.round(clampNum(s.lowStockPct,1,100,SETTINGS_DEF.lowStockPct));
   if(typeof VL!=='undefined'&&VL.indexOf&&VL.indexOf(s.startView)<0)s.startView=SETTINGS_DEF.startView;
+  s.holdMs=Math.round(clampNum(s.holdMs,50,1000,SETTINGS_DEF.holdMs));
   return s;
 }
 function saveSettings(){
@@ -1761,21 +1766,24 @@ var _lastDelegateTouch=0;
 // ── Przytrzymaj-aby-potwierdzic dla przyciskow kuchni (data-hold) ──
 // Chroni przed przypadkowym kliknieciem przy przewijaniu listy zamowien.
 var _holdTimer=null,_holdBtn=null,_holdStartXY=null;
-var HOLD_MS=300;
+function holdMs(){var v=parseInt(appSettings&&appSettings.holdMs,10);return (v>=50&&v<=1000)?v:100;}
 function _holdStart(btn,x,y){
   _holdCancel();
   _holdBtn=btn;_holdStartXY=[x,y];
+  var ms=holdMs();
+  btn.style.setProperty('--hold-dur',(ms/1000)+'s'); // pasek wypelnia sie zgodnie z ustawionym czasem
   btn.classList.add('holding');
   _holdTimer=setTimeout(function(){
     btn.classList.remove('holding');
+    btn.style.removeProperty('--hold-dur');
     if(navigator.vibrate)try{navigator.vibrate(30);}catch(e){}
     handleDataAction(btn);
     _holdBtn=null;
-  },HOLD_MS);
+  },ms);
 }
 function _holdCancel(){
   if(_holdTimer){clearTimeout(_holdTimer);_holdTimer=null;}
-  if(_holdBtn){_holdBtn.classList.remove('holding');}
+  if(_holdBtn){_holdBtn.classList.remove('holding');_holdBtn.style.removeProperty('--hold-dur');}
   _holdBtn=null;
 }
 // Jesli palec sie przesunie (przewijanie) — anuluj
@@ -4077,7 +4085,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.9',
+    v:'v3.11',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -4173,6 +4181,7 @@ function renderCloud(){
   // Wypelnij pola ustawien ogolnych
   var sC=document.getElementById('setCzk');if(sC)sC.value=appSettings.czkRate;
   var sL=document.getElementById('setLow');if(sL)sL.value=appSettings.lowStockPct;
+  var sH=document.getElementById('setHold');if(sH)sH.value=appSettings.holdMs;
   var sV=document.getElementById('setView');if(sV)sV.value=appSettings.startView;
   var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
   _catsEdit=null; // odswiez z aktualnego stanu
@@ -4478,10 +4487,12 @@ function saveSettingsFromUI(){
   var l=parseInt((document.getElementById('setLow')||{}).value);
   var v=(document.getElementById('setView')||{}).value;
   var d=(document.getElementById('setConfDel')||{}).checked;
+  var h=parseInt((document.getElementById('setHold')||{}).value);
   if(c>0&&c<=50)appSettings.czkRate=c;
   if(l>=1&&l<=100)appSettings.lowStockPct=l;
   if(v&&VL.indexOf(v)>=0)appSettings.startView=v;
   appSettings.confirmDelete=!!d;
+  if(h>=50&&h<=1000)appSettings.holdMs=h;
   saveSettings();
   // Zastosuj kurs od razu w polu zamowienia
   var cr=document.getElementById('czkrate');if(cr){cr.value=appSettings.czkRate;renderCart();}
