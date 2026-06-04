@@ -85,6 +85,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .mc-unavail{opacity:.6;cursor:not-allowed;}
 .mc-unavail:active{opacity:.6;transform:none;}
 .mct{background:linear-gradient(135deg,#def0ff,#bfdfff);padding:18px 6px 12px;text-align:center;font-size:2.8rem;line-height:1}
+/* Wlasny wgrany obrazek pozycji: duzy, wypelnia strefe ikony kafelka (zamiast malego inline). Skaluje sie z kontrolka rozmiaru ikon (rem). */
+.mct-img{height:3.8rem;max-height:4.2rem;width:auto;max-width:90%;object-fit:contain;border-radius:10px;display:inline-block;vertical-align:middle}
 .mcb{padding:8px 10px 10px}.mcn{font-weight:800;font-size:.88rem;color:#0b1e28;line-height:1.2}.mcp{color:var(--s);font-weight:700;font-size:.82rem;margin-top:3px}
 .mcbg{position:absolute;top:5px;right:5px;font-size:.6rem;font-weight:900;padding:2px 6px;border-radius:6px;background:var(--e);color:#fff;text-transform:uppercase}
 .mcbg.chef{background:var(--s)}.mcbg.new{background:var(--gr)}
@@ -188,6 +190,12 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tknote{background:rgba(245,166,35,.15);border:1.5px solid rgba(245,166,35,.4);border-radius:8px;color:#ffd080;font-size:.82rem;font-weight:800;margin-top:7px;padding:6px 10px;line-height:1.4}
 .tkf{padding:6px 9px;display:flex;gap:6px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05)}
 .bt{flex:1;padding:9px;border-radius:8px;border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.79rem;cursor:pointer;touch-action:manipulation;min-height:38px;-webkit-tap-highlight-color:transparent}
+/* Przyciski kuchni: przytrzymaj aby potwierdzic (chroni przed przypadkowym kliknieciem przy przewijaniu) */
+.bt[data-hold]{position:relative;overflow:hidden;touch-action:pan-y}
+.bt[data-hold]::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;background:rgba(255,255,255,.28);pointer-events:none;transition:none}
+.bt[data-hold].holding::before{width:100%;transition:width .3s linear}
+.bt[data-hold].holding{transform:scale(.97)}
+.bt[data-hold]>span{position:relative;z-index:1;pointer-events:none}
 .bt:active{filter:brightness(1.15)}
 .btc{background:var(--a);color:#fff}.btr{background:var(--gr);color:#fff}.btd{background:#556;color:#fff}.btbar{background:var(--s);color:#fff}
 .notk{grid-column:1/-1;text-align:center;padding:20px;color:rgba(255,255,255,.17);font-size:.9rem}
@@ -336,11 +344,19 @@ select.set-inp option{background:#0d3d56;color:#fff}
 .cnt-mini{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.8);border-radius:8px;padding:6px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;touch-action:manipulation}
 .cnt-mini:active{background:rgba(255,255,255,.2)}
 .cnt-sec{color:rgba(255,255,255,.5);font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px}
-.cnt-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer;user-select:none}
+.cnt-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;row-gap:6px;padding:8px 6px;border-bottom:1px solid rgba(255,255,255,.07);user-select:none}
 .cnt-row:last-child{border:none}
 .cnt-row input{width:21px;height:21px;accent-color:var(--gr);flex-shrink:0;cursor:pointer}
 .cnt-row .cnt-em{font-size:1.2rem;width:26px;text-align:center;flex-shrink:0}
-.cnt-row .cnt-nm{flex:1;color:#fff;font-weight:700;font-size:.85rem}
+.cnt-row .cnt-nm{flex:1;color:#fff;font-weight:700;font-size:.85rem;min-width:0}
+.cnt-main{display:flex;align-items:center;gap:10px;flex:1;min-width:130px;cursor:pointer}
+.cnt-ord{display:flex;gap:4px;flex-shrink:0}
+.cord-btn{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border:1.5px solid rgba(255,255,255,.15);border-radius:7px;font-size:.62rem;cursor:pointer;line-height:1;padding:0;flex-shrink:0}
+.cord-btn:disabled{opacity:.25;cursor:default}
+.cnt-side{display:flex;flex-shrink:0;border:1.5px solid rgba(255,255,255,.18);border-radius:8px;overflow:hidden}
+.cside-btn{background:rgba(255,255,255,.05);color:rgba(255,255,255,.55);border:none;font-family:'Nunito',sans-serif;font-weight:800;font-size:.72rem;padding:6px 10px;cursor:pointer;line-height:1}
+.cside-btn:first-child{border-right:1.5px solid rgba(255,255,255,.18)}
+.cside-btn.active{background:#1278a8;color:#fff}
 .cat-row{display:flex;align-items:center;gap:7px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08)}
 .cat-row:last-child{border:none}
 .cat-row .cat-nm{flex:1;min-width:0;padding:9px 10px;border-radius:8px;border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-family:'Nunito',sans-serif;font-size:.86rem;font-weight:700;outline:none}
@@ -461,6 +477,24 @@ button:disabled{cursor:not-allowed}
 #iconCtrl button{width:30px!important;height:30px!important;border-radius:8px!important;font-size:.92rem!important;background:rgba(18,120,168,.62)!important}
 #iconSizeLbl{display:none!important}
 
+/* ── v3.2: lepszy kontrast najsłabszego tekstu (czytelność w jasnym świetle / WCAG AA) ── */
+.tlbl{color:rgba(255,255,255,.66)}
+.oczk{color:rgba(255,255,255,.66)}
+.dkc{color:rgba(255,255,255,.6)}
+.tksc{color:rgba(255,255,255,.58)}
+.kcnt-lbl{color:rgba(255,255,255,.62)}
+.ni{color:rgba(255,255,255,.5)}
+.notk{color:rgba(255,255,255,.4)}
+.set-hint{color:rgba(255,255,255,.6)}
+.cnt-sec{color:rgba(255,255,255,.64)}
+.cat-cnt{color:rgba(255,255,255,.58)}
+.etblh{color:rgba(255,255,255,.6)}
+.sdlbl{color:rgba(255,255,255,.66)}
+.dk{color:rgba(255,255,255,.6)}
+.login-sub{color:rgba(255,255,255,.6)}
+.login-change{color:rgba(255,255,255,.55)}
+.on2::placeholder,.login-inp::placeholder,.chpw-inp::placeholder,.set-inp::placeholder{color:rgba(255,255,255,.42)}
+
 </style>
 </head>
 <body>
@@ -494,7 +528,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v2.0</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.9</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -560,6 +594,7 @@ button:disabled{cursor:not-allowed}
 </div>
 <div class="view" id="vk">
   <div class="dkh"><span class="dkt">Kuchnia</span><span class="dkc" id="kclk"></span></div>
+  <div style="font-size:.68rem;color:rgba(255,255,255,.45);padding:4px 10px;background:rgba(0,0,0,.2);text-align:center;letter-spacing:.02em;">&#x1F446; Przytrzymaj przycisk, aby zmienic status (chroni przed przypadkowym dotknieciem)</div>
   <div id="kcounter" style="display:flex;gap:8px;flex-wrap:wrap;padding:8px 10px;background:rgba(0,0,0,.3);border-bottom:2px solid rgba(255,255,255,.08);"></div>
   <div class="tkg" id="kg"></div>
 </div>
@@ -586,7 +621,7 @@ button:disabled{cursor:not-allowed}
   <div id="cst"></div>
 
   <!-- WYGLAD / MARKA -->
-  <div style="background:rgba(214,158,46,.1);border:1.5px solid rgba(214,158,46,.35);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#e7c06b;font-size:.95rem;margin-bottom:10px;">&#x1F3F7;&#xFE0F; Nazwa i logo aplikacji</div>
 
     <div id="brandPreview" style="display:flex;align-items:center;gap:10px;background:rgba(0,0,0,.25);border-radius:10px;padding:10px 12px;margin-bottom:12px;">
@@ -615,7 +650,7 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- USTAWIENIA APLIKACJI -->
-  <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:12px;">&#x2699;&#xFE0F; Ustawienia ogolne</div>
 
     <label class="set-lbl">&#x1F1E8;&#x1F1FF; Domyslny kurs (1 PLN = ? CZK)</label>
@@ -643,9 +678,9 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- POZYCJE ZLICZANE W LICZNIKACH -->
-  <div style="background:rgba(39,174,96,.08);border:1.5px solid rgba(39,174,96,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#5fd896;font-size:.95rem;margin-bottom:4px;">&#x1F522; Pozycje zliczane w licznikach</div>
-    <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Zaznacz, ktore pozycje maja byc sumowane w pasku licznikow Kuchni (smazenie/przygotowanie) i Baru (wydawanie). Domyslnie liczone sa wszystkie.</div>
+    <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Zaznacz, ktore pozycje maja byc sumowane w pasku licznikow Kuchni (smazenie/przygotowanie) i Baru (wydawanie). Domyslnie liczone sa wszystkie. Przyciskiem <b>Lewa</b>/<b>Prawa</b> wybierasz, po ktorej stronie paska pojawi sie dany licznik.</div>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
       <button class="cnt-mini" onclick="setCountAll(true)">Zaznacz wszystkie</button>
       <button class="cnt-mini" onclick="setCountAll(false)">Odznacz wszystkie</button>
@@ -655,7 +690,7 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- KATEGORIE MENU -->
-  <div style="background:rgba(146,109,222,.1);border:1.5px solid rgba(146,109,222,.35);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#c4a8ff;font-size:.95rem;margin-bottom:4px;">&#x1F5C2;&#xFE0F; Kategorie menu</div>
     <div class="set-hint" style="margin-bottom:10px;margin-top:0;">Dodawaj wlasne zakladki menu (np. Desery, Przystawki). Zaznacz „Bar" jesli pozycje maja trafiac do zakladki Bar (napoje), w przeciwnym razie ida do Kuchni.</div>
     <div id="catList"></div>
@@ -665,7 +700,7 @@ button:disabled{cursor:not-allowed}
   </div>
 
   <!-- ZMIANA HASLA -->
-  <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;margin-bottom:10px;">&#x1F510; Haslo aplikacji</div>
     <form id="setPwForm" autocomplete="off">
       <input type="text" name="username" autocomplete="username" value="smazalnia" hidden>
@@ -680,14 +715,14 @@ button:disabled{cursor:not-allowed}
 
   <!-- BACKUP -->
   <!-- URZADZENIA -->
-  <div style="background:rgba(18,120,168,.08);border:1.5px solid rgba(18,120,168,.25);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
       <div style="font-family:'Playfair Display',serif;font-weight:700;color:#7ec8e3;font-size:.95rem;">&#x1F4F1; Podłączone urządzenia</div>
       <button onclick="renderDevices()" style="background:rgba(18,120,168,.2);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;border-radius:7px;padding:4px 10px;font-size:.75rem;font-weight:800;cursor:pointer;">&#x21BB; Odśwież</button>
     </div>
     <div id="devList"><div style="color:rgba(255,255,255,.4);font-size:.8rem;">Ładowanie...</div></div>
   </div>
-  <div style="background:rgba(245,166,35,.08);border:1.5px solid rgba(245,166,35,.3);border-radius:12px;padding:14px;margin:12px 12px 0;">
+  <div style="background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);border-radius:12px;padding:14px;margin:12px 12px 0;">
     <div style="font-family:'Playfair Display',serif;font-weight:700;color:var(--a);font-size:.95rem;margin-bottom:4px;">&#x1F4BE; Backup lokalny</div>
     <div style="color:rgba(255,255,255,.6);font-size:.78rem;margin-bottom:10px;">Automatyczny zapis co 5 minut. Kliknij aby pobrac plik .txt z wszystkimi zamowieniami.</div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -744,6 +779,7 @@ button:disabled{cursor:not-allowed}
         <button onclick="resetSold()" style="background:rgba(18,120,168,.1);border:1.5px solid rgba(18,120,168,.3);color:#7ec8e3;border-radius:10px;padding:7px 12px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.75rem;cursor:pointer;touch-action:manipulation;">&#x1F9F9; Reset sprzedazy</button>
       </div>
     </div>
+    <div class="set-hint" style="margin:0 0 10px;">&#x2139;&#xFE0F; „Stan pocz." ustawia ilosc na start (i od razu biezaca) — „Sprzedano" liczy sie od tej wartosci. Przyciskami &minus;/+ i „Zatwierdz" korygujesz tylko biezacy stan.</div>
     <div id="stockWrap"></div>
     <div style="height:24px"></div>
   </div>
@@ -887,7 +923,7 @@ var sDateTo='';
 var epTgt=null;
 var DID=lsGet('sp_did')||mkDID();
 var fbReady=false;
-var stock={}; // {itemName: {init:N, current:N, sold:N}}
+var stock={}; // {itemName: {init:N, current:N}} — sprzedaz liczona z archiwum, nie z pola sold
 var fbDB=null;
 var _send=false;
 var _lth=0;
@@ -986,6 +1022,19 @@ function countSet(){
 }
 function countSetInvalidate(){_countSetCache=null;}
 function isCounted(i){var cs=countSet();return cs===false?true:cs.has(norm(i.name||i));}
+// Strona paska licznikow dla danej pozycji: 'left' (domyslnie) albo 'right'.
+function itemSide(name){var m=appSettings&&appSettings.countSides;if(!m)return 'left';return m[norm(name)]==='right'?'right':'left';}
+// Kolejnosc pozycji na pasku licznikow. Jesli ustawiono countOrder, sortuj wg niej
+// (pozycje spoza listy ida na koniec). Bez ustawienia — jak dotychczas: wg ilosci malejaco.
+function cmpCount(a,b){
+  var arr=appSettings&&appSettings.countOrder;
+  if(arr&&arr.length){
+    var ia=arr.indexOf(norm(a.name));if(ia<0)ia=9999;
+    var ib=arr.indexOf(norm(b.name));if(ib<0)ib=9999;
+    if(ia!==ib)return ia-ib;
+  }
+  return b.qty-a.qty;
+}
 function dSetInvalidate(){_dSetCache=null;}
 function isDrink(i){return dSet().has(norm(i.name));}
 function menuOrderMap(){
@@ -1227,6 +1276,7 @@ function subAll(){
     });
     orders=fbOrders;
     saveOrds();
+    autoClearOldOrders();
     onData();
   });
 
@@ -1524,7 +1574,10 @@ function renderMG(id,items){
     var bdg=unavail
       ?'<span class="mcbg" style="background:#888;">BRAK</span>'
       :(item.badge?'<span class="mcbg '+(item.bc||'')+'">'+esc(item.badge)+'</span>':'');
-    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+emo(item.emoji,'2.4rem')+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
+    var iconHtml=isImgEmoji(item.emoji)
+      ?'<img class="mct-img" src="'+item.emoji+'" alt="">'
+      :emo(item.emoji,'2.4rem');
+    c.innerHTML='<div class="mct" style="'+(unavail?'filter:grayscale(1);opacity:.5':'')+'">'+iconHtml+'</div><div class="mcb"><div class="mcn" style="'+(unavail?'text-decoration:line-through;color:#999':'')+'">'+esc(item.name)+'</div><div class="mcp">'+(unavail?'<span style="color:#aaa">Niedostepny</span>':'<span>'+(+item.price).toFixed(2)+' zl</span>')+'</div></div>'+bdg;
     (function(it,unav){
       c.addEventListener('click',function(){
         if(unav){
@@ -1605,7 +1658,9 @@ function updSend(){
 function doSend(){sendOrder(true,'PLN');}
 function doSendCZK(){
   var rate=getCZK();
-  var tot=parseFloat((document.getElementById('otot')||{}).textContent)||0;
+  // Licz sume bezposrednio z koszyka (zrodlo prawdy), nie z tekstu w DOM —
+  // dzieki temu kwota CZK jest poprawna niezaleznie od formatu wyswietlania.
+  var tot=0;Object.keys(cart).forEach(function(k){tot+=cart[k].price*cart[k].qty;});
   var czkTot=Math.round(tot*rate);
   sendOrder(true,'CZK',czkTot);
 }
@@ -1631,8 +1686,8 @@ function sendOrder(paid,currency,czkAmount){
     timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
     ts:Date.now()};
   lsSet('sp_seq',ordSeq);
+  saveSnapshot('Zamowienie #'+order.seq,id,true);
   orders[id]=order;saveOrds();
-  saveSnapshot('Zamowienie #'+order.seq);
   deductStock(items); // odejmij od magazynu
   cart={};document.getElementById('onote').value='';
   selTbl=null;
@@ -1703,9 +1758,59 @@ function handleDataAction(btn){
   if(action==='closeClrStats') { var m=document.getElementById('clearStatsModal');if(m)m.remove(); return; }
 }
 var _lastDelegateTouch=0;
+// ── Przytrzymaj-aby-potwierdzic dla przyciskow kuchni (data-hold) ──
+// Chroni przed przypadkowym kliknieciem przy przewijaniu listy zamowien.
+var _holdTimer=null,_holdBtn=null,_holdStartXY=null;
+var HOLD_MS=300;
+function _holdStart(btn,x,y){
+  _holdCancel();
+  _holdBtn=btn;_holdStartXY=[x,y];
+  btn.classList.add('holding');
+  _holdTimer=setTimeout(function(){
+    btn.classList.remove('holding');
+    if(navigator.vibrate)try{navigator.vibrate(30);}catch(e){}
+    handleDataAction(btn);
+    _holdBtn=null;
+  },HOLD_MS);
+}
+function _holdCancel(){
+  if(_holdTimer){clearTimeout(_holdTimer);_holdTimer=null;}
+  if(_holdBtn){_holdBtn.classList.remove('holding');}
+  _holdBtn=null;
+}
+// Jesli palec sie przesunie (przewijanie) — anuluj
+function _holdMove(x,y){
+  if(!_holdBtn||!_holdStartXY)return;
+  var dx=Math.abs(x-_holdStartXY[0]),dy=Math.abs(y-_holdStartXY[1]);
+  if(dx>10||dy>10)_holdCancel();
+}
+document.addEventListener('touchstart',function(e){
+  var btn=e.target.closest('[data-hold]');
+  if(!btn)return;
+  var t=e.touches[0];
+  _holdStart(btn,t.clientX,t.clientY);
+},{passive:true});
+document.addEventListener('touchmove',function(e){
+  if(!_holdBtn)return;
+  var t=e.touches[0];_holdMove(t.clientX,t.clientY);
+},{passive:true});
+document.addEventListener('touchend',function(e){
+  if(e.target.closest('[data-hold]')){_holdCancel();}
+},{passive:true});
+document.addEventListener('touchcancel',function(){_holdCancel();},{passive:true});
+// Mysz (komputer): przytrzymanie lewego przycisku
+document.addEventListener('mousedown',function(e){
+  var btn=e.target.closest('[data-hold]');
+  if(!btn||e.button!==0)return;
+  _holdStart(btn,e.clientX,e.clientY);
+});
+document.addEventListener('mousemove',function(e){if(_holdBtn)_holdMove(e.clientX,e.clientY);});
+document.addEventListener('mouseup',function(){_holdCancel();});
+
 document.addEventListener('touchend',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
+  if(btn.hasAttribute('data-hold')){e.preventDefault();return;} // obsluzone przez hold
   e.preventDefault();
   _lastDelegateTouch=Date.now();
   handleDataAction(btn);
@@ -1713,12 +1818,13 @@ document.addEventListener('touchend',function(e){
 document.addEventListener('click',function(e){
   var btn=e.target.closest('[data-action]');
   if(!btn)return;
+  if(btn.hasAttribute('data-hold'))return; // obsluzone przez hold (mousedown)
   // Ghost click guard tylko dla przyciskow z data-action
   if(Date.now()-_lastDelegateTouch<600)return;
   handleDataAction(btn);
 });
 function setStatus(id,status){
-  if(orders[id])saveSnapshot('Status: '+(SL[status]||status));
+  if(orders[id])saveSnapshot('Status: '+(SL[status]||status),id);
   if(orders[id]){
     orders[id].status=status;
     if(status==='cooking')orders[id].cookingTs=Date.now();
@@ -1766,7 +1872,7 @@ function setPaidGroup(mainId,ids){
   document.getElementById('spg_canc').onclick=function(){m.remove();};
   function doPay(currency){
     m.remove();
-    saveSnapshot('Oplacono');
+    saveSnapshot('Oplacono',ids);
     ids.forEach(function(id){
       if(!orders[id])return;
       var czkAmt=currency==='CZK'?Math.round((orders[id].total||0)*rate):0;
@@ -1806,7 +1912,7 @@ function setPaid(id){
   document.getElementById('sp_canc').onclick=function(){m.remove();};
   function doPay(currency){
     m.remove();
-    saveSnapshot('Oplacono');
+    saveSnapshot('Oplacono',id);
     var czkTot=currency==='CZK'?Math.round((o.total||0)*rate):0;
     var upd={paid:true,currency:currency,czkAmount:czkTot,czkRate:currency==='CZK'?rate:0};
     Object.assign(orders[id],upd);
@@ -1820,7 +1926,10 @@ function setPaid(id){
   document.getElementById('sp_CZK').onclick=function(){doPay('CZK');};
 }
 function setBarDone(id){
-  if(orders[id]){orders[id].barDone=true;saveOrds();renderBar();}
+  if(orders[id]){
+    saveSnapshot('Wydano napoje',id);
+    orders[id].barDone=true;saveOrds();renderBar();
+  }
   if(fbReady)fbBg(fbDB.ref('orders/'+id).update({barDone:true}));
 }
 function confirmDeleteOrders(ids){
@@ -1839,7 +1948,7 @@ function confirmDeleteOrders(ids){
   document.getElementById('delNo').onclick=function(){modal.remove();};
 }
 function delOrder(id){
-  saveSnapshot('Usunieto: '+(orders[id]?'Stolik '+orders[id].table:id));
+  saveSnapshot('Usunieto: '+(orders[id]?'Stolik '+orders[id].table:id),id);
   if(orders[id]){
     if(!orders[id].doneTs)orders[id].doneTs=Date.now();
     archive[id]=orders[id];saveArc();
@@ -1854,7 +1963,7 @@ function delOrder(id){
   }
 }
 function cancelOrder(id){
-  saveSnapshot('Anulowano: '+(orders[id]?'Stolik '+orders[id].table:id));
+  saveSnapshot('Anulowano: '+(orders[id]?'Stolik '+orders[id].table:id),id,true);
   var cancelled=orders[id];
   // Zwroc pozycje na stan (zamowienie odjelo je przy zlozeniu)
   if(cancelled&&cancelled.items)restoreStock(cancelled.items);
@@ -1880,6 +1989,9 @@ function renderList(){
       // Szukaj po stoliku - dokladne dopasowanie dla liczb
       var tbl=String(o.table||'').toLowerCase();
       if(tbl===q)return true;
+      // Szukaj po numerze zamowienia (#seq) — np. "12" albo "#12"
+      var qn=q.replace(/^#/,'');
+      if(qn&&String(o.seq)===qn)return true;
       // Szukaj po nazwie dania
       if(o.items&&o.items.some(function(it){return (it.name||'').toLowerCase().indexOf(q)>=0;}))return true;
       // Szukaj po uwagach
@@ -1909,6 +2021,18 @@ function renderList(){
     used[o.id]=true;
     grouped.push(group);
   }
+
+  // Sortuj grupy: nieoplacone zawsze nad oplaconymi.
+  // paid===false => "na rachunek" (nieoplacone). W kazdej kategorii zachowaj os czasu (najnowsze gora).
+  grouped.sort(function(ga,gb){
+    var aUnpaid=ga.some(function(o){return o.paid===false;})?1:0;
+    var bUnpaid=gb.some(function(o){return o.paid===false;})?1:0;
+    if(aUnpaid!==bUnpaid)return bUnpaid-aUnpaid; // nieoplacone (1) przed oplaconymi (0)
+    // ta sama kategoria — sortuj po czasie najnowszego zamowienia w grupie (malejaco)
+    var aTs=Math.max.apply(null,ga.map(function(o){return o.ts;}));
+    var bTs=Math.max.apply(null,gb.map(function(o){return o.ts;}));
+    return bTs-aTs;
+  });
 
   el.innerHTML='';
   for(var g=0;g<grouped.length;g++){
@@ -2070,6 +2194,17 @@ function renderList(){
   }
 }
 
+// Wyszukiwanie na zywo na liscie zamowien (z lekkim opoznieniem, by nie
+// przerysowywac przy kazdym wcisnieciu klawisza). Pole #listSearch jest poza
+// kontenerem #ordl, wiec nie traci fokusu przy przerysowaniu listy.
+var _listSearchTimer=null;
+document.addEventListener('input',function(e){
+  if(e.target&&e.target.id==='listSearch'){
+    if(_listSearchTimer)clearTimeout(_listSearchTimer);
+    _listSearchTimer=setTimeout(function(){if(curV==='l')renderList();},160);
+  }
+});
+
 
 // BAR
 function renderBCounter(){
@@ -2096,23 +2231,39 @@ function renderBCounter(){
   });
   var keys=Object.keys(totals);
   if(!keys.length){el.innerHTML='';return;}
-  var html='';
-  Object.values(totals).sort(function(a,b){return b.qty-a.qty;}).forEach(function(item){
-    html+='<div class="kcnt"><span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
+  var leftHtml='',rightHtml='';
+  Object.values(totals).sort(cmpCount).forEach(function(item){
+    var tile='<div class="kcnt"><span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span><div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
     var pq=pending[item.name]?pending[item.name].qty:0;
-    if(pq>0)html+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F37A;</span><div class="kcnt-info"><span class="kcnt-num">'+pq+'</span><span class="kcnt-lbl">do wydania</span></div></div>';
+    if(pq>0)tile+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F37A;</span><div class="kcnt-info"><span class="kcnt-num">'+pq+'</span><span class="kcnt-lbl">do wydania</span></div></div>';
+    if(itemSide(item.name)==='right')rightHtml+=tile;else leftHtml+=tile;
   });
-  el.innerHTML=html;
+  if(rightHtml){
+    el.innerHTML=
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;">'+leftHtml+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+rightHtml+'</div>';
+  } else {
+    el.innerHTML=leftHtml;
+  }
 }
 
+// Wspolny limit widocznych biletow w Kuchni/Barze (zabezpieczenie wydajnosci).
+var VIEW_CAP=40;
+// Deterministyczny porzadek zamowien (czas rosnaco, remis rozstrzygniety po id) —
+// identyczny na kazdym urzadzeniu i w kazdej zakladce.
+function cmpOrd(a,b){return (a.ts-b.ts)||(String(a.id)<String(b.id)?-1:String(a.id)>String(b.id)?1:0);}
+
 function renderBar(){
-  renderBCounter();
   var g=document.getElementById('bg');if(!g)return;
+  try{renderBCounter();}catch(e){console.warn('bcounter:',e);} // blad licznika nie moze zgasic biletow
   var ds=dSet();
-  var act=Object.values(orders).filter(function(o){return o.status!=='done'&&o.items.some(function(i){return ds.has(norm(i.name));});}).sort(function(a,b){return a.ts-b.ts;});
+  var act=Object.values(orders).filter(function(o){return o&&o.items&&o.status!=='done'&&o.items.some(function(i){return ds.has(norm(i.name));});}).sort(cmpOrd);
   if(!act.length){g.innerHTML='<div class="notk"><span>&#x1F964;</span>Brak napojow do wydania</div>';return;}
+  var extra=act.length>VIEW_CAP?(act.length-VIEW_CAP):0;
+  if(extra)act=act.slice(0,VIEW_CAP);
   g.innerHTML='';
   for(var i=0;i<act.length;i++){
+   try{
     var o=act[i];
     var dr=o.items.filter(function(i){return ds.has(norm(i.name));});
     var done=!!o.barDone;
@@ -2121,6 +2272,12 @@ function renderBar(){
     var t=document.createElement('div');t.className='tkt '+(done?'bd':'bn');
     t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
     g.appendChild(t);
+   }catch(e){console.warn('bar tkt:',e);}
+  }
+  if(extra){
+    var mb=document.createElement('div');mb.className='vmore';mb.style.cssText='padding:12px;text-align:center;color:rgba(255,255,255,.45);font-weight:800;font-size:.8rem;';
+    mb.textContent='+ '+extra+' nowszych zamowien (ukryte dla wydajnosci)';
+    g.appendChild(mb);
   }
 }
 
@@ -2136,7 +2293,7 @@ function renderKCounter(){
 
   var totals={};
   var cooking={};
-  // Lewa kolumna licznika = pierwsza kategoria (dania glowne / ryby); reszta po prawej
+  // Najpierw pierwsza kategoria (dania glowne / ryby = pstragi), potem reszta — wszystko od LEWEJ.
   var fishNames=new Set();
   var firstFoodCat=catKeys().filter(function(k){return !catIsDrink(k);})[0];
   if(firstFoodCat)(menu[firstFoodCat]||[]).forEach(function(it){fishNames.add(norm(it.name));});
@@ -2162,30 +2319,43 @@ function renderKCounter(){
   var leftHtml='';
   var rightHtml='';
 
-  Object.values(totals).sort(function(a,b){return b.qty-a.qty;}).forEach(function(item){
+  Object.values(totals).sort(cmpCount).forEach(function(item){
     var cookQty=cooking[item.name]?cooking[item.name].qty:0;
-    if(item.isFish){
-      leftHtml+=mkTile(item,'');
-      if(cookQty>0)leftHtml+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F525;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">smazone</span></div></div>';
-    } else {
-      rightHtml+=mkTile(item,'');
-      if(cookQty>0)rightHtml+='<div class="kcnt cooking"><span class="kcnt-em">&#x1F374;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">do przyg.</span></div></div>';
+    // Etykieta kafelka "w trakcie" zalezy od TYPU pozycji (ryba=smazone, reszta=do przyg.),
+    // a strona (lewa/prawa) zalezy od ustawienia uzytkownika — to dwie niezalezne rzeczy.
+    var tile=mkTile(item,'');
+    if(cookQty>0){
+      tile+=item.isFish
+        ?'<div class="kcnt cooking"><span class="kcnt-em">&#x1F525;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">smazone</span></div></div>'
+        :'<div class="kcnt cooking"><span class="kcnt-em">&#x1F374;</span><div class="kcnt-info"><span class="kcnt-num">'+cookQty+'</span><span class="kcnt-lbl">do przyg.</span></div></div>';
     }
+    if(itemSide(item.name)==='right')rightHtml+=tile;else leftHtml+=tile;
   });
 
-  el.innerHTML=
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;">'+leftHtml+'</div>'+
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+rightHtml+'</div>';
+  // Domyslnie wszystko od LEWEJ. Jesli jakies pozycje przypisano do prawej,
+  // pokazuje sie druga grupa dosunieta do prawej krawedzi.
+  if(rightHtml){
+    el.innerHTML=
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;flex:1;">'+leftHtml+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">'+rightHtml+'</div>';
+  } else {
+    el.innerHTML=leftHtml;
+  }
 }
 
 function renderKitch(){
   var g=document.getElementById('kg');if(!g)return;
-  renderKCounter();
+  try{renderKCounter();}catch(e){console.warn('kcounter:',e);} // blad licznika nie moze zgasic biletow
   var ds=dSet();var now=Date.now();
   var act=Object.values(orders).filter(function(o){
-    return o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});
-  }).sort(function(a,b){return a.ts-b.ts;});
+    return o&&o.items&&o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});
+  }).sort(cmpOrd);
   if(!act.length){g.innerHTML='<div class="notk"><span>&#x1F634;</span>Brak aktywnych zamowien</div>';return;}
+
+  // Limit widocznych biletow (zabezpieczenie wydajnosci). Deterministyczny — te same, najstarsze
+  // zamowienia na kazdym urzadzeniu i w kazdej zakladce.
+  var extra=act.length>VIEW_CAP?(act.length-VIEW_CAP):0;
+  if(extra)act=act.slice(0,VIEW_CAP);
 
   // Usun komunikat "Brak zamowien" jesli byl
   var notkEl=g.querySelector('.notk');
@@ -2196,12 +2366,13 @@ function renderKitch(){
   var existing=g.querySelectorAll('.tkt[data-oid]');
   for(var e=0;e<existing.length;e++)existingIds[existing[e].getAttribute('data-oid')]=existing[e];
 
-  // Usun bilety ktorych juz nie ma
+  // Usun bilety ktorych juz nie ma (lub wypadly poza limit)
   var actIds={};
   for(var i=0;i<act.length;i++)actIds[act[i].id]=true;
   for(var oid in existingIds){if(!actIds[oid])existingIds[oid].parentNode&&existingIds[oid].parentNode.removeChild(existingIds[oid]);}
 
   for(var i=0;i<act.length;i++){
+   try{
     var o=act[i];
     var food=sortItemsByMenu(o.items.filter(function(i){return !ds.has(norm(i.name));}));
     var el2=Math.floor((now-o.ts)/1000);
@@ -2223,9 +2394,9 @@ function renderKitch(){
 
       // Zawsze odswież przyciski (status mógł się zmienić z Firebase)
       var btns2='';
-      if(o.status==='pending')     btns2='<button class="bt btc" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking">Zaczynam</button>';
-      else if(o.status==='cooking')btns2='<button class="bt btr" data-action="setstatus" data-ids="'+o.id+'" data-status="ready">Gotowe!</button>';
-      else if(o.status==='ready')  btns2='<button class="bt btd" data-action="setstatus" data-ids="'+o.id+'" data-status="done">Wydane</button>';
+      if(o.status==='pending')     btns2='<button class="bt btc" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking"><span>Zaczynam</span></button>';
+      else if(o.status==='cooking')btns2='<button class="bt btr" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="ready"><span>Gotowe!</span></button>';
+      else if(o.status==='ready')  btns2='<button class="bt btd" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="done"><span>Wydane</span></button>';
       var tkf=tkt.querySelector('.tkf');
       if(tkf)tkf.innerHTML=btns2;
 
@@ -2251,9 +2422,9 @@ function renderKitch(){
     } else {
       // Nowy bilet — zbuduj HTML
       var btns='';
-      if(o.status==='pending')     btns='<button class="bt btc" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking">Zaczynam</button>';
-      else if(o.status==='cooking')btns='<button class="bt btr" data-action="setstatus" data-ids="'+o.id+'" data-status="ready">Gotowe!</button>';
-      else if(o.status==='ready')  btns='<button class="bt btd" data-action="setstatus" data-ids="'+o.id+'" data-status="done">Wydane</button>';
+      if(o.status==='pending')     btns='<button class="bt btc" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking"><span>Zaczynam</span></button>';
+      else if(o.status==='cooking')btns='<button class="bt btr" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="ready"><span>Gotowe!</span></button>';
+      else if(o.status==='ready')  btns='<button class="bt btd" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="done"><span>Wydane</span></button>';
       var rows=kitchenRows(food);
       var t=document.createElement('div');
       t.className=cls;
@@ -2272,12 +2443,20 @@ function renderKitch(){
         '<div class="tkf">'+btns+'</div>';
       g.appendChild(t);
     }
+   }catch(e){console.warn('tkt:',e);} // jeden bledny bilet nie psuje calego widoku
   }
-}
 
-// STATYSTYKI
+  // Wskaznik ukrytych biletow (gdy aktywnych zamowien jest wiecej niz limit)
+  var moreEl=g.querySelector('.vmore');
+  if(extra){
+    if(!moreEl){moreEl=document.createElement('div');moreEl.className='vmore';moreEl.style.cssText='padding:12px;text-align:center;color:rgba(255,255,255,.45);font-weight:800;font-size:.8rem;';g.appendChild(moreEl);}
+    else g.appendChild(moreEl); // zawsze na koniec
+    moreEl.textContent='+ '+extra+' nowszych zamowien (ukryte dla wydajnosci)';
+  } else if(moreEl){moreEl.parentNode.removeChild(moreEl);}
+}
 function setSF(f){
   sfilt=f;
+  _chartExpandedDay=null;
   if(f!=='range'){sDateFrom='';sDateTo='';}
   renderStats();
 }
@@ -2287,6 +2466,7 @@ function setDateRange(){
   if(df)sDateFrom=df.value;
   if(dt)sDateTo=dt.value;
   sfilt='range';
+  _chartExpandedDay=null;
   renderStats();
 }
 // ═══════════════════════════════════════
@@ -2399,17 +2579,18 @@ function applyStock(src,name){
   vib([10,30,10]);
 }
 
-// Ustawienie stanu poczatkowego (baza do liczenia "Sprzedano" i alertu niskiego stanu)
+// Ustawienie stanu poczatkowego = deklaracja "tyle mam na start".
+// Ustawiamy te sama wartosc jako biezaca, dzieki czemu "Sprzedano" (init - current) = 0,
+// a nie fałszywe init (gdy biezacy byl mniejszy). Sprzedaz nalicza sie dopiero od zamowien.
 function applyInit(inp,name){
   if(!inp||!stock[name])return;
   var val=Math.max(0,Math.round(+inp.value)||0);
   stock[name].init=val;
-  // Stan poczatkowy nie moze byc mniejszy niz biezacy (nie da sie sprzedac wiecej niz bylo)
-  if((stock[name].current||0)>val)stock[name].current=val;
+  stock[name].current=val;
   saveStock();
   if(fbReady)fbBg(fbDB.ref('stock').set(stock));
   renderStock();
-  toast('&#x2714; Stan poczatkowy: '+esc(name)+' = '+val,'#27ae60');
+  toast('&#x2714; Stan ustawiony: '+esc(name)+' = '+val+' (sprzedano 0)','#27ae60');
   vib([10,30,10]);
 }
 
@@ -2779,14 +2960,16 @@ var _backupTimer=setInterval(function(){
 var _undoStack=[];
 var _undoTimer=null;
 
-function saveSnapshot(label){
-  _undoStack.push({
-    label:label,
-    orders:JSON.parse(JSON.stringify(orders)),
-    archive:JSON.parse(JSON.stringify(archive)),
-    stock:JSON.parse(JSON.stringify(stock)),
-    ts:Date.now()
+function saveSnapshot(label,ids,captureStock){
+  ids=(ids==null)?[]:(Array.isArray(ids)?ids.slice():[ids]);
+  var ordPrev={},arcPrev={};
+  ids.forEach(function(id){
+    ordPrev[id]=orders[id]?JSON.parse(JSON.stringify(orders[id])):null;   // null => nie istnialo (cofniecie usunie)
+    arcPrev[id]=archive[id]?JSON.parse(JSON.stringify(archive[id])):null;
   });
+  var snap={label:label,ids:ids,ordPrev:ordPrev,arcPrev:arcPrev,ts:Date.now()};
+  if(captureStock)snap.stock=JSON.parse(JSON.stringify(stock)); // pelny magazyn tylko dla akcji go zmieniajacych
+  _undoStack.push(snap);
   if(_undoStack.length>10)_undoStack.shift();
   showUndoBtn(label);
 }
@@ -2802,7 +2985,7 @@ function showUndoBtn(label){
     _undoStack=[];
     var b=document.getElementById('nb-undo');
     if(b)b.style.display='none';
-  },30000);
+  },60000);
 }
 
 function undoLastAction(){
@@ -2811,21 +2994,33 @@ function undoLastAction(){
     return;
   }
   var snap=_undoStack.pop();
-  orders=snap.orders;
+  var ids=snap.ids||[];
+  // ZAMOWIENIA — przywracamy TYLKO dotkniete id (nie nadpisujemy calego wezla,
+  // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
+  ids.forEach(function(id){
+    var prev=snap.ordPrev?snap.ordPrev[id]:null;
+    if(prev)orders[id]=prev; else delete orders[id];
+    if(fbReady){
+      window._fbSkipNext=(window._fbSkipNext||0)+1;
+      if(prev)fbBg(fbDB.ref('orders/'+id).set(prev));
+      else fbBg(fbDB.ref('orders/'+id).remove());
+    }
+  });
   saveOrds();
-  if(snap.archive){
-    archive=snap.archive;
+  // ARCHIWUM (statystyki) — tez tylko dotkniete id
+  if(snap.arcPrev){
+    Object.keys(snap.arcPrev).forEach(function(id){
+      var prev=snap.arcPrev[id];
+      if(prev)archive[id]=prev; else delete archive[id];
+      if(fbReady){
+        window._fbSkipArchive=(window._fbSkipArchive||0)+1;
+        if(prev)fbBg(fbDB.ref('archive/'+id).set(prev));
+        else fbBg(fbDB.ref('archive/'+id).remove());
+      }
+    });
     saveArc();
   }
-  if(fbReady){
-    window._fbSkipNext=(window._fbSkipNext||0)+2;
-    fbBg(fbDB.ref('orders').set(orders));
-    if(snap.archive){
-      window._fbSkipArchive=(window._fbSkipArchive||0)+2;
-      fbBg(fbDB.ref('archive').set(archive));
-    }
-  }
-  // Przywroc stan magazynowy (np. cofniecie zamowienia oddaje produkty na stan)
+  // MAGAZYN — pelny stan, ale tylko jesli akcja go zmieniala (tworzenie/anulowanie/dodanie)
   if(snap.stock){
     stock=snap.stock;
     saveStock();
@@ -2969,7 +3164,7 @@ function openAddToOrder(table){
       ts:Date.now()
     };
     lsSet('sp_seq',ordSeq);
-    saveSnapshot('Dodano do: '+tblLabel);
+    saveSnapshot('Dodano do: '+tblLabel,id,true);
     window._fbSkipNext=(window._fbSkipNext||0)+1;
     orders[id]=order;
     saveOrds();
@@ -3093,16 +3288,437 @@ function openStats(){
 // te same dane z chmury jako zrodla prawdy, niezaleznie od stanu lokalnego.
 function refreshStatsFromCloud(){
   if(!fbReady||!fbAuthReady||!fbDB)return;
+  // Chmura jest NADRZEDNA — odzwierciedlamy ja bez dopisywania starych lokalnych wpisow
+  // (spojne z logika subAll). Swiezo wydane offline trafiaja do chmury osobno.
   fbDB.ref('archive').once('value').then(function(snap){
-    var fbArc=snap.val()||{};
-    // Zachowaj lokalne wpisy ktorych nie ma jeszcze w chmurze (np. swiezo wydane offline)
-    Object.keys(archive).forEach(function(k){
-      if(!fbArc[k])fbArc[k]=archive[k];
-    });
-    archive=fbArc;
+    archive=snap.val()||{};
     saveArc();
     if(curV==='s')renderStats();
   }).catch(function(){});
+}
+
+// ── POGODA (Przełęcz Spalona, Góry Bystrzyckie) ──
+// Dane z Open-Meteo (darmowe, bez klucza, dziala w przegladarce/CORS).
+// Te same modele meteo co yr.no. Odswiezanie co godzine + cache w localStorage.
+var WEATHER_LAT=50.1027, WEATHER_LON=16.4324;
+var WEATHER_PLACE='Przełęcz Spalona';
+var _weatherData=null, _weatherTimer=null;
+
+function wmoToInfo(code){
+  // Mapowanie kodow WMO na ikone i opis PL
+  var m={
+    0:['☀️','Bezchmurnie'],1:['🌤️','Przeważnie słonecznie'],2:['⛅','Częściowe zachmurzenie'],3:['☁️','Pochmurno'],
+    45:['🌫️','Mgła'],48:['🌫️','Mgła osadzająca szron'],
+    51:['🌦️','Mżawka'],53:['🌦️','Mżawka'],55:['🌦️','Gęsta mżawka'],
+    56:['🌧️','Marznąca mżawka'],57:['🌧️','Marznąca mżawka'],
+    61:['🌧️','Słaby deszcz'],63:['🌧️','Deszcz'],65:['🌧️','Ulewny deszcz'],
+    66:['🌧️','Marznący deszcz'],67:['🌧️','Marznący deszcz'],
+    71:['🌨️','Słaby śnieg'],73:['🌨️','Śnieg'],75:['❄️','Intensywny śnieg'],77:['❄️','Ziarna śniegu'],
+    80:['🌦️','Przelotny deszcz'],81:['🌧️','Przelotny deszcz'],82:['⛈️','Gwałtowne opady'],
+    85:['🌨️','Przelotny śnieg'],86:['❄️','Intensywny śnieg'],
+    95:['⛈️','Burza'],96:['⛈️','Burza z gradem'],99:['⛈️','Burza z gradem']
+  };
+  return m[code]||['🌡️','—'];
+}
+
+function loadWeatherCache(){
+  try{var c=JSON.parse(lsGet('sp_weather'));if(c&&c.ts)return c;}catch(e){}
+  return null;
+}
+
+var _weatherHistCache=null;
+function loadWeatherHist(){
+  if(_weatherHistCache)return _weatherHistCache;
+  try{var h=JSON.parse(lsGet('sp_weatherHist'));if(h){_weatherHistCache=h;return h;}}catch(e){}
+  _weatherHistCache={};
+  return _weatherHistCache;
+}
+function saveWeatherHist(h){_weatherHistCache=h;lsSet('sp_weatherHist',JSON.stringify(h));}
+
+function fetchWeather(force){
+  var cached=loadWeatherCache();
+  // Uzyj cache jesli swiezy (< 60 min) i nie wymuszono
+  if(!force&&cached&&(Date.now()-cached.ts)<60*60*1000){
+    _weatherData=cached;renderWeather();
+  } else {
+    if(cached){_weatherData=cached;renderWeather();} // pokaz stare zanim przyjda nowe
+  }
+  // current = panel u gory; hourly+past_days = historia godzinowa do wykresu
+  var url='https://api.open-meteo.com/v1/forecast?latitude='+WEATHER_LAT+'&longitude='+WEATHER_LON+
+          '&current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,precipitation'+
+          '&hourly=temperature_2m,weather_code,precipitation'+
+          '&past_days=7&forecast_days=1&timezone=Europe%2FWarsaw';
+  fetch(url).then(function(r){return r.json();}).then(function(d){
+    if(d&&d.current){
+      var cur=d.current;
+      _weatherData={
+        ts:Date.now(),
+        temp:Math.round(cur.temperature_2m),
+        feels:Math.round(cur.apparent_temperature),
+        code:cur.weather_code,
+        wind:Math.round(cur.wind_speed_10m),
+        humidity:cur.relative_humidity_2m,
+        precip:cur.precipitation
+      };
+      lsSet('sp_weather',JSON.stringify(_weatherData));
+    }
+    // Zapisz historie godzinowa (klucz: "YYYY-MM-DDTHH")
+    if(d&&d.hourly&&d.hourly.time){
+      var h=loadWeatherHist();
+      var H=d.hourly;
+      for(var i=0;i<H.time.length;i++){
+        var key=H.time[i].slice(0,13); // "2026-06-01T14"
+        if(H.temperature_2m[i]==null&&H.weather_code[i]==null)continue; // pomin puste godziny (przyszlosc)
+        h[key]={
+          temp:H.temperature_2m[i]!=null?Math.round(H.temperature_2m[i]):null,
+          code:H.weather_code[i]!=null?H.weather_code[i]:0,
+          precip:H.precipitation[i]!=null?H.precipitation[i]:0
+        };
+      }
+      // Ogranicz historie do ~60 dni (sprzataj stare klucze)
+      var keys=Object.keys(h);
+      if(keys.length>1500){
+        keys.sort();
+        for(var k=0;k<keys.length-1500;k++)delete h[keys[k]];
+      }
+      saveWeatherHist(h);
+    }
+    renderWeather();
+    if(curV==='s'&&document.getElementById('weatherChart'))renderWeatherSalesChart();
+  }).catch(function(){
+    if(_weatherData)renderWeather();
+  });
+}
+
+function renderWeather(){
+  var el=document.getElementById('weatherPanel');
+  if(!el)return;
+  if(!_weatherData){
+    el.innerHTML='<div style="background:rgba(255,255,255,.05);border-radius:12px;padding:12px;margin-bottom:12px;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem;">Pobieranie pogody...</div>';
+    return;
+  }
+  var w=_weatherData;
+  var info=wmoToInfo(w.code);
+  var age=Math.floor((Date.now()-w.ts)/60000);
+  var ageStr=age<1?'przed chwilą':age+' min temu';
+  var tempColor=w.temp<=0?'#7ec8e3':w.temp<10?'#9fd8ef':w.temp<20?'#27ae60':w.temp<28?'#f5a623':'#e85c3a';
+  el.innerHTML=
+    '<div style="background:linear-gradient(135deg,rgba(18,120,168,.15),rgba(39,174,96,.08));border:1.5px solid rgba(126,200,227,.25);border-radius:12px;padding:14px;margin-bottom:12px;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">'+
+        '<div style="display:flex;align-items:center;gap:12px;">'+
+          '<div style="font-size:2.4rem;line-height:1;">'+info[0]+'</div>'+
+          '<div>'+
+            '<div style="font-size:1.8rem;font-weight:900;color:'+tempColor+';line-height:1;">'+w.temp+'°C</div>'+
+            '<div style="font-size:.74rem;color:rgba(255,255,255,.6);margin-top:3px;">'+info[1]+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="text-align:right;font-size:.72rem;color:rgba(255,255,255,.55);line-height:1.7;">'+
+          '<div>🌡️ Odczuwalna '+w.feels+'°C</div>'+
+          '<div>💨 Wiatr '+w.wind+' km/h</div>'+
+          '<div>💧 Wilgotność '+w.humidity+'%</div>'+
+        '</div>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);font-size:.66rem;color:rgba(255,255,255,.4);">'+
+        '<span>📍 '+WEATHER_PLACE+'</span>'+
+        '<span>Aktualizacja: '+ageStr+'</span>'+
+      '</div>'+
+    '</div>';
+}
+
+// Odswiezaj pogode co godzine niezaleznie od widoku
+function startWeatherAutoRefresh(){
+  if(_weatherTimer)return;
+  fetchWeather(false);
+  _weatherTimer=setInterval(function(){fetchWeather(true);},60*60*1000);
+}
+
+// ── WYKRES: sprzedaż w czasie + pogoda ──
+var _chartExpandedDay=null; // klucz "YYYY-MM-DD" rozwinietego dnia, lub null
+var _chartItemFilter=[]; // nazwy dan do liczenia (puste = wszystkie)
+
+function _dateKey(ts){var d=new Date(ts);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+
+// Czy pozycja przechodzi przez filtr dan
+function _itemPasses(it){
+  if(!_chartItemFilter.length)return true;
+  return _chartItemFilter.indexOf(it.name)>=0;
+}
+// Sztuki z zamowienia po zastosowaniu filtra dan
+function _orderQty(o){
+  return (o.items||[]).reduce(function(s,i){return s+(_itemPasses(i)?(i.qty||0):0);},0);
+}
+// Przychod z zamowienia po filtrze (gdy filtr aktywny, liczymy tylko wybrane pozycje)
+function _orderRev(o){
+  if(!_chartItemFilter.length)return (o.total||0);
+  return (o.items||[]).reduce(function(s,i){return s+(_itemPasses(i)?(i.qty||0)*(i.price||0):0);},0);
+}
+// Czy zamowienie zawiera jakiekolwiek wybrane danie (do liczenia n)
+function _orderMatches(o){
+  if(!_chartItemFilter.length)return true;
+  return (o.items||[]).some(_itemPasses);
+}
+
+// Agreguj wydane zamowienia (done) wg dnia: sztuki dan + przychod
+function aggregateSalesByDay(doneArr){
+  var byDay={};
+  doneArr.forEach(function(o){
+    if(!o.ts||!_orderMatches(o))return;
+    var k=_dateKey(o.ts);
+    if(!byDay[k])byDay[k]={qty:0,rev:0,n:0};
+    byDay[k].qty+=_orderQty(o);
+    byDay[k].rev+=_orderRev(o);
+    byDay[k].n+=1;
+  });
+  return byDay;
+}
+function aggregateSalesByHour(doneArr,dayKey){
+  var byHour={};
+  for(var h=0;h<24;h++)byHour[h]={qty:0,rev:0,n:0};
+  doneArr.forEach(function(o){
+    if(!o.ts||_dateKey(o.ts)!==dayKey||!_orderMatches(o))return;
+    var hr=new Date(o.ts).getHours();
+    byHour[hr].qty+=_orderQty(o);
+    byHour[hr].rev+=_orderRev(o);
+    byHour[hr].n+=1;
+  });
+  return byHour;
+}
+
+// Reprezentatywna pogoda dnia: bierzemy odczyt z godzin pracy (np. 12:00) lub srednia
+function weatherForDay(dayKey){
+  var h=loadWeatherHist();
+  // preferuj poludnie, potem dowolna dostepna godzina dnia
+  var prefer=['12','13','11','14','10','15','09','16'];
+  for(var i=0;i<prefer.length;i++){
+    var w=h[dayKey+'T'+prefer[i]];
+    if(w)return w;
+  }
+  for(var k in h){if(k.slice(0,10)===dayKey)return h[k];}
+  return null;
+}
+function weatherForHour(dayKey,hour){
+  var h=loadWeatherHist();
+  return h[dayKey+'T'+String(hour).padStart(2,'0')]||null;
+}
+
+function _statsFilterMatch(o){
+  if(!o||!o.ts)return false;
+  var now=new Date(),tod=now.toLocaleDateString('pl-PL');
+  if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+  if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
+  if(sfilt==='range'){
+    var d=new Date(o.ts),ok=true;
+    if(sDateFrom){var from=new Date(sDateFrom);from.setHours(0,0,0,0);ok=ok&&d>=from;}
+    if(sDateTo){var to=new Date(sDateTo);to.setHours(23,59,59,999);ok=ok&&d<=to;}
+    return ok;
+  }
+  return true; // 'all'
+}
+
+// Pasek filtra dan nad wykresem — chipy z daniami wystepujacymi w danych
+function _chartFilterBar(done){
+  // zbierz unikalne dania z danych
+  var seen={};
+  done.forEach(function(o){(o.items||[]).forEach(function(it){if(it.name&&!seen[it.name])seen[it.name]={name:it.name,emoji:it.emoji};});});
+  var items=Object.values(seen).sort(function(a,b){return a.name.localeCompare(b.name);});
+  if(!items.length)return '';
+  var chips='<button class="wch-chip" data-item="__all__" style="background:'+(_chartItemFilter.length?'rgba(255,255,255,.08)':'var(--a)')+';color:#fff;border:1.5px solid rgba(255,255,255,.18);border-radius:14px;padding:4px 11px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;white-space:nowrap;">Wszystkie</button>';
+  items.forEach(function(it){
+    var on=_chartItemFilter.indexOf(it.name)>=0;
+    chips+='<button class="wch-chip" data-item="'+esc(it.name)+'" style="background:'+(on?'var(--gr)':'rgba(255,255,255,.08)')+';color:#fff;border:1.5px solid rgba(255,255,255,.18);border-radius:14px;padding:4px 11px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;white-space:nowrap;">'+emoText(it.emoji)+esc(it.name)+'</button>';
+  });
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">'+chips+'</div>';
+}
+// Podepnij obsluge klikniec chipow filtra
+function _wireChartFilter(host){
+  var chips=host.querySelectorAll('.wch-chip');
+  for(var i=0;i<chips.length;i++){
+    chips[i].addEventListener('click',function(){
+      var name=this.getAttribute('data-item');
+      if(name==='__all__'){
+        _chartItemFilter=[];
+      } else {
+        var idx=_chartItemFilter.indexOf(name);
+        if(idx>=0)_chartItemFilter.splice(idx,1);
+        else _chartItemFilter.push(name);
+      }
+      renderWeatherSalesChart();
+    });
+  }
+}
+
+function renderWeatherSalesChart(){
+  var host=document.getElementById('weatherChart');
+  if(!host)return;
+  // Zbierz wydane zamowienia respektujac aktywny filtr statystyk
+  var all=Object.values(Object.assign({},archive,orders));
+  var done=all.filter(function(o){return o&&o.status==='done'&&o.ts&&_statsFilterMatch(o);});
+  if(!done.length){host.innerHTML='<div style="color:rgba(255,255,255,.4);font-size:.8rem;text-align:center;padding:16px;">Brak danych do wykresu w wybranym zakresie</div>';return;}
+
+  if(_chartExpandedDay){
+    renderHourlyChart(host,done,_chartExpandedDay);
+    return;
+  }
+  // Widok dzienny
+  var byDay=aggregateSalesByDay(done);
+  var days=Object.keys(byDay).sort();
+  // ogranicz do ostatnich 14 dni dla czytelnosci (gdy filtr szeroki)
+  if(days.length>14)days=days.slice(days.length-14);
+  var maxQty=Math.max.apply(null,days.map(function(d){return byDay[d].qty;}).concat([1]));
+
+  var bars='';
+  days.forEach(function(d){
+    var v=byDay[d];
+    var hpct=v.qty>0?Math.max(Math.round((v.qty/maxQty)*100),6):0;
+    var w=weatherForDay(d);
+    var icon=w?wmoToInfo(w.code)[0]:'';
+    var rain=(w&&w.precip>0.2)?'<div style="font-size:.55rem;color:#7ec8e3;line-height:1;">'+w.precip.toFixed(1)+'mm</div>':'';
+    var dd=new Date(d+'T12:00');
+    var label=String(dd.getDate()).padStart(2,'0')+'.'+String(dd.getMonth()+1).padStart(2,'0');
+    bars+=
+      '<div class="wch-bar" data-day="'+d+'" style="flex:1;min-width:32px;display:flex;flex-direction:column;align-items:center;cursor:pointer;height:100%;">'+
+        '<div style="font-size:.95rem;line-height:1;margin-bottom:2px;">'+icon+'</div>'+
+        rain+
+        '<div style="font-size:.62rem;color:rgba(255,255,255,.55);margin-bottom:2px;">'+v.qty+'</div>'+
+        '<div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;">'+
+          '<div style="width:64%;background:linear-gradient(180deg,var(--a),var(--gr));border-radius:5px 5px 0 0;height:'+hpct+'%;min-height:3px;transition:height .3s;"></div>'+
+        '</div>'+
+        '<div style="font-size:.6rem;color:rgba(255,255,255,.45);margin-top:3px;">'+label+'</div>'+
+      '</div>';
+  });
+  var filterActive=_chartItemFilter.length>0;
+  var subtitle=filterActive
+    ? 'Liczba sztuk: '+_chartItemFilter.map(esc).join(', ')+' • dotknij słupek, aby rozbić na godziny'
+    : 'Liczba dań dziennie • dotknij słupek, aby rozbić na godziny';
+  host.innerHTML=
+    '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:4px;">📊 Sprzedaż i pogoda</div>'+
+    '<div style="font-size:.66rem;color:rgba(255,255,255,.4);margin-bottom:10px;">'+subtitle+'</div>'+
+    _chartFilterBar(done)+
+    '<div style="display:flex;align-items:flex-end;gap:4px;height:160px;padding:8px 4px;background:rgba(0,0,0,.15);border-radius:10px;">'+bars+'</div>';
+  // klik w slupek -> rozwin dzien
+  var barsEls=host.querySelectorAll('.wch-bar');
+  for(var i=0;i<barsEls.length;i++){
+    barsEls[i].addEventListener('click',function(){_chartExpandedDay=this.getAttribute('data-day');renderWeatherSalesChart();});
+  }
+  _wireChartFilter(host);
+}
+
+function renderHourlyChart(host,done,dayKey){
+  var byHour=aggregateSalesByHour(done,dayKey);
+  // pokaz godziny pracy: od pierwszej do ostatniej ze sprzedaza (lub 8-20 domyslnie)
+  var active=[];for(var h=0;h<24;h++)if(byHour[h].n>0)active.push(h);
+  var from=active.length?Math.max(0,active[0]-1):8;
+  var to=active.length?Math.min(23,active[active.length-1]+1):20;
+  var maxQty=1;for(var h=from;h<=to;h++)maxQty=Math.max(maxQty,byHour[h].qty);
+
+  var bars='';
+  for(var hr=from;hr<=to;hr++){
+    var v=byHour[hr];
+    var hpct=v.qty>0?Math.max(Math.round((v.qty/maxQty)*100),6):0;
+    var w=weatherForHour(dayKey,hr);
+    var icon=w?wmoToInfo(w.code)[0]:'';
+    var rain=(w&&w.precip>0.2);
+    var barColor=rain?'linear-gradient(180deg,#5a8fb0,#3a6d8f)':'linear-gradient(180deg,var(--a),var(--gr))';
+    var clickable=v.n>0;
+    bars+=
+      '<div class="'+(clickable?'wch-hbar':'')+'" '+(clickable?'data-hour="'+hr+'"':'')+' style="flex:1;min-width:20px;display:flex;flex-direction:column;align-items:center;height:100%;'+(clickable?'cursor:pointer;':'')+'">'+
+        '<div style="font-size:.72rem;line-height:1;margin-bottom:2px;" title="'+(w?wmoToInfo(w.code)[1]:'')+'">'+icon+'</div>'+
+        '<div style="font-size:.56rem;color:rgba(255,255,255,.55);margin-bottom:2px;">'+(v.qty||'')+'</div>'+
+        '<div style="flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;">'+
+          '<div style="width:68%;background:'+barColor+';border-radius:4px 4px 0 0;height:'+hpct+'%;min-height:'+(v.qty?3:0)+'px;"></div>'+
+        '</div>'+
+        '<div style="font-size:.55rem;color:rgba(255,255,255,.4);margin-top:3px;">'+hr+'</div>'+
+      '</div>';
+  }
+  var dd=new Date(dayKey+'T12:00');
+  var dayLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
+  var dayW=weatherForDay(dayKey);
+  var dayWStr=dayW?wmoToInfo(dayW.code)[0]+' '+wmoToInfo(dayW.code)[1]+(dayW.temp!=null?', '+dayW.temp+'°C':''):'brak danych pogodowych';
+  var filterNote=_chartItemFilter.length?' • filtr: '+_chartItemFilter.map(esc).join(', '):'';
+  host.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
+      '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);">📊 '+dayLabel+'</div>'+
+      '<button id="wchBack" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:7px;padding:5px 12px;font-size:.72rem;font-weight:800;cursor:pointer;">← Wróć</button>'+
+    '</div>'+
+    '<div style="font-size:.66rem;color:rgba(255,255,255,.45);margin-bottom:10px;">'+dayWStr+' • rozbicie godzinowe (niebieskie słupki = padało) • dotknij godzinę, aby zobaczyć zamówienia'+filterNote+'</div>'+
+    _chartFilterBar(done)+
+    '<div style="display:flex;align-items:flex-end;gap:3px;height:150px;padding:8px 4px;background:rgba(0,0,0,.15);border-radius:10px;">'+bars+'</div>';
+  var back=document.getElementById('wchBack');
+  if(back)back.addEventListener('click',function(){_chartExpandedDay=null;renderWeatherSalesChart();});
+  // klik w slupek godzinowy -> lista zamowien tej godziny
+  var hbars=host.querySelectorAll('.wch-hbar');
+  for(var i=0;i<hbars.length;i++){
+    hbars[i].addEventListener('click',function(){
+      showHourOrders(dayKey,parseInt(this.getAttribute('data-hour'),10));
+    });
+  }
+  _wireChartFilter(host);
+}
+
+// Modal: pelna historia sprzedazy w danej godzinie konkretnego dnia
+function showHourOrders(dayKey,hour){
+  var all=Object.values(Object.assign({},archive,orders));
+  var list=all.filter(function(o){
+    return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey&&new Date(o.ts).getHours()===hour;
+  }).sort(function(a,b){return a.ts-b.ts;});
+
+  var w=weatherForHour(dayKey,hour);
+  var wStr=w?wmoToInfo(w.code)[0]+' '+wmoToInfo(w.code)[1]+(w.temp!=null?', '+w.temp+'°C':'')+(w.precip>0.2?' • '+w.precip.toFixed(1)+'mm deszczu':''):'brak danych pogodowych';
+  var dd=new Date(dayKey+'T12:00');
+  var dateLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long'});
+
+  var totalRev=list.reduce(function(s,o){return s+(o.total||0);},0);
+  var totalQty=list.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
+
+  var rows='';
+  if(!list.length){
+    rows='<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px;">Brak zamówień w tej godzinie</div>';
+  } else {
+    list.forEach(function(o){
+      var t=new Date(o.ts);
+      var tStr=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+      var items=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');
+      var cur=o.currency==='CZK'?' <span style="color:#7ec8e3;">(CZK)</span>':'';
+      var paid=o.paid===false?' <span style="color:var(--e);font-size:.65rem;">NIEOPŁ.</span>':'';
+      var wynos=o.wynos?' <span style="color:#7ec8e3;font-size:.65rem;">WYNOS</span>':'';
+      rows+=
+        '<div style="background:rgba(255,255,255,.04);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
+            '<span style="font-weight:800;color:#fff;font-size:.85rem;">'+(o.table==='my'?'👪 MY':'Stolik '+o.table)+' #'+o.seq+cur+paid+wynos+'</span>'+
+            '<span style="color:rgba(255,255,255,.5);font-size:.72rem;">'+tStr+'</span>'+
+          '</div>'+
+          '<div style="color:rgba(255,255,255,.7);font-size:.78rem;margin-bottom:4px;">'+items+'</div>'+
+          (o.note?'<div style="color:var(--a);font-size:.7rem;margin-bottom:4px;">⚠️ '+esc(o.note)+'</div>':'')+
+          '<div style="text-align:right;font-weight:900;color:var(--gr);font-size:.85rem;">'+(o.total||0).toFixed(2)+' zl</div>'+
+        '</div>';
+    });
+  }
+
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML=
+    '<div style="background:#1a1d24;width:100%;max-width:520px;max-height:82vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+      '<div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08);">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+          '<div>'+
+            '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;">'+String(hour).padStart(2,'0')+':00 – '+String(hour).padStart(2,'0')+':59</div>'+
+            '<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;text-transform:capitalize;">'+dateLabel+'</div>'+
+          '</div>'+
+          '<button id="hoClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">✕</button>'+
+        '</div>'+
+        '<div style="color:rgba(255,255,255,.6);font-size:.72rem;margin-top:8px;">'+wStr+'</div>'+
+        '<div style="display:flex;gap:14px;margin-top:8px;">'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+list.length+'</b> zam.</span>'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+totalQty+'</b> dań</span>'+
+          '<span style="color:var(--gr);font-size:.78rem;font-weight:800;">'+totalRev.toFixed(2)+' zl</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="overflow-y:auto;padding:14px 16px;flex:1;">'+rows+'</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function close(){if(modal.parentNode)modal.parentNode.removeChild(modal);}
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
 function renderStats(){
@@ -3127,9 +3743,9 @@ function renderStats(){
   var n=done.length,ni=done.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
 
   // Podział walutowy
-  var revPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).reduce(function(s,o){return s+o.total;},0);
-  var revCZK=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+o.total;},0);
-  var revCZKamt=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.czkAmount||Math.round(o.total*(o.czkRate||getCZK())));},0);
+  var revPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).reduce(function(s,o){return s+(o.total||0);},0);
+  var revCZK=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.total||0);},0);
+  var revCZKamt=done.filter(function(o){return o.currency==='CZK';}).reduce(function(s,o){return s+(o.czkAmount||Math.round((o.total||0)*(o.czkRate||getCZK())));},0);
   var nPLN=done.filter(function(o){return !o.currency||o.currency==='PLN';}).length;
   var nCZK=done.filter(function(o){return o.currency==='CZK';}).length;
   var pctPLN=rev>0?Math.round(revPLN/rev*100):0;
@@ -3139,7 +3755,7 @@ function renderStats(){
   done.forEach(function(o){(o.items||[]).forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=(it.qty||0);im[it.name].rev+=(it.qty||0)*(it.price||0);});});
   var top=Object.values(im).sort(function(a,b){return b.qty-a.qty;});
   var mq=top.length?top[0].qty:1;
-  var bh={};done.forEach(function(o){var h=new Date(o.ts).getHours();bh[h]=(bh[h]||0)+1;});
+  var bh={};done.forEach(function(o){if(!o.ts)return;var h=new Date(o.ts).getHours();bh[h]=(bh[h]||0)+1;});
   var mh=Math.max.apply(null,Object.values(bh).concat([1]));
   var topRows='';
   for(var i=0;i<top.length;i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1.1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+' szt.</b></td><td>'+it.rev.toFixed(2)+' zl</td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(it.qty/mq*110)+'px"></div></div></td></tr>';}
@@ -3232,6 +3848,7 @@ function renderStats(){
       '<input class="sdinp" id="sdt" type="date" value="'+dtVal+'">'+
       '<button class="sdbtn" onclick="setDateRange()">Filtruj</button>'+
     '</div>'+
+    '<div id="weatherPanel"></div>'+
     '<div class="sbs">'+
       '<div class="sb"><div class="sbv">'+rev.toFixed(0)+' zl</div><div class="sbl">Przychod</div></div>'+
       '<div class="sb"><div class="sbv">'+n+'</div><div class="sbl">Zamowien</div></div>'+
@@ -3240,6 +3857,7 @@ function renderStats(){
       (avgTime!==null?'<div class="sb"><div class="sbv">'+avgTime+' min</div><div class="sbl">Sr. czas wydania</div></div>':'')+
       (avgFryTime!==null?'<div class="sb"><div class="sbv">&#x1F525; '+avgFryTime+' min</div><div class="sbl">Sr. czas smazenia</div></div>':'')+
     '</div>'+
+    '<div id="weatherChart" style="background:rgba(255,255,255,.05);border-radius:12px;padding:14px;margin-bottom:12px;"></div>'+
     (n>0?
     '<div style="background:rgba(255,255,255,.05);border-radius:12px;padding:14px;margin-bottom:12px;">'+
       '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);margin-bottom:10px;">&#x1F4B1; Podział walutowy</div>'+
@@ -3276,6 +3894,9 @@ function renderStats(){
       '<button class="sf" onclick="confirmClearStats()" style="background:rgba(232,92,58,.15);border-color:rgba(232,92,58,.3);color:var(--e);">&#x1F5D1; Wyczysc statystyki</button>'+
     '</div>'+
     '<div class="hl">'+(histRows||'<div class="ni">Brak wydanych zamowien</div>')+'</div>';
+  renderWeather();
+  renderWeatherSalesChart();
+  startWeatherAutoRefresh();
 }
 
 // MENU EDITOR
@@ -3456,7 +4077,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v2.0',
+    v:'v3.9',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -3669,27 +4290,68 @@ function renderCountItems(){
   var ci=appSettings.countItems;
   var all=!ci||!ci.length; // brak listy = wszystkie zaznaczone
   var sel=all?null:new Set(ci.map(norm));
-  var secs=getCats().map(function(c){return {key:c.key,label:c.label};});
+  // Plaska lista wszystkich pozycji menu (bez podzialu na kategorie) — kolejnosc wierszy = kolejnosc na pasku.
+  var seen={},items=[];
+  getCats().forEach(function(c){(menu[c.key]||[]).forEach(function(it){var k=norm(it.name);if(!seen[k]){seen[k]=1;items.push(it);}});});
+  var ord=appSettings.countOrder;
+  if(ord&&ord.length){
+    items.sort(function(a,b){
+      var ia=ord.indexOf(norm(a.name));if(ia<0)ia=9999;
+      var ib=ord.indexOf(norm(b.name));if(ib<0)ib=9999;
+      return ia-ib; // pozycje spoza zapisanej kolejnosci ida na koniec
+    });
+  }
   var html='';
-  secs.forEach(function(sec){
-    var items=menu[sec.key]||[];
-    if(!items.length)return;
-    html+='<div class="cnt-sec">'+esc(sec.label)+'</div>';
-    items.forEach(function(it){
-      var checked=all?true:sel.has(norm(it.name));
-      html+='<label class="cnt-row">'+
+  items.forEach(function(it){
+    var checked=all?true:sel.has(norm(it.name));
+    var side=itemSide(it.name);
+    html+='<div class="cnt-row">'+
+      '<span class="cnt-ord">'+
+        '<button type="button" class="cord-btn cord-up" onclick="moveCountRow(this,-1)" title="W gore">&#x25B2;</button>'+
+        '<button type="button" class="cord-btn cord-dn" onclick="moveCountRow(this,1)" title="W dol">&#x25BC;</button>'+
+      '</span>'+
+      '<label class="cnt-main">'+
         '<input type="checkbox" class="cnt-cb" data-name="'+esc(it.name)+'"'+(checked?' checked':'')+'>'+
         '<span class="cnt-em">'+emo(it.emoji,'1.2rem')+'</span>'+
         '<span class="cnt-nm">'+esc(it.name)+'</span>'+
-      '</label>';
-    });
+      '</label>'+
+      '<span class="cnt-side" data-name="'+esc(it.name)+'" data-side="'+side+'">'+
+        '<button type="button" class="cside-btn'+(side==='left'?' active':'')+'" onclick="pickSide(this,\'left\')">Lewa</button>'+
+        '<button type="button" class="cside-btn'+(side==='right'?' active':'')+'" onclick="pickSide(this,\'right\')">Prawa</button>'+
+      '</span>'+
+    '</div>';
   });
   box.innerHTML=html||'<div class="set-hint" style="margin-top:0;">Brak pozycji w menu.</div>';
+  updateOrderBtns();
 }
 
 function setCountAll(val){
   var cbs=document.querySelectorAll('#countItemsList .cnt-cb');
   for(var i=0;i<cbs.length;i++)cbs[i].checked=!!val;
+}
+
+// Wybor strony paska (Lewa/Prawa) dla pojedynczej pozycji — stan zapisuje sie z przyciskiem "Zapisz".
+function pickSide(btn,side){
+  var wrap=btn.parentNode;
+  wrap.setAttribute('data-side',side);
+  var bs=wrap.querySelectorAll('.cside-btn');
+  for(var i=0;i<bs.length;i++)bs[i].classList.toggle('active',bs[i]===btn);
+}
+
+// Przesun pozycje w gore/w dol na liscie (= kolejnosc na pasku). Zapis z przyciskiem "Zapisz".
+function moveCountRow(btn,dir){
+  var row=btn.closest('.cnt-row');if(!row)return;
+  if(dir<0){var p=row.previousElementSibling;if(p)row.parentNode.insertBefore(row,p);}
+  else{var n=row.nextElementSibling;if(n)row.parentNode.insertBefore(n,row);}
+  updateOrderBtns();
+}
+function updateOrderBtns(){
+  var rows=document.querySelectorAll('#countItemsList .cnt-row');
+  for(var i=0;i<rows.length;i++){
+    var up=rows[i].querySelector('.cord-up'),dn=rows[i].querySelector('.cord-dn');
+    if(up)up.disabled=(i===0);
+    if(dn)dn.disabled=(i===rows.length-1);
+  }
 }
 
 function saveCountItems(){
@@ -3703,6 +4365,20 @@ function saveCountItems(){
   } else {
     appSettings.countItems=chosen;
   }
+  // Strony licznikow: zapisz tylko pozycje ustawione na 'right' (brak wpisu = lewa).
+  var sides={};
+  var sw=document.querySelectorAll('#countItemsList .cnt-side');
+  for(var k=0;k<sw.length;k++){
+    if((sw[k].getAttribute('data-side')||'left')==='right'){
+      sides[norm(sw[k].getAttribute('data-name'))]='right';
+    }
+  }
+  appSettings.countSides=Object.keys(sides).length?sides:null;
+  // Kolejnosc na pasku = kolejnosc wierszy na liscie.
+  var order=[];
+  var rows=document.querySelectorAll('#countItemsList .cnt-row .cnt-cb');
+  for(var r=0;r<rows.length;r++)order.push(norm(rows[r].getAttribute('data-name')));
+  appSettings.countOrder=order.length?order:null;
   countSetInvalidate();
   saveSettings();
   if(curV==='k'){renderKCounter();}
@@ -3873,7 +4549,7 @@ function discFb(){
   detachFb();
   rawRemove(lsKey('sp_fbcfg'));
   lsSet('sp_fbskip','1');
-  fbReady=false;fbDB=null;dot('');
+  fbReady=false;fbAuthReady=false;fbDB=null;dot('');
   toast('Rozlaczono','#778');
   renderCloud();
 }
@@ -3931,9 +4607,9 @@ setInterval(function(){
         var needStatus=o.status==='pending'?'cooking':o.status==='cooking'?'ready':o.status==='ready'?'done':'';
         if(currentStatus!==needStatus){
           var btns3='';
-          if(o.status==='pending')     btns3='<button class="bt btc" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking">Zaczynam</button>';
-          else if(o.status==='cooking')btns3='<button class="bt btr" data-action="setstatus" data-ids="'+o.id+'" data-status="ready">Gotowe!</button>';
-          else if(o.status==='ready')  btns3='<button class="bt btd" data-action="setstatus" data-ids="'+o.id+'" data-status="done">Wydane</button>';
+          if(o.status==='pending')     btns3='<button class="bt btc" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="cooking"><span>Zaczynam</span></button>';
+          else if(o.status==='cooking')btns3='<button class="bt btr" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="ready"><span>Gotowe!</span></button>';
+          else if(o.status==='ready')  btns3='<button class="bt btd" data-hold="1" data-action="setstatus" data-ids="'+o.id+'" data-status="done"><span>Wydane</span></button>';
           tkf.innerHTML=btns3;
         }
       }
@@ -3942,6 +4618,7 @@ setInterval(function(){
 },1000);
 
 setInterval(savePhoneBackup,60000);
+setInterval(autoClearOldOrders,60000); // dzienne auto-czyszczenie zamowien o 6:00
 window.addEventListener('beforeunload',savePhoneBackup);
 
 function clearAllOrders(){
@@ -4001,6 +4678,40 @@ function doClrOrders(){
   if(fbReady)fbBg(fbDB.ref('orders').remove());
   onData();
   toast('Usunieto '+count+' zamowien','#27ae60');
+}
+
+// ── AUTOMATYCZNE CZYSZCZENIE O 6:00 ──
+// Zamowienia starsze niz ostatnia godzina 6:00 sa przenoszone do archiwum (statystyki/historia
+// zostaja zachowane) i usuwane z aktywnych zamowien — dzieki temu Kuchnia/Bar nigdy nie zapychaja
+// sie nagromadzonymi zamowieniami z poprzednich dni.
+var RESET_HOUR=6;
+function lastResetCutoff(){
+  var d=new Date();
+  var six=new Date(d.getFullYear(),d.getMonth(),d.getDate(),RESET_HOUR,0,0,0).getTime();
+  if(Date.now()<six)six-=86400000; // jesli jest przed 6:00 -> granica to wczorajsza 6:00
+  return six;
+}
+function autoClearOldOrders(){
+  if(!orders)return 0;
+  var cutoff=lastResetCutoff();
+  var ks=Object.keys(orders),n=0;
+  for(var i=0;i<ks.length;i++){
+    var id=ks[i],o=orders[id];
+    if(!o||typeof o.ts!=='number'||o.ts>=cutoff)continue;
+    if(!o.doneTs)o.doneTs=Date.now();
+    archive[id]=o;                                   // zachowaj w archiwum
+    if(fbReady)fbBg(fbDB.ref('archive/'+id).set(o));
+    delete orders[id];
+    if(fbReady){window._fbSkipNext=(window._fbSkipNext||0)+1;fbBg(fbDB.ref('orders/'+id).remove());}
+    n++;
+  }
+  if(n){
+    saveArc();saveOrds();
+    if(curV==='k')renderKitch();
+    else if(curV==='b')renderBar();
+    else if(curV==='l')renderList();
+  }
+  return n;
 }
 
 var _clrStatsRange='all';
@@ -4144,7 +4855,7 @@ function logoutApp(){
   savePhoneBackup();
   rawRemove(lsKey('sp_session'));
   try{localStorage.removeItem('sp_session');}catch(e){}
-  fbReady=false;fbDB=null;dot('');
+  fbReady=false;fbAuthReady=false;fbDB=null;dot('');
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   var pw=document.getElementById('loginPw');if(pw)pw.value='';
@@ -4197,6 +4908,7 @@ function bootApp(){
   ensureCatArrays();
   dSetInvalidate();countSetInvalidate();
   ensureStock();
+  autoClearOldOrders(); // usun stare zamowienia (sprzed ostatniej 6:00) juz przy starcie
   // Domyslny kurs CZK z ustawien
   var _cr=document.getElementById('czkrate');if(_cr)_cr.value=appSettings.czkRate||6.2;
   var _td=document.getElementById('tnd');if(_td)_td.textContent=numT;
@@ -4210,7 +4922,7 @@ function bootApp(){
   savePhoneBackup();
   var _cfg=getCfg();
   if(_cfg)initFb(_cfg);
-  else{fbReady=false;fbDB=null;dot('');if(curV==='c')renderCloud();}
+  else{fbReady=false;fbAuthReady=false;fbDB=null;dot('');if(curV==='c')renderCloud();}
 }
 
 // Sprawdz sesje przy starcie - obslugiwane przez skrypt logowania
@@ -4229,6 +4941,20 @@ applyProfileUI();
     var cv=document.createElement('canvas');
     cv.width=size;cv.height=size;
     var ctx=cv.getContext('2d');
+
+    // Wgrany wlasny obrazek: wypelnij CALY kwadrat grafika (cover) — bez ramki i nazwy,
+    // zeby grafika byla duza, a nie malutka w srodku kafelka.
+    if(logoIsImg&&logoImgEl&&logoImgEl.complete&&logoImgEl.naturalWidth){
+      ctx.fillStyle='#07131b';                        // tlo pod ewentualna przezroczystoscia
+      ctx.fillRect(0,0,size,size);
+      var iw=logoImgEl.naturalWidth, ih=logoImgEl.naturalHeight;
+      var sc=Math.max(size/iw,size/ih);               // skala "cover" — wypelnia kwadrat
+      var dw=iw*sc, dh=ih*sc;
+      try{ctx.drawImage(logoImgEl,(size-dw)/2,(size-dh)/2,dw,dh);}catch(e){}
+      return cv.toDataURL('image/png');
+    }
+
+    // Domyslnie (emoji): gradientowe tlo + ramka + emoji + nazwa.
     var g=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
     g.addColorStop(0,'#0d4a6a');g.addColorStop(1,'#07131b');
     ctx.fillStyle=g;
@@ -4237,14 +4963,9 @@ applyProfileUI();
     ctx.strokeStyle='#f5a623';ctx.lineWidth=size*0.04;
     ctx.beginPath();ctx.roundRect?ctx.roundRect(size*0.03,size*0.03,size*0.94,size*0.94,size*0.15):ctx.rect(size*0.03,size*0.03,size*0.94,size*0.94);
     ctx.stroke();
-    if(logoIsImg&&logoImgEl&&logoImgEl.complete&&logoImgEl.naturalWidth){
-      var d=size*0.52;
-      try{ctx.drawImage(logoImgEl,(size-d)/2,size*0.16,d,d);}catch(e){}
-    } else {
-      ctx.font=Math.round(size*0.52)+'px serif';
-      ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(logoIsImg?'\uD83D\uDC1F':brandLogo,size/2,size*0.47);
-    }
+    ctx.font=Math.round(size*0.52)+'px serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(brandLogo,size/2,size*0.47);
     ctx.font='bold '+Math.round(size*0.12)+'px sans-serif';
     ctx.fillStyle='#f5a623';
     ctx.textAlign='center';ctx.textBaseline='middle';
@@ -4261,6 +4982,9 @@ applyProfileUI();
     var favIcon=document.getElementById('pwa-favicon');
     if(favIcon){favIcon.href=icon192;favIcon.type='image/png';}
     var fullName=(brandName+(s.brandLine2?' '+s.brandLine2:'')).trim()||'Smazalnia';
+    // Wlasna grafika wypelnia kafelek (cover) -> NIE 'maskable' (system by ja przycial po brzegach).
+    // Domyslna ikona (emoji) ma srodkowy uklad z marginesem, wiec moze byc 'maskable'.
+    var iconPurpose=logoIsImg?'any':'any maskable';
     var manifest={
       name:fullName,
       short_name:brandName.slice(0,18)||'Smazalnia',
@@ -4272,8 +4996,8 @@ applyProfileUI();
       orientation:'any',
       lang:'pl',
       icons:[
-        {src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'},
-        {src:icon512,sizes:'512x512',type:'image/png',purpose:'any maskable'}
+        {src:icon192,sizes:'192x192',type:'image/png',purpose:iconPurpose},
+        {src:icon512,sizes:'512x512',type:'image/png',purpose:iconPurpose}
       ]
     };
     var mBlob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
@@ -4299,7 +5023,7 @@ applyProfileUI();
     var APP_URL=location.href.split('#')[0];
     var APP_URL_JSON=JSON.stringify(APP_URL);
     var swCode=
-      'var CACHE="smazalnia-v7";'+
+      'var CACHE="smazalnia-v8";'+
       'var APP_URL='+APP_URL_JSON+';'+
       'self.addEventListener("install",function(e){'+
         'e.waitUntil('+
