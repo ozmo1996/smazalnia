@@ -196,6 +196,9 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .bt[data-hold].holding::before{width:100%;transition:width var(--hold-dur,.1s) linear}
 .bt[data-hold].holding{transform:scale(.97)}
 .bt[data-hold]>span{position:relative;z-index:1;pointer-events:none}
+.syncb{font-size:.6rem;vertical-align:middle;line-height:1;margin-left:5px;font-weight:900}
+.syncb.sb-off{color:#f5a623}
+.syncb.sb-on{color:#27ae60;opacity:.6}
 .bt:active{filter:brightness(1.15)}
 .btc{background:var(--a);color:#fff}.btr{background:var(--gr);color:#fff}.btd{background:#556;color:#fff}.btbar{background:var(--s);color:#fff}
 .notk{grid-column:1/-1;text-align:center;padding:20px;color:rgba(255,255,255,.17);font-size:.9rem}
@@ -528,7 +531,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.11</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.12</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -913,6 +916,12 @@ function ensureCatArrays(){
 }
 
 var orders={};
+// Zamowienia utworzone lokalnie, ktore nie zostaly jeszcze potwierdzone w chmurze (offline/niewyslane).
+// Tylko takie wolno "dopisywac" przy synchronizacji — dzieki temu usuniecia z innych urzadzen nie wracaja.
+var _pendingOrders={};
+function savePending(){try{lsSet('sp_pending',JSON.stringify(_pendingOrders));}catch(e){}}
+function markPending(id){if(id){_pendingOrders[id]=Date.now();savePending();}}
+function clearPending(id){if(id&&_pendingOrders[id]!==undefined){delete _pendingOrders[id];savePending();}}
 var archive={};
 var cart={};
 var selTbl=null;
@@ -995,6 +1004,21 @@ function emo(v,size){
 function emoText(v){return isImgEmoji(v)?'\uD83C\uDF7D\uFE0F':(v||'');}
 function xv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 function fbBg(p){if(p&&p.catch)p.catch(function(e){console.warn('fb:',e);});}
+// Wyslij zamowienie do chmury; po POTWIERDZENIU zapisu zdejmij oznaczenie "offline".
+function fbPushOrder(id){
+  if(!fbReady||!orders[id])return;
+  window._fbSkipNext=(window._fbSkipNext||0)+1;
+  fbDB.ref('orders/'+id).set(orders[id]).then(function(){
+    clearPending(id);
+    if(curV==='l')renderList();else if(curV==='k')renderKitch();else if(curV==='b')renderBar();
+  }).catch(function(e){console.warn('fb push:',e);});
+}
+// Symbol stanu synchronizacji zamowienia: pomaranczowy = offline/niewyslane, zielony = w chmurze.
+function syncBadge(id){
+  return _pendingOrders[id]
+    ?'<span class="syncb sb-off" title="Przyjete offline - niewyslane do chmury">&#9679;</span>'
+    :'<span class="syncb sb-on" title="Wyslane do chmury">&#9679;</span>';
+}
 
 function toast(msg,color){
   var t=document.getElementById('toast');
@@ -1072,7 +1096,7 @@ function kitchenRows(items){
 }
 
 function saveOrds(){lsSet('sp_orders',JSON.stringify(orders));savePhoneBackup();}
-function loadOrds(){orders=readObj('sp_orders');}
+function loadOrds(){orders=readObj('sp_orders');_pendingOrders=readObj('sp_pending');}
 function saveArc(){lsSet('sp_archive',JSON.stringify(archive));savePhoneBackup();}
 function loadArc(){archive=readObj('sp_archive');}
 
@@ -1275,10 +1299,17 @@ function subAll(){
     if(window._fbSkipNext>0){window._fbSkipNext--;return;}
     if(_fbLocalChange)return;
     var fbOrders=snap.val()||{};
-    // Dopisz lokalnie stworzone ktore nie dotarly jeszcze do chmury
+    // Zamowienia obecne w chmurze przestaja byc "offline/niewyslane"
+    for(var pk in _pendingOrders){if(fbOrders[pk])delete _pendingOrders[pk];}
+    // Dopisz TYLKO lokalne, ktore wciaz czekaja na wyslanie (pending), i ponow ich wysylke.
+    // Zamowien usunietych na innym urzadzeniu NIE przywracamy.
     Object.keys(orders).forEach(function(k){
-      if(!fbOrders[k])fbOrders[k]=orders[k];
+      if(!fbOrders[k] && _pendingOrders[k]){
+        fbOrders[k]=orders[k];
+        fbPushOrder(k); // dowyslij (np. po przeladowaniu offline)
+      }
     });
+    savePending();
     orders=fbOrders;
     saveOrds();
     autoClearOldOrders();
@@ -1714,10 +1745,8 @@ function sendOrder(paid,currency,czkAmount){
     vib([10,30,10]);
   }
   _send=false;updSend(); // reset przed Firebase call
-  if(fbReady){
-    window._fbSkipNext=(window._fbSkipNext||0)+1;
-    fbBg(fbDB.ref('orders/'+id).set(order));
-  }
+  markPending(id);
+  fbPushOrder(id);
 }
 
 document.getElementById('bsnd').addEventListener('click',function(){doSend();});
@@ -1962,7 +1991,7 @@ function delOrder(id){
     archive[id]=orders[id];saveArc();
     if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id]));
   }
-  delete orders[id];
+  delete orders[id];clearPending(id);
   saveOrds();
   onDataImmediate();
   if(fbReady){
@@ -1975,7 +2004,7 @@ function cancelOrder(id){
   var cancelled=orders[id];
   // Zwroc pozycje na stan (zamowienie odjelo je przy zlozeniu)
   if(cancelled&&cancelled.items)restoreStock(cancelled.items);
-  delete orders[id];saveOrds();onDataImmediate();
+  delete orders[id];clearPending(id);saveOrds();onDataImmediate();
   if(fbReady){
     window._fbSkipNext=(window._fbSkipNext||0)+1;
     fbBg(fbDB.ref('orders/'+id).remove());
@@ -2131,7 +2160,7 @@ function renderList(){
             '<span style="font-family:\'Playfair Display\',serif;color:#fff;font-size:1.3rem;font-weight:900;">'+(mainO.table==='my'?'&#x1F46A; MY - obsluga':'&#x1F4CD; Stolik '+mainO.table)+'</span>'+
             mergedBadge+paidBadge+
           '</div>'+
-          '<span style="color:rgba(255,255,255,.55);font-size:.72rem;">'+seqStr+' &bull; '+mainO.timeStr+'</span>'+
+          '<span style="color:rgba(255,255,255,.55);font-size:.72rem;">'+seqStr+' &bull; '+mainO.timeStr+(grp.some(function(o){return _pendingOrders[o.id];})?' <span class="syncb sb-off" title="Przyjete offline - niewyslane do chmury">&#9679; offline</span>':' <span class="syncb sb-on" title="Wyslane do chmury">&#9679;</span>')+'</span>'+
         '</div>'+
         '<button class="cancelBtn" style="background:rgba(0,0,0,.25);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:5px 10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;touch-action:manipulation;flex-shrink:0;white-space:nowrap;">&#x274C; Anuluj</button>'+
         '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
@@ -2278,7 +2307,7 @@ function renderBar(){
     var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+='<div class="tki"><span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span></div>';}
     var btn=done?'<span style="color:var(--gr);font-weight:800;font-size:.82rem;padding:6px">Wydane</span>':'<button class="bt btbar" data-action="bardone" data-ids="'+o.id+'">Wydano napoje</button>';
     var t=document.createElement('div');t.className='tkt '+(done?'bd':'bn');
-    t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
+    t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+syncBadge(o.id)+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
     g.appendChild(t);
    }catch(e){console.warn('bar tkt:',e);}
   }
@@ -2444,7 +2473,7 @@ function renderKitch(){
           '<div class="tkm">'+
             '<div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div>'+
             cookTimerHTML+
-            '<div class="tksc">#'+o.seq+' '+o.timeStr+'</div>'+
+            '<div class="tksc">#'+o.seq+' '+o.timeStr+syncBadge(o.id)+'</div>'+
           '</div>'+
         '</div>'+
         '<div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div>'+
@@ -3007,11 +3036,11 @@ function undoLastAction(){
   // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
   ids.forEach(function(id){
     var prev=snap.ordPrev?snap.ordPrev[id]:null;
-    if(prev)orders[id]=prev; else delete orders[id];
-    if(fbReady){
-      window._fbSkipNext=(window._fbSkipNext||0)+1;
-      if(prev)fbBg(fbDB.ref('orders/'+id).set(prev));
-      else fbBg(fbDB.ref('orders/'+id).remove());
+    if(prev){
+      orders[id]=prev;markPending(id);fbPushOrder(id);
+    } else {
+      delete orders[id];clearPending(id);
+      if(fbReady){window._fbSkipNext=(window._fbSkipNext||0)+1;fbBg(fbDB.ref('orders/'+id).remove());}
     }
   });
   saveOrds();
@@ -3173,11 +3202,11 @@ function openAddToOrder(table){
     };
     lsSet('sp_seq',ordSeq);
     saveSnapshot('Dodano do: '+tblLabel,id,true);
-    window._fbSkipNext=(window._fbSkipNext||0)+1;
     orders[id]=order;
     saveOrds();
     deductStock(items);
-    if(fbReady)fbBg(fbDB.ref('orders/'+id).set(order));
+    markPending(id);
+    fbPushOrder(id);
     m.remove();
     onDataImmediate();
     toast('Dodano zamowienie #'+order.seq+' dla '+tblLabel+'!','#27ae60');
@@ -4085,7 +4114,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.11',
+    v:'v3.12',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
