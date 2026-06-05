@@ -531,7 +531,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.13</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.15</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -680,6 +680,12 @@ button:disabled{cursor:not-allowed}
       <input type="checkbox" id="setConfDel">
       <span>Pytaj o potwierdzenie przy usuwaniu zamowienia</span>
     </label>
+
+    <label class="set-check" style="margin-top:12px;">
+      <input type="checkbox" id="setReqTbl">
+      <span>Wymagaj wyboru stolika przy zamowieniu</span>
+    </label>
+    <div class="set-hint">Gdy wylaczone, mozesz wydac zamowienie (np. napoje przy okienku) bez wybierania stolika — trafi jako &#x1F6B6; Okienko.</div>
 
     <button class="set-save" onclick="saveSettingsFromUI()">&#x1F4BE; Zapisz ustawienia</button>
   </div>
@@ -933,6 +939,7 @@ var edSec='main';
 var sfilt='today';
 var sDateFrom='';
 var sDateTo='';
+var _statShown=false; // Statystyki: licz i pokazuj dane dopiero po kliknieciu "Pokaz statystyki"
 var epTgt=null;
 var DID=lsGet('sp_did')||mkDID();
 var fbReady=false;
@@ -943,7 +950,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -1456,7 +1463,7 @@ function gv(name){
   if(name==='l')renderList();
   if(name==='b')renderBar();
   if(name==='k')renderKitch();
-  if(name==='s'){renderStats();refreshStatsFromCloud();}
+  if(name==='s'){_statShown=false;renderStats();refreshStatsFromCloud();}
   if(name==='m'){renderEditor();var el=document.getElementById('tnd');if(el)el.textContent=numT;}
   if(name==='w')renderStock();
   if(name==='c')renderCloud();
@@ -1628,7 +1635,7 @@ function renderMG(id,items){
 function vib(ms){if(navigator.vibrate)navigator.vibrate(ms||10);}
 
 function addCart(item,el){
-  if(!selTbl){toast('Wybierz stolik!','#e85c3a');vib(50);return;}
+  if(!selTbl&&appSettings.requireTable){toast('Wybierz stolik!','#e85c3a');vib(50);return;}
   vib(10);
   if(cart[item.id])cart[item.id].qty++;
   else{cart[item.id]=cloneObj(item);cart[item.id].qty=1;}
@@ -1680,7 +1687,7 @@ function renderCart(){
   updateCZK(tot);
 }
 function updSend(){
-  var dis=!selTbl||!Object.keys(cart).length;
+  var dis=(!selTbl&&appSettings.requireTable)||!Object.keys(cart).length;
   document.getElementById('bsnd').disabled=dis;
   document.getElementById('bsnd_czk').disabled=dis;
   document.getElementById('bsnd2').disabled=dis;
@@ -1699,7 +1706,7 @@ function doSendCZK(){
 function doSend2(){sendOrder(false,'PLN');}
 
 function sendOrder(paid,currency,czkAmount){
-  if(_send||!selTbl||!Object.keys(cart).length)return;
+  if(_send||(!selTbl&&appSettings.requireTable)||!Object.keys(cart).length)return;
   _send=true;
   document.getElementById('bsnd').disabled=true;
   var bck=document.getElementById('bsnd_czk');if(bck)bck.disabled=true;
@@ -1710,7 +1717,7 @@ function sendOrder(paid,currency,czkAmount){
   var ks=Object.keys(cart);
   for(var i=0;i<ks.length;i++)items.push(cart[ks[i]]);
   var tot=0;for(var i=0;i<items.length;i++)tot+=items[i].price*items[i].qty;
-  var order={id:id,seq:ordSeq++,table:selTbl,items:items,total:tot,note:note,
+  var order={id:id,seq:ordSeq++,table:(selTbl||'okienko'),items:items,total:tot,note:note,
     status:'pending',paid:paid,wynos:wynos,barDone:false,
     currency:currency||'PLN',
     czkAmount:czkAmount||0,
@@ -2153,7 +2160,7 @@ function renderList(){
       '<div class="och s'+mainO.status+'" style="min-height:52px;">'+
         '<div style="display:flex;flex-direction:column;gap:2px;flex:1">'+
           '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'+
-            '<span style="font-family:\'Playfair Display\',serif;color:#fff;font-size:1.3rem;font-weight:900;">'+(mainO.table==='my'?'&#x1F46A; MY - obsluga':'&#x1F4CD; Stolik '+mainO.table)+'</span>'+
+            '<span style="font-family:\'Playfair Display\',serif;color:#fff;font-size:1.3rem;font-weight:900;">'+tlabel(mainO.table)+'</span>'+
             mergedBadge+paidBadge+
           '</div>'+
           '<span style="color:rgba(255,255,255,.55);font-size:.72rem;">'+seqStr+' &bull; '+mainO.timeStr+(grp.some(function(o){return _pendingOrders[o.id];})?' <span class="syncb sb-off" title="Przyjete offline - niewyslane do chmury">&#9679; offline</span>':' <span class="syncb sb-on" title="Wyslane do chmury">&#9679;</span>')+'</span>'+
@@ -2303,7 +2310,7 @@ function renderBar(){
     var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+='<div class="tki"><span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span></div>';}
     var btn=done?'<span style="color:var(--gr);font-weight:800;font-size:.82rem;padding:6px">Wydane</span>':'<button class="bt btbar" data-action="bardone" data-ids="'+o.id+'">Wydano napoje</button>';
     var t=document.createElement('div');t.className='tkt '+(done?'bd':'bn');
-    t.innerHTML='<div class="tkh"><span class="tktbl">Stolik '+o.table+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+syncBadge(o.id)+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
+    t.innerHTML='<div class="tkh"><span class="tktbl">'+tlabel(o.table)+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+syncBadge(o.id)+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
     g.appendChild(t);
    }catch(e){console.warn('bar tkt:',e);}
   }
@@ -2464,7 +2471,7 @@ function renderKitch(){
       t.setAttribute('data-oid',o.id);
       t.innerHTML=
         '<div class="tkh">'+
-          '<span class="tktbl">'+(o.table==='my'?'&#x1F46A; MY':'Stolik '+o.table)+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+(o.wynos?'<span style="background:#1278a8;color:#fff;font-size:.6rem;font-weight:900;padding:2px 5px;border-radius:5px;margin-left:4px;">WYNOS</span>':'')+'</span>'+
+          '<span class="tktbl">'+tlabel(o.table)+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+(o.wynos?'<span style="background:#1278a8;color:#fff;font-size:.6rem;font-weight:900;padding:2px 5px;border-radius:5px;margin-left:4px;">WYNOS</span>':'')+'</span>'+
           '<button data-action="editorder" data-ids="'+o.id+'" style="background:rgba(18,120,168,.15);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;border-radius:7px;padding:3px 8px;font-size:.7rem;font-weight:800;cursor:pointer;flex-shrink:0;">&#x270F;</button>'+
           '<div class="tkm">'+
             '<div class="tktmr '+tc+'">'+m+':'+String(s).padStart(2,'0')+'</div>'+
@@ -2490,7 +2497,18 @@ function renderKitch(){
 function setSF(f){
   sfilt=f;
   _chartExpandedDay=null;
+  _statShown=false; // po zmianie okresu trzeba kliknac "Pokaz statystyki"
   if(f!=='range'){sDateFrom='';sDateTo='';}
+  renderStats();
+}
+function showStats(){
+  if(sfilt==='range'){
+    var df=document.getElementById('sdf'),dt=document.getElementById('sdt');
+    if(df)sDateFrom=df.value;
+    if(dt)sDateTo=dt.value;
+  }
+  _statShown=true;
+  _chartExpandedDay=null;
   renderStats();
 }
 function setDateRange(){
@@ -2500,7 +2518,44 @@ function setDateRange(){
   if(dt)sDateTo=dt.value;
   sfilt='range';
   _chartExpandedDay=null;
+  _statShown=true;
   renderStats();
+}
+// Eksport wszystkich danych sprzedazy do CSV (otwiera sie w Excelu).
+// Format pod polski Excel: separator ';', przecinek dziesietny, kodowanie UTF-8 z BOM.
+function exportStatsCSV(){
+  var all=Object.values(Object.assign({},archive,orders));
+  var rows=all.filter(function(o){return o&&o.status==='done';}).sort(function(a,b){return (a.ts||0)-(b.ts||0);});
+  if(!rows.length){toast('Brak wydanych zamowien do eksportu','#f5a623');return;}
+  var SEP=';';
+  function cell(v){v=(v==null?'':String(v));if(/[";\n\r]/.test(v))v='"'+v.replace(/"/g,'""')+'"';return v;}
+  function num(n){return String(n).replace('.',',');} // przecinek dziesietny dla PL Excel
+  var header=['Data','Godzina','Nr','Stolik','Na wynos','Oplacone','Waluta','Kwota (zl)','Kwota CZK','Liczba dan','Pozycje','Czas wydania (min)','Czas smazenia (min)'];
+  var lines=[header.join(SEP)];
+  rows.forEach(function(o){
+    var d=o.ts?new Date(o.ts):null;
+    var data=d?d.toLocaleDateString('pl-PL'):'';
+    var godz=o.timeStr||(d?d.toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}):'');
+    var items=(o.items||[]).map(function(it){return (it.name||'')+' x'+(it.qty||0);}).join(' | ');
+    var nItems=(o.items||[]).reduce(function(s,it){return s+(it.qty||0);},0);
+    var czk=o.currency==='CZK'?(o.czkAmount||Math.round((o.total||0)*(o.czkRate||0))):'';
+    var wyd=(o.ts&&o.doneTs)?Math.round((o.doneTs-o.ts)/60000):'';
+    var fry=(o.cookingTs&&o.doneTs)?Math.round((o.doneTs-o.cookingTs)/60000):'';
+    var line=[data,godz,'#'+(o.seq||''),tlabel(o.table).replace(/<[^>]*>/g,''),
+      o.wynos?'tak':'nie',(o.paid===false?'nie':'tak'),o.currency||'PLN',
+      num((o.total||0).toFixed(2)),(czk===''?'':num(czk)),nItems,items,wyd,fry];
+    lines.push(line.map(cell).join(SEP));
+  });
+  var csv='\uFEFF'+lines.join('\r\n');
+  try{
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;a.download='statystyki_smazalnia_'+new Date().toISOString().slice(0,10)+'.csv';
+    document.body.appendChild(a);a.click();
+    setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},1500);
+    toast('Pobrano '+rows.length+' zamowien (CSV)','#27ae60');
+  }catch(e){toast('Blad eksportu','#e85c3a');console.warn('export:',e);}
 }
 // ═══════════════════════════════════════
 // MAGAZYN
@@ -2747,7 +2802,7 @@ function openEditOrder(id){
     var opts=[];
     catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
-      '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+(o.table==='my'?'MY':'Stolik '+o.table)+'</div>'+
+      '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+tlabel(o.table)+'</div>'+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
       '<div style="margin-top:10px;display:flex;gap:8px;">'+
         '<select id="eadd_sel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.82rem;">'+opts.join('')+'</select>'+
@@ -2916,8 +2971,7 @@ function generateBackupText(){
   var aktywne=Object.values(orders).sort(function(a,b){return b.ts-a.ts;});
   lines.push('--- AKTYWNE ZAMOWIENIA ('+aktywne.length+') ---');
   aktywne.forEach(function(o){
-    var tbl=o.table==='my'?'MY - obsluga':
-      (typeof o.table==='string'&&o.table.indexOf('odbior')===0?'Odbior '+o.table.slice(7):'Stolik '+o.table);
+    var tbl=tlabel(o.table);
     lines.push('');
     lines.push('[#'+o.seq+'] '+tbl+' | '+o.timeStr+' | Status: '+(o.status||'?')+' | '+(o.paid===false?'NIEOPLACONE':'OPLACONE'));
     (o.items||[]).forEach(function(it){
@@ -2937,7 +2991,7 @@ function generateBackupText(){
   lines.push('');
   lines.push('--- WYDANE DZISIAJ ('+dzisiaj.length+') ---');
   dzisiaj.forEach(function(o){
-    var tbl=o.table==='my'?'MY':('Stolik '+o.table);
+    var tbl=tlabel(o.table);
     lines.push('[#'+o.seq+'] '+tbl+' | '+(o.total||0).toFixed(2)+' zl');
   });
 
@@ -3130,7 +3184,7 @@ function openAddToOrder(table){
     return '<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
   }).join('');
 
-  var tblLabel=table==='my'?'MY - obsluga':(typeof table==='string'&&table.indexOf('odbior')===0?'Odbior '+table.slice(7):'Stolik '+table);
+  var tblLabel=tlabel(table);
 
   var m=document.createElement('div');
   m.id='addToOrderModal';
@@ -3537,8 +3591,10 @@ function weatherForHour(dayKey,hour){
 function _statsFilterMatch(o){
   if(!o||!o.ts)return false;
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
+  if(sfilt==='hour')return (now-o.ts)<3600*1000;
   if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
   if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
+  if(sfilt==='month')return (now-o.ts)<30*24*3600*1000;
   if(sfilt==='range'){
     var d=new Date(o.ts),ok=true;
     if(sDateFrom){var from=new Date(sDateFrom);from.setHours(0,0,0,0);ok=ok&&d>=from;}
@@ -3717,7 +3773,7 @@ function showHourOrders(dayKey,hour){
       rows+=
         '<div style="background:rgba(255,255,255,.04);border-radius:9px;padding:10px 12px;margin-bottom:7px;">'+
           '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
-            '<span style="font-weight:800;color:#fff;font-size:.85rem;">'+(o.table==='my'?'👪 MY':'Stolik '+o.table)+' #'+o.seq+cur+paid+wynos+'</span>'+
+            '<span style="font-weight:800;color:#fff;font-size:.85rem;">'+tlabel(o.table)+' #'+o.seq+cur+paid+wynos+'</span>'+
             '<span style="color:rgba(255,255,255,.5);font-size:.72rem;">'+tStr+'</span>'+
           '</div>'+
           '<div style="color:rgba(255,255,255,.7);font-size:.78rem;margin-bottom:4px;">'+items+'</div>'+
@@ -3754,14 +3810,38 @@ function showHourOrders(dayKey,hour){
   var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
+// Ladna etykieta stolika/typu zamowienia (obsluguje tez zamowienie "przy okienku").
+function tlabel(t){
+  if(t==='my')return '\uD83D\uDC6A MY';
+  if(t==='okienko')return '\uD83D\uDEB6 Okienko';
+  if(typeof t==='string'&&t.indexOf('odbior')===0)return 'Odbior '+t.slice(7);
+  return 'Stolik '+t;
+}
+function statControlsHtml(){
+  var dfVal=sDateFrom||'',dtVal=sDateTo||'';
+  var lbl={hour:'ostatnia godzina',today:'dzis',week:'tydzien',month:'miesiac',all:'wszystko',range:'zakres'};
+  function b(f,t){return '<button class="sf'+(sfilt===f?' on':'')+'" onclick="setSF(\''+f+'\')">'+t+'</button>';}
+  return '<div class="sfr">'+b('hour','Godzina')+b('today','Dzis')+b('week','Tydzien')+b('month','Miesiac')+b('all','Wszystko')+b('range','Od-Do')+'</div>'+
+    (sfilt==='range'
+      ?'<div class="sdr"><span class="sdlbl">Od:</span><input class="sdinp" id="sdf" type="date" value="'+dfVal+'"><span class="sdlbl">Do:</span><input class="sdinp" id="sdt" type="date" value="'+dtVal+'"></div>'
+      :'')+
+    '<button class="sf" onclick="showStats()" style="width:100%;margin:6px 0 8px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
+    '<button class="sf" onclick="exportStatsCSV()" style="width:100%;margin:0 0 14px;background:rgba(39,174,96,.14);border:1.5px solid rgba(39,174,96,.35);color:#27ae60;font-weight:800;padding:10px;border-radius:10px;">&#x1F4E5; Pobierz wszystkie statystyki (CSV / Excel)</button>';
+}
 function renderStats(){
   var wrap=document.getElementById('sw');if(!wrap)return;
+  if(!_statShown){
+    wrap.innerHTML=statControlsHtml()+'<div class="ni" style="margin-top:16px;text-align:center;line-height:1.5;">Wybierz okres powyzej i kliknij<br>&#x201E;Pokaz statystyki&#x201D;.</div>';
+    return;
+  }
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
   var all=Object.values(Object.assign({},archive,orders));
   var filt=all.filter(function(o){
     if(!o||!o.ts)return sfilt==='all'; // wpisy bez daty tylko w widoku Wszystko
+    if(sfilt==='hour')return (now-o.ts)<3600*1000;
     if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
     if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
+    if(sfilt==='month')return (now-o.ts)<30*24*3600*1000;
     if(sfilt==='range'){
       var d=new Date(o.ts);
       var ok=true;
@@ -3796,7 +3876,9 @@ function renderStats(){
   var bhRows='';for(var i=0;i<bhKeys.length;i++){var hh=bhKeys[i],c=bh[hh];bhRows+='<tr><td>'+String(hh).padStart(2,'0')+':00</td><td><b>'+c+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(c/mh*130)+'px;background:linear-gradient(90deg,var(--w),var(--gr))"></div></div></td></tr>';}
   var histRows='';
   var doneSorted=done.slice().reverse();
-  for(var i=0;i<doneSorted.length;i++){var o=doneSorted[i];var istr=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+(o.timeStr||'')+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+(o.total||0).toFixed(2)+' zl</span></div>';}
+  var _histCap=Math.min(doneSorted.length,300);
+  for(var i=0;i<_histCap;i++){var o=doneSorted[i];var istr=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+(o.timeStr||'')+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+(o.total||0).toFixed(2)+' zl</span></div>';}
+  if(doneSorted.length>_histCap)histRows+='<div class="ni" style="margin-top:6px;">...i '+(doneSorted.length-_histCap)+' wczesniejszych — zaw okres, aby zobaczyc mniej</div>';
 
   // Sredni czas wydawania - wszystkie zamowienia z doneTs (niezaleznie od statusu)
   var timeData=[];
@@ -3865,22 +3947,8 @@ function renderStats(){
     var col2=avg2<=20?'var(--gr)':avg2<=45?'var(--a)':avg2<=60?'var(--e)':'#333';
     hourRows+='<tr><td>'+String(hh2).padStart(2,'0')+':00</td><td><b>'+avg2+' min</b></td><td>'+cnt2+' zam.</td><td><div class="sbw"><div class="sbar" style="width:'+bw+'px;background:'+col2+'"></div></div></td></tr>';
   }
-  var dfVal=sDateFrom||'';
-  var dtVal=sDateTo||'';
   wrap.innerHTML=
-    '<div class="sfr">'+
-      '<button class="sf'+(sfilt==='today'?' on':'')+'" onclick="setSF(\'today\')">Dzis</button>'+
-      '<button class="sf'+(sfilt==='week'?' on':'')+'" onclick="setSF(\'week\')">Tydzien</button>'+
-      '<button class="sf'+(sfilt==='all'?' on':'')+'" onclick="setSF(\'all\')">Wszystko</button>'+
-      '<button class="sf'+(sfilt==='range'?' on':'')+'" onclick="setSF(\'range\')">Od-Do</button>'+
-    '</div>'+
-    '<div class="sdr">'+
-      '<span class="sdlbl">Od:</span>'+
-      '<input class="sdinp" id="sdf" type="date" value="'+dfVal+'">'+
-      '<span class="sdlbl">Do:</span>'+
-      '<input class="sdinp" id="sdt" type="date" value="'+dtVal+'">'+
-      '<button class="sdbtn" onclick="setDateRange()">Filtruj</button>'+
-    '</div>'+
+    statControlsHtml()+
     '<div id="weatherPanel"></div>'+
     '<div class="sbs">'+
       '<div class="sb"><div class="sbv">'+rev.toFixed(0)+' zl</div><div class="sbl">Przychod</div></div>'+
@@ -4110,7 +4178,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.13',
+    v:'v3.15',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -4209,6 +4277,7 @@ function renderCloud(){
   var sH=document.getElementById('setHold');if(sH)sH.value=appSettings.holdMs;
   var sV=document.getElementById('setView');if(sV)sV.value=appSettings.startView;
   var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
+  var sR=document.getElementById('setReqTbl');if(sR)sR.checked=(appSettings.requireTable!==false);
   _catsEdit=null; // odswiez z aktualnego stanu
   renderCatEditor();
   renderCountItems();
@@ -4512,11 +4581,13 @@ function saveSettingsFromUI(){
   var l=parseInt((document.getElementById('setLow')||{}).value);
   var v=(document.getElementById('setView')||{}).value;
   var d=(document.getElementById('setConfDel')||{}).checked;
+  var rt=(document.getElementById('setReqTbl')||{}).checked;
   var h=parseInt((document.getElementById('setHold')||{}).value);
   if(c>0&&c<=50)appSettings.czkRate=c;
   if(l>=1&&l<=100)appSettings.lowStockPct=l;
   if(v&&VL.indexOf(v)>=0)appSettings.startView=v;
   appSettings.confirmDelete=!!d;
+  appSettings.requireTable=!!rt;
   if(h>=50&&h<=1000)appSettings.holdMs=h;
   saveSettings();
   // Zastosuj kurs od razu w polu zamowienia
