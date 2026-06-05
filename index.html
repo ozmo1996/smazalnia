@@ -531,7 +531,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.12</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.13</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1402,15 +1402,11 @@ function subAll(){
     // Aktywne zamowienia: dopisz brakujace (to swieze dane, bezpieczne)
     fbDB.ref('orders').once('value').then(function(snap){
       var fbOrders=snap.val()||{};
-      var missing={};
+      // Dopisz WYLACZNIE zamowienia oznaczone jako niewyslane (pending).
+      // Bez tego zamowienia usuniete na innym urzadzeniu wracalyby do chmury.
       Object.keys(orders).forEach(function(k){
-        if(!fbOrders[k])missing[k]=orders[k];
+        if(!fbOrders[k] && _pendingOrders[k])fbPushOrder(k);
       });
-      if(Object.keys(missing).length>0){
-        Object.keys(missing).forEach(function(k){
-          fbBg(fbDB.ref('orders/'+k).set(missing[k]));
-        });
-      }
     });
     // Archiwum: chmura jest NADRZEDNA. Dopisujemy WYLACZNIE wpisy wydane w tej sesji
     // (nowsze niz start aplikacji), zeby nie wgrac z powrotem starych/usunietych danych.
@@ -4114,7 +4110,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.12',
+    v:'v3.13',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
