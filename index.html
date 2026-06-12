@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-/* v3.27: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+/* v3.28: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
 .or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .or.split{flex-direction:column;align-items:stretch;gap:6px}
 .orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
@@ -174,7 +174,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
-/* v3.27: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+/* v3.28: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
    (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
 .tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.27</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.28</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -947,8 +947,8 @@ var ARC_WINDOW_MS=24*3600*1000;           // szerokosc automatycznego okna archi
 var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
 var _arcQuery=null;                       // aktywne zapytanie nasluchu archiwum (do odpinania)
 var _arcSubTs=0;                          // kiedy zalozono nasluch (okno odswiezane co 6h)
-var STATS_FETCH_LIMIT_BYTES=5*1024*1024;  // 5 MB — limit jednorazowego pobrania do statystyk
-var STATS_FETCH_LIMIT_COUNT=12000;        // bezpiecznik liczby wpisow (ochrona transferu)
+var STATS_FETCH_LIMIT_BYTES=10*1024*1024; // 10 MB — limit jednorazowego pobrania do statystyk
+var STATS_FETCH_LIMIT_COUNT=24000;        // bezpiecznik liczby wpisow (ochrona transferu)
 var cart={};
 var selTbl=null;
 var wynos=false;
@@ -4156,35 +4156,48 @@ function loadGeneralStats(){
   var box=document.getElementById('genStats');if(!box)return;
   var body=box.querySelector('.genbody');if(!body)return;
   var req=++_genReq;
-  // Godzina / Dzis: pelne dane sa w lokalnym oknie 24h — licz na miejscu, bez chmury.
-  if(sfilt==='hour'||sfilt==='today'){
-    var now=new Date(),tod=now.toLocaleDateString('pl-PL');
-    var list=Object.values(Object.assign({},archive,orders)).filter(function(o){
-      if(!o||o.status!=='done'||!o.ts)return false;
-      if(sfilt==='hour')return (Date.now()-o.ts)<3600*1000;
-      return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+  try{
+    // Godzina / Dzis: pelne dane sa w lokalnym oknie 24h — licz na miejscu, bez chmury.
+    if(sfilt==='hour'||sfilt==='today'){
+      var now=new Date(),tod=now.toLocaleDateString('pl-PL');
+      var list=Object.values(Object.assign({},archive,orders)).filter(function(o){
+        if(!o||o.status!=='done'||!o.ts)return false;
+        if(sfilt==='hour')return (Date.now()-o.ts)<3600*1000;
+        return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+      });
+      body.innerHTML=genStatsHtml(buildAggFromOrders(list));
+      return;
+    }
+    var key=sfilt+'|'+(sDateFrom||'')+'|'+(sDateTo||'');
+    if(_genCache&&_genCache.key===key&&Date.now()-_genCache.ts<30000){
+      body.innerHTML=genStatsHtml(_genCache.agg);
+      return;
+    }
+    if(!(fbReady&&fbAuthReady)){
+      body.innerHTML='<div class="ni">Brak polaczenia z chmura — ogolne dla dluzszych okresow wymagaja internetu</div>';
+      return;
+    }
+    body.innerHTML='<div class="ni">Ladowanie z chmury...</div>';
+    var b=statsFetchBounds()||{from:null,to:null};
+    fetchDailyStats(b.from,b.to,function(err,days){
+      if(req!==_genReq)return; // w miedzyczasie zmieniono okres
+      try{
+        if(err==='offline'){body.innerHTML='<div class="ni">Brak polaczenia z chmura</div>';return;}
+        if(err){body.innerHTML='<div class="ni">Blad pobierania sum — sprawdz internet</div>';return;}
+        var agg=sumDailyStats(days);
+        _genCache={key:key,ts:Date.now(),agg:agg};
+        var h=genStatsHtml(agg);
+        // Puste sumy przy dluzszym okresie = najpewniej historia sprzed tej wersji,
+        // jeszcze nie przeliczona. Pokaz wyrazne wezwanie zamiast enigmatycznych zer.
+        if(!agg.cnt){
+          h+='<button onclick="rebuildDailyStats()" style="width:100%;margin-top:8px;background:rgba(245,166,35,.15);border:1.5px solid rgba(245,166,35,.45);color:var(--a);font-family:Nunito,sans-serif;font-weight:900;font-size:.8rem;padding:9px;border-radius:9px;cursor:pointer;-webkit-tap-highlight-color:transparent;">\uD83D\uDD04 Przelicz sumy z historii (jednorazowo)</button>';
+        }
+        body.innerHTML=h;
+      }catch(e){body.innerHTML='<div class="ni">Blad panelu: '+esc(e&&e.message||String(e))+'</div>';}
     });
-    body.innerHTML=genStatsHtml(buildAggFromOrders(list));
-    return;
+  }catch(e){
+    body.innerHTML='<div class="ni">Blad panelu: '+esc(e&&e.message||String(e))+'</div>';
   }
-  var key=sfilt+'|'+(sDateFrom||'')+'|'+(sDateTo||'');
-  if(_genCache&&_genCache.key===key&&Date.now()-_genCache.ts<30000){
-    body.innerHTML=genStatsHtml(_genCache.agg);
-    return;
-  }
-  if(!(fbReady&&fbAuthReady)){
-    body.innerHTML='<div class="ni">Brak polaczenia z chmura — ogolne dla dluzszych okresow wymagaja internetu</div>';
-    return;
-  }
-  body.innerHTML='<div class="ni">Ladowanie z chmury...</div>';
-  var b=statsFetchBounds()||{from:null,to:null};
-  fetchDailyStats(b.from,b.to,function(err,days){
-    if(req!==_genReq)return; // w miedzyczasie zmieniono okres
-    if(err){body.innerHTML='<div class="ni">Blad pobierania sum — sprawdz internet</div>';return;}
-    var agg=sumDailyStats(days);
-    _genCache={key:key,ts:Date.now(),agg:agg};
-    body.innerHTML=genStatsHtml(agg);
-  });
 }
 function genStatsHtml(a){
   function tile(v,l){return '<div style="flex:1;min-width:86px;background:rgba(0,0,0,.18);border-radius:9px;padding:7px 6px;text-align:center;"><div style="font-weight:900;color:var(--a);font-size:.98rem;white-space:nowrap;">'+v+'</div><div style="font-size:.6rem;color:rgba(255,255,255,.5);font-weight:800;letter-spacing:.4px;">'+l+'</div></div>';}
@@ -4199,7 +4212,8 @@ function genStatsHtml(a){
   '</div>';
   var its=Object.values(a.items||{}).sort(function(x,y){return (y.q||0)-(x.q||0);});
   if(its.length){
-    h+='<div style="max-height:176px;overflow-y:auto;">'+its.map(function(it){
+    h+='<div style="font-size:.68rem;font-weight:900;color:rgba(255,255,255,.55);letter-spacing:.5px;margin:2px 0 4px;">SPRZEDANE PRODUKTY</div>';
+    h+='<div style="max-height:200px;overflow-y:auto;">'+its.map(function(it){
       return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.76rem;">'+
         '<span style="flex-shrink:0;">'+emoText(it.e)+'</span>'+
         '<span style="flex:1;color:#fff;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(it.n)+'</span>'+
@@ -4593,7 +4607,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.27',
+    v:'v3.28',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
