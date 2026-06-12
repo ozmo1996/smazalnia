@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:200px;overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-.or{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
+.or{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .orem{font-size:1.3rem;width:25px;text-align:center}.ornm{flex:1;color:#fff;font-weight:700;font-size:.81rem}
 .qc{display:flex;align-items:center;gap:4px}
 .qb{width:66px;height:66px;border-radius:12px;border:none;background:rgba(255,255,255,.15);color:#fff;font-size:1.9rem;font-weight:900;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
@@ -186,6 +186,10 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tkb{padding:6px 9px}.tki{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)}.tki:last-child{border:none}
 .tie{font-size:1.4rem}.tin{flex:1;color:#fff;font-weight:700;font-size:.88rem}
 .tiq{width:44px;height:44px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:1.5rem;color:#fff;flex-shrink:0}
+.tki.nb,.olin.nb{border-bottom:none}
+.tkw{border-bottom:1px solid rgba(255,255,255,.05)}
+.olw{border-bottom:1px solid rgba(0,0,0,.07)}
+.tiw{display:inline-block;background:#e8821e;color:#fff;font-weight:900;font-size:.72rem;letter-spacing:1.2px;padding:2px 11px;border-radius:6px;margin:0 0 6px 38px}
 .tiq.fo{background:var(--a)}.tiq.dr{background:var(--s)}.tiq.sv{background:var(--gr)}
 .tknote{background:rgba(245,166,35,.15);border:1.5px solid rgba(245,166,35,.4);border-radius:8px;color:#ffd080;font-size:.82rem;font-weight:800;margin-top:7px;padding:6px 10px;line-height:1.4}
 .tkf{padding:6px 9px;display:flex;gap:6px;background:rgba(0,0,0,.2);border-top:1px solid rgba(255,255,255,.05)}
@@ -531,7 +535,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.15</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.24</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -929,9 +933,20 @@ function savePending(){try{lsSet('sp_pending',JSON.stringify(_pendingOrders));}c
 function markPending(id){if(id){_pendingOrders[id]=Date.now();savePending();}}
 function clearPending(id){if(id&&_pendingOrders[id]!==undefined){delete _pendingOrders[id];savePending();}}
 var archive={};
+// ── ARCHIWUM: okno 24h + pobieranie na zadanie ──
+// Automatycznie synchronizujemy z chmura TYLKO wpisy z ostatnich 24h (male, swieze okno).
+// Starsze okresy pobieraja sie na zadanie w Statystykach (przycisk "Pokaz statystyki").
+var _statsCloud={};                       // dane pobrane na zadanie do statystyk — TYLKO w pamieci, nie zapisywane
+var ARC_WINDOW_MS=24*3600*1000;           // szerokosc automatycznego okna archiwum
+var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
+var _arcQuery=null;                       // aktywne zapytanie nasluchu archiwum (do odpinania)
+var _arcSubTs=0;                          // kiedy zalozono nasluch (okno odswiezane co 6h)
+var STATS_FETCH_LIMIT_BYTES=5*1024*1024;  // 5 MB — limit jednorazowego pobrania do statystyk
+var STATS_FETCH_LIMIT_COUNT=12000;        // bezpiecznik liczby wpisow (ochrona transferu)
 var cart={};
 var selTbl=null;
 var wynos=false;
+var _splitOpen={}; // ktore pozycje koszyka maja rozwiniety podzial na miejscu/na wynos
 var ordSeq=Math.max(1,parseInt(lsGet('sp_seq'))||1);
 var numT=Math.max(1,Math.min(99,parseInt(lsGet('sp_tbls'))||29));
 var curV='o';
@@ -950,7 +965,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -967,10 +982,22 @@ function loadSettings(){
   s.holdMs=Math.round(clampNum(s.holdMs,50,1000,SETTINGS_DEF.holdMs));
   return s;
 }
+// (klamrowanie wartosci wspoldzielone z sanitizeSettings ponizej)
 function saveSettings(){
   lsSet('sp_settings',JSON.stringify(appSettings));
   savePhoneBackup();
-  if(fbReady)fbBg(fbDB.ref('settings/app').set(appSettings));
+  if(fbReady){
+    window._fbSkipSettings=(window._fbSkipSettings||0)+1; // pomin echo wlasnego zapisu (nie przerysowuj UI w trakcie edycji)
+    fbBg(fbDB.ref('settings/app').set(appSettings));
+  }
+}
+// Przytnij wartosci ustawien do bezpiecznych zakresow (uzywane tez dla danych z chmury).
+function sanitizeSettings(s){
+  s.czkRate=clampNum(s.czkRate,.1,50,SETTINGS_DEF.czkRate);
+  s.lowStockPct=Math.round(clampNum(s.lowStockPct,1,100,SETTINGS_DEF.lowStockPct));
+  s.holdMs=Math.round(clampNum(s.holdMs,50,1000,SETTINGS_DEF.holdMs));
+  if(typeof VL!=='undefined'&&VL.indexOf&&VL.indexOf(s.startView)<0)s.startView=SETTINGS_DEF.startView;
+  return s;
 }
 
 function brandLogoHtml(size){
@@ -1097,15 +1124,53 @@ function kitchenRows(items){
   var sorted=sortItemsByMenu(items);
   for(var j=0;j<sorted.length;j++){
     var it=sorted[j];
-    rows+='<div class="tki"><span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq fo">'+it.qty+'</span></div>';
+    rows+=wynosWrap('<span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq fo">'+it.qty+'</span>',it,'k');
   }
   return rows;
 }
 
 function saveOrds(){lsSet('sp_orders',JSON.stringify(orders));savePhoneBackup();}
 function loadOrds(){orders=readObj('sp_orders');_pendingOrders=readObj('sp_pending');}
+// Ciche usuwanie uszkodzonych/pustych zamowien (bez listy pozycji) — lokalnie i z chmury.
+function purgeEmptyOrders(){
+  var removed=0;
+  Object.keys(orders).forEach(function(id){
+    var o=orders[id];
+    if(!o||!o.items||!o.items.length){
+      delete orders[id];
+      clearPending(id);
+      if(fbReady){window._fbSkipNext=(window._fbSkipNext||0)+1;fbBg(fbDB.ref('orders/'+id).remove());}
+      removed++;
+    }
+  });
+  if(removed)saveOrds();
+  return removed;
+}
 function saveArc(){lsSet('sp_archive',JSON.stringify(archive));savePhoneBackup();}
 function loadArc(){archive=readObj('sp_archive');}
+
+// Granica biezacego okna 24h (wpisy z ts >= cutoff sa lokalnie; starsze tylko w chmurze).
+function arcWindowCutoff(){return _arcWindowStart||(Date.now()-ARC_WINDOW_MS);}
+
+// Pobierz z chmury wycinek archiwum [fromTs..toTs] (null = bez granicy) — wynik TYLKO do RAM,
+// nigdy do localStorage. cb(err,data,sizeMB); err: 'offline' | 'toobig' | obiekt bledu.
+// noLimit=true pomija limity rozmiaru/liczby (eksport CSV swiadomie pobiera calosc).
+function fetchArchiveRange(fromTs,toTs,cb,noLimit){
+  if(!fbReady||!fbAuthReady||!fbDB){cb('offline');return;}
+  var q=fbDB.ref('archive');
+  if(fromTs!=null||toTs!=null){
+    q=q.orderByChild('ts');
+    if(fromTs!=null)q=q.startAt(fromTs);
+    if(toTs!=null)q=q.endAt(toTs);
+  }
+  q.once('value').then(function(snap){
+    var data=snap.val()||{};
+    var mb=JSON.stringify(data).length/1048576;
+    var tooBig=mb*1048576>STATS_FETCH_LIMIT_BYTES||Object.keys(data).length>STATS_FETCH_LIMIT_COUNT;
+    if(!noLimit&&tooBig){cb('toobig',null,mb);return;}
+    cb(null,data,mb);
+  }).catch(function(e){cb(e);});
+}
 
 function phoneBackupData(){
   return {
@@ -1185,6 +1250,7 @@ var _fbHeartbeatTimer=null;
 var _fbOnlineHandler=null;
 var _fbOfflineHandler=null;
 function detachFb(){
+  if(_arcQuery){try{_arcQuery.off();}catch(e){}_arcQuery=null;}
   if(fbDB&&fbReady){
     ['orders','archive','menu','stock','config','settings/app'].forEach(function(path){
       try{fbDB.ref(path).off();}catch(e){}
@@ -1290,12 +1356,34 @@ function getCloudPw(){return lsGet('sp_cloudpw')||'';}
 function setCloudPw(pw){lsSet('sp_cloudpw',pw);}
 function clearCloudPw(){rawRemove(lsKey('sp_cloudpw'));}
 
+// Zaloz (lub przeloz na swieze okno) nasluch archiwum z ostatnich 24h.
+// Lokalne `archive` odzwierciedla wylacznie to okno — chmura trzyma pelna historie.
+// Echo wlasnych zapisow NIE jest pomijane: okno jest male, a pelne podstawienie
+// stanu z chmury jest idempotentne i odporne na rozjazd licznikow.
+function subArchiveWindow(){
+  if(!fbDB)return;
+  if(_arcQuery){try{_arcQuery.off();}catch(e){}_arcQuery=null;}
+  _arcWindowStart=Date.now()-ARC_WINDOW_MS;
+  _arcSubTs=Date.now();
+  _arcQuery=fbDB.ref('archive').orderByChild('ts').startAt(_arcWindowStart);
+  _arcQuery.on('value',function(snap){
+    archive=snap.val()||{};
+    saveArc();
+    if(curV==='s'&&_statShown)renderStats();
+  });
+}
+// Tablety chodzace tygodniami: co 6h przeloz okno do przodu, zeby lokalne archiwum
+// nie gromadzilo wpisow starszych niz ~24-30h.
+setInterval(function(){
+  if(fbReady&&_arcSubTs&&(Date.now()-_arcSubTs)>6*3600*1000)subArchiveWindow();
+},60000);
+
 function subAll(){
   detachFb();
   _fbSubscribed=true;
   var _fbLocalChange=false;
   window._fbSkipNext=0;
-  window._fbSkipArchive=0;
+  window._fbSkipSettings=0;
 
   // Heartbeat
   sendHeartbeat();
@@ -1319,31 +1407,19 @@ function subAll(){
     savePending();
     orders=fbOrders;
     saveOrds();
+    purgeEmptyOrders();
     autoClearOldOrders();
     onData();
   });
 
-  // ARCHIVE - chmura jest NADRZEDNA (jedyne zrodlo prawdy).
-  // Lokalne archiwum tylko odzwierciedla chmure; NIE dopisujemy hurtowo lokalnych wpisow do chmury,
-  // bo to wgrywalo z powrotem stare/usuniete dane. Swiezo wydane offline zamowienia trafiaja do chmury
+  // ARCHIVE — automatycznie synchronizujemy TYLKO ostatnie 24h (zapytanie orderByChild('ts')).
+  // Chmura pozostaje PELNYM zrodlem prawdy; lokalnie trzymamy male, swieze okno
+  // (oszczednosc localStorage, pamieci i transferu). Starsze okresy pobiera na zadanie
+  // showStats() w Statystykach. Swiezo wydane offline zamowienia trafiaja do chmury
   // osobno (przez setStatus/delOrder oraz _fbOnlineHandler po powrocie internetu).
-  var _arcInitDone=false;
-  fbDB.ref('archive').once('value').then(function(snap){
-    var fbArc=snap.val()||{};
-    archive=fbArc;          // chmura nadpisuje lokalne w calosci
-    saveArc();
-    _arcInitDone=true;
-    if(curV==='s')renderStats();
-  }).catch(function(){_arcInitDone=true;});
-
-  fbDB.ref('archive').on('value',function(snap){
-    if(!_arcInitDone)return;
-    if(window._fbSkipArchive>0){window._fbSkipArchive--;return;}
-    var fbArc=snap.val()||{};
-    archive=fbArc;          // chmura nadrzedna — bez dopisywania lokalnych
-    saveArc();
-    if(curV==='s')renderStats();
-  });
+  // WYDAJNOSC: w regulach Realtime Database warto dodac indeks:  "archive": { ".indexOn": ["ts"] }
+  // — bez niego filtrowanie odbywa sie po stronie klienta (dziala, ale pobiera wiecej).
+  subArchiveWindow();
 
   // MENU - chmura nadrzędna
   fbDB.ref('menu').on('value',function(snap){
@@ -1387,9 +1463,11 @@ function subAll(){
 
   // USTAWIENIA APLIKACJI - chmura nadrzędna
   fbDB.ref('settings/app').on('value',function(snap){
+    if(window._fbSkipSettings>0){window._fbSkipSettings--;return;} // echo wlasnego zapisu — UI juz aktualne
     var v=snap.val();
     if(!v)return;
     for(var k in SETTINGS_DEF){if(v[k]!==undefined)appSettings[k]=v[k];}
+    sanitizeSettings(appSettings); // nie wpuszczaj spoza zakresu (np. holdMs=5 z innego urzadzenia)
     lsSet('sp_settings',JSON.stringify(appSettings));
     countSetInvalidate();
     applyProfileUI(); // odswiez nazwe i logo (moga sie zmienic z innego urzadzenia)
@@ -1416,8 +1494,9 @@ function subAll(){
       });
     });
     // Archiwum: chmura jest NADRZEDNA. Dopisujemy WYLACZNIE wpisy wydane w tej sesji
-    // (nowsze niz start aplikacji), zeby nie wgrac z powrotem starych/usunietych danych.
-    fbDB.ref('archive').once('value').then(function(snap){
+    // (nowsze niz start aplikacji). Porownujemy tylko z OKNEM 24h — swieze wpisy sesji
+    // zawsze sie w nim mieszcza, a nie sciagamy niepotrzebnie pelnej historii.
+    fbDB.ref('archive').orderByChild('ts').startAt(arcWindowCutoff()).once('value').then(function(snap){
       var fbArc=snap.val()||{};
       var missing={};
       Object.keys(archive).forEach(function(k){
@@ -1463,7 +1542,7 @@ function gv(name){
   if(name==='l')renderList();
   if(name==='b')renderBar();
   if(name==='k')renderKitch();
-  if(name==='s'){_statShown=false;renderStats();refreshStatsFromCloud();}
+  if(name==='s'){_statShown=false;_statsCloud={};renderStats();refreshStatsFromCloud();}
   if(name==='m'){renderEditor();var el=document.getElementById('tnd');if(el)el.textContent=numT;}
   if(name==='w')renderStock();
   if(name==='c')renderCloud();
@@ -1522,11 +1601,13 @@ function showOdbiorPicker(){
   vib(10);
   var existing=document.getElementById('odbiorModal');
   if(existing)existing.parentNode.removeChild(existing);
-  // Domyslna godzina: aktualna + 30 min
+  // Domyslna godzina: aktualna + 30 min, zaokraglona w gore do 5 min (z przeniesieniem godziny)
   var now=new Date();
   now.setMinutes(now.getMinutes()+30);
+  var min5=Math.ceil(now.getMinutes()/5)*5;
+  if(min5>=60){now.setHours(now.getHours()+1);min5=0;}
   var hh=String(now.getHours()).padStart(2,'0');
-  var mm=String(Math.ceil(now.getMinutes()/5)*5%60).padStart(2,'0');
+  var mm=String(min5).padStart(2,'0');
   var defTime=hh+':'+mm;
 
   var modal=document.createElement('div');
@@ -1564,7 +1645,18 @@ function toggleWynos(){
   } else {
     if(lbl){lbl.style.background='rgba(255,255,255,.07)';lbl.style.borderColor='rgba(255,255,255,.12)';}
     if(txt)txt.style.color='rgba(255,255,255,.7)';
+    // Wylaczenie opcji = wszystko wraca "na miejscu" (scal linie na wynos z liniami na miejscu)
+    Object.keys(cart).forEach(function(k){
+      if(k.slice(-2)==='#w'){
+        var base=k.slice(0,-2);
+        if(cart[base])cart[base].qty+=cart[k].qty;
+        else{cart[k].wynos=false;cart[base]=cart[k];}
+        delete cart[k];
+      }
+    });
+    _splitOpen={};
   }
+  renderCart();updSend();
 }
 
 function pickTbl(n){
@@ -1637,12 +1729,31 @@ function vib(ms){if(navigator.vibrate)navigator.vibrate(ms||10);}
 function addCart(item,el){
   if(!selTbl&&appSettings.requireTable){toast('Wybierz stolik!','#e85c3a');vib(50);return;}
   vib(10);
-  if(cart[item.id])cart[item.id].qty++;
-  else{cart[item.id]=cloneObj(item);cart[item.id].qty=1;}
-  // Flash na konkretnym elemencie przez data-id zamiast referencji do node
-  var itemId=item.id;
-  flashCard(itemId);
+  var key=item.id; // zawsze "na miejscu"; podzial na wynos ustawia sie per pozycja po wlaczeniu opcji u gory
+  if(cart[key])cart[key].qty++;
+  else{cart[key]=cloneObj(item);cart[key].qty=1;cart[key].wynos=false;}
+  flashCard(item.id);
   renderCart();updSend();
+}
+// Marker "na wynos" przy pozycji (Kuchnia/Bar/Lista)
+function wynosTag(it){return (it&&it.wynos)?' <span style="display:inline-block;background:#e8821e;color:#fff;font-weight:900;font-size:.74rem;letter-spacing:.6px;padding:2px 8px;border-radius:6px;margin-left:6px;vertical-align:middle;white-space:nowrap;">NA WYNOS</span>':'';}
+// Buduje wiersz pozycji; dla "na wynos" dokleja pod nim osobny, czytelny pasek NA WYNOS (kind: 'k'=kuchnia/bar, 'l'=lista).
+function wynosWrap(rowHtml,it,kind){
+  var rowCls=kind==='l'?'olin':'tki';
+  if(it&&it.wynos){
+    var wrapCls=kind==='l'?'olw':'tkw';
+    return '<div class="'+wrapCls+'"><div class="'+rowCls+' nb">'+rowHtml+'</div><div class="tiw">NA WYNOS</div></div>';
+  }
+  return '<div class="'+rowCls+'">'+rowHtml+'</div>';
+}
+// Przelacz pojedyncza linie koszyka miejsce<->wynos (scal z istniejaca linia drugiego trybu)
+function toggleCartWynos(key){
+  var it=cart[key];if(!it)return;
+  var nw=!it.wynos;
+  var newKey=it.id+(nw?'#w':'');
+  if(newKey!==key&&cart[newKey]){cart[newKey].qty+=it.qty;delete cart[key];}
+  else{it.wynos=nw;delete cart[key];cart[newKey]=it;}
+  vib(10);renderCart();updSend();
 }
 
 function flashCard(itemId){
@@ -1676,16 +1787,82 @@ function renderCart(){
     updateCZK(0);
     return;
   }
-  var tot=0;el.innerHTML='';
+  // Grupuj po pozycji: ta sama pozycja moze miec czesc "na miejscu" i czesc "na wynos"
+  var groups={},order=[];
   for(var i=0;i<keys.length;i++){
-    var id=keys[i];var it=cart[id];tot+=it.price*it.qty;
+    var it=cart[keys[i]];var base=it.id;
+    if(!groups[base]){groups[base]={item:it,here:0,away:0};order.push(base);}
+    if(it.wynos)groups[base].away+=it.qty;else groups[base].here+=it.qty;
+  }
+  var tot=0;el.innerHTML='';
+  var hint=document.createElement('div');
+  hint.style.cssText='font-size:.68rem;color:rgba(255,255,255,.42);margin:0 2px 7px;line-height:1.35;';
+  hint.innerHTML=wynos
+    ? 'Opcja na wynos wlaczona. Przy pozycji nacisnij \uD83E\uDD61 Na wynos i ustaw, ile sztuk ma byc na wynos.'
+    : 'Wszystko \uD83C\uDF7D na miejscu. Aby czesc wydac na wynos, wlacz \uD83E\uDD61 Na wynos u gory zamowienia.';
+  el.appendChild(hint);
+  for(var g=0;g<order.length;g++){
+    var grp=groups[order[g]];var itm=grp.item;var sum=grp.here+grp.away;var base=order[g];
+    tot+=itm.price*sum;
+    var split=wynos&&(_splitOpen[base]||grp.away>0);
     var r=document.createElement('div');r.className='or';
-    r.innerHTML='<span class="orem">'+emo(it.emoji,'1.5rem')+'</span><span class="ornm">'+esc(it.name)+'</span><div class="qc"><button class="qb" onclick="chQty(\''+id+'\',-1)">-</button><span class="qn">'+it.qty+'</span><button class="qb" onclick="chQty(\''+id+'\',1)">+</button></div><span class="orpr">'+(it.price*it.qty).toFixed(2)+' zl</span>';
+    var nameRow=
+      '<div style="display:flex;align-items:center;gap:8px;width:100%;">'+
+        '<span class="orem">'+emo(itm.emoji,'1.4rem')+'</span>'+
+        '<span class="ornm" style="flex:1;">'+esc(itm.name)+'</span>'+
+        '<span class="orpr">'+(itm.price*sum).toFixed(2)+' zl</span>'+
+      '</div>';
+    var ctrl;
+    if(split){
+      ctrl='<div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-top:2px;">'+
+        cartCnt(base,false,grp.here)+cartCnt(base,true,grp.away)+
+        (grp.away===0?'<button onclick="closeSplit(\''+base+'\')" style="align-self:flex-start;background:none;border:none;color:rgba(255,255,255,.45);font-size:.72rem;padding:3px 0;text-decoration:underline;-webkit-tap-highlight-color:transparent;">\u2190 bez wynosu</button>':'')+
+        '</div>';
+    } else {
+      ctrl=cartSingle(base,grp.here+grp.away,wynos);
+    }
+    r.innerHTML=nameRow+ctrl;
     el.appendChild(r);
   }
   document.getElementById('otot').textContent=tot.toFixed(2)+' zl';
   updateCZK(tot);
 }
+// Licznik jednej czesci pozycji (na miejscu / na wynos) z przyciskami +/-
+function cartCnt(base,wy,q){
+  var on=q>0;
+  var col=wy?'#7ec8e3':'#7bdca0';
+  var bg=wy?(on?'rgba(18,120,168,.22)':'rgba(18,120,168,.08)'):(on?'rgba(39,174,96,.18)':'rgba(39,174,96,.07)');
+  var bd=wy?'rgba(18,120,168,.45)':'rgba(39,174,96,.4)';
+  return '<div style="flex:1;display:flex;align-items:center;justify-content:space-between;gap:4px;background:'+bg+';border:1px solid '+bd+';border-radius:9px;padding:4px 7px;">'+
+    '<span style="font-size:.7rem;font-weight:800;color:'+col+';white-space:nowrap;">'+(wy?'\uD83E\uDD61 na wynos':'\uD83C\uDF7D na miejscu')+'</span>'+
+    '<div class="qc" style="margin:0;">'+
+      '<button class="qb" onclick="adjCart(\''+base+'\','+(wy?'true':'false')+',-1)">-</button>'+
+      '<span class="qn">'+q+'</span>'+
+      '<button class="qb" onclick="adjCart(\''+base+'\','+(wy?'true':'false')+',1)">+</button>'+
+    '</div>'+
+  '</div>';
+}
+// Zmien ilosc danej czesci pozycji (tworzy linie jesli trzeba)
+function adjCart(base,wy,d){
+  vib(10);
+  var key=base+(wy?'#w':'');
+  if(cart[key]){cart[key].qty+=d;if(cart[key].qty<=0)delete cart[key];}
+  else if(d>0){var src=cart[base]||cart[base+'#w'];if(src){var c=cloneObj(src);c.qty=1;c.wynos=wy;cart[key]=c;}}
+  renderCart();updSend();
+}
+// Pojedynczy licznik (na miejscu) + przycisk wlaczajacy podzial na wynos
+function cartSingle(base,q,showBtn){
+  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:2px;">'+
+    '<div class="qc" style="margin:0;">'+
+      '<button class="qb" onclick="adjCart(\''+base+'\',false,-1)">-</button>'+
+      '<span class="qn">'+q+'</span>'+
+      '<button class="qb" onclick="adjCart(\''+base+'\',false,1)">+</button>'+
+    '</div>'+
+    (showBtn?'<button onclick="openSplit(\''+base+'\')" style="background:rgba(18,120,168,.15);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;font-weight:800;font-size:.74rem;border-radius:9px;padding:9px 12px;white-space:nowrap;-webkit-tap-highlight-color:transparent;">\uD83E\uDD61 Na wynos</button>':'')+
+  '</div>';
+}
+function openSplit(base){vib(10);_splitOpen[base]=true;renderCart();updSend();}
+function closeSplit(base){vib(10);delete _splitOpen[base];renderCart();updSend();}
 function updSend(){
   var dis=(!selTbl&&appSettings.requireTable)||!Object.keys(cart).length;
   document.getElementById('bsnd').disabled=dis;
@@ -1718,7 +1895,7 @@ function sendOrder(paid,currency,czkAmount){
   for(var i=0;i<ks.length;i++)items.push(cart[ks[i]]);
   var tot=0;for(var i=0;i<items.length;i++)tot+=items[i].price*items[i].qty;
   var order={id:id,seq:ordSeq++,table:(selTbl||'okienko'),items:items,total:tot,note:note,
-    status:'pending',paid:paid,wynos:wynos,barDone:false,
+    status:'pending',paid:paid,wynos:items.some(function(it){return it.wynos;}),barDone:false,
     currency:currency||'PLN',
     czkAmount:czkAmount||0,
     czkRate:getCZK(),
@@ -1728,7 +1905,7 @@ function sendOrder(paid,currency,czkAmount){
   saveSnapshot('Zamowienie #'+order.seq,id,true);
   orders[id]=order;saveOrds();
   deductStock(items); // odejmij od magazynu
-  cart={};document.getElementById('onote').value='';
+  cart={};_splitOpen={};document.getElementById('onote').value='';
   selTbl=null;
   var ophs=document.getElementById('ophs');if(ophs)ophs.textContent='wybierz stolik';
   // Reset wynos - bezposrednio bez toggleWynos zeby uniknac bledu logicznego
@@ -1816,7 +1993,7 @@ function _holdStart(btn,x,y){
 function _holdCancel(){
   if(_holdTimer){clearTimeout(_holdTimer);_holdTimer=null;}
   if(_holdBtn){_holdBtn.classList.remove('holding');_holdBtn.style.removeProperty('--hold-dur');}
-  _holdBtn=null;
+  _holdBtn=null;_holdStartXY=null;
 }
 // Jesli palec sie przesunie (przewijanie) — anuluj
 function _holdMove(x,y){
@@ -1864,26 +2041,24 @@ document.addEventListener('click',function(e){
   handleDataAction(btn);
 });
 function setStatus(id,status){
+  var ts=Date.now(); // jeden wspolny timestamp dla lokalnego zapisu, archiwum i chmury
   if(orders[id])saveSnapshot('Status: '+(SL[status]||status),id);
   if(orders[id]){
     orders[id].status=status;
-    if(status==='cooking')orders[id].cookingTs=Date.now();
+    if(status==='cooking')orders[id].cookingTs=ts;
     if(status==='done'){
-      orders[id].doneTs=Date.now();
+      orders[id].doneTs=ts;
       // Automatycznie archiwizuj - trafi do statystyk
       archive[id]=orders[id];
       saveArc();
-      if(fbReady){
-        window._fbSkipArchive=(window._fbSkipArchive||0)+1;
-        fbBg(fbDB.ref('archive/'+id).set(orders[id]));
-      }
+      if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id])); // echo okna idempotentne — bez licznikow
     }
     saveOrds();onData();
   }
   if(fbReady){
     var upd={status:status};
-    if(status==='cooking')upd.cookingTs=Date.now();
-    if(status==='done')upd.doneTs=Date.now();
+    if(status==='cooking')upd.cookingTs=ts;
+    if(status==='done')upd.doneTs=ts;
     window._fbSkipNext=(window._fbSkipNext||0)+1;
     fbBg(fbDB.ref('orders/'+id).update(upd));
   }
@@ -2091,9 +2266,9 @@ function renderList(){
       o.items.forEach(function(it){
         var found=false;
         for(var k=0;k<allItems.length;k++){
-          if(allItems[k].name===it.name){allItems[k].qty+=it.qty;found=true;break;}
+          if(allItems[k].name===it.name&&!!allItems[k].wynos===!!it.wynos){allItems[k].qty+=it.qty;found=true;break;}
         }
-        if(!found)allItems.push({emoji:it.emoji,name:it.name,qty:it.qty});
+        if(!found)allItems.push({emoji:it.emoji,name:it.name,qty:it.qty,wynos:!!it.wynos});
       });
     });
 
@@ -2101,6 +2276,8 @@ function renderList(){
     // paid===false oznacza "na rachunek", paid===true lub paid===undefined = opłacone
     var hasUnpaid=grp.some(function(o){return o.paid===false;});
     var allPaid=grp.every(function(o){return o.paid!==false;});
+    // Wydane zamowienia nie powinny miec "Anuluj" (anulowanie bledne zwracaloby towar na magazyn)
+    var allDone=grp.every(function(o){return o.status==='done';});
 
     // Helper - dodaje onclick + touchend na przycisku
     function tb(el,fn){
@@ -2152,7 +2329,7 @@ function renderList(){
     var rows='';
     for(var k=0;k<allItems.length;k++){
       var it=allItems[k];
-      rows+='<div class="olin"><span class="ole">'+emo(it.emoji,'1.2rem')+'</span><span class="oln">'+esc(it.name)+'</span><span class="olq">x'+it.qty+'</span></div>';
+      rows+=wynosWrap('<span class="ole">'+emo(it.emoji,'1.2rem')+'</span><span class="oln">'+esc(it.name)+'</span><span class="olq">x'+it.qty+'</span>',it,'l');
     }
 
     var c=document.createElement('div');c.className='oc';
@@ -2165,7 +2342,7 @@ function renderList(){
           '</div>'+
           '<span style="color:rgba(255,255,255,.55);font-size:.72rem;">'+seqStr+' &bull; '+mainO.timeStr+(grp.some(function(o){return _pendingOrders[o.id];})?' <span class="syncb sb-off" title="Przyjete offline - niewyslane do chmury">&#9679; offline</span>':' <span class="syncb sb-on" title="Wyslane do chmury">&#9679;</span>')+'</span>'+
         '</div>'+
-        '<button class="cancelBtn" style="background:rgba(0,0,0,.25);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:5px 10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;touch-action:manipulation;flex-shrink:0;white-space:nowrap;">&#x274C; Anuluj</button>'+
+        (allDone?'':'<button class="cancelBtn" style="background:rgba(0,0,0,.25);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:5px 10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;touch-action:manipulation;flex-shrink:0;white-space:nowrap;">&#x274C; Anuluj</button>')+
         '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
       '</div>'+
       '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
@@ -2252,7 +2429,7 @@ function renderBCounter(){
   if(!el)return;
   var ds=dSet();
   var act=Object.values(orders).filter(function(o){
-    return o.status!=='done'&&o.items.some(function(i){return ds.has(norm(i.name));});
+    return o&&o.items&&o.status!=='done'&&o.items.some(function(i){return ds.has(norm(i.name));});
   });
   var totals={};
   var pending={};
@@ -2307,7 +2484,7 @@ function renderBar(){
     var o=act[i];
     var dr=o.items.filter(function(i){return ds.has(norm(i.name));});
     var done=!!o.barDone;
-    var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+='<div class="tki"><span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span></div>';}
+    var rows='';for(var j=0;j<dr.length;j++){var it=dr[j];rows+=wynosWrap('<span class="tie">'+emo(it.emoji,'1.3rem')+'</span><span class="tin">'+esc(it.name)+'</span><span class="tiq '+(done?'sv':'dr')+'">'+it.qty+'</span>',it,'k');}
     var btn=done?'<span style="color:var(--gr);font-weight:800;font-size:.82rem;padding:6px">Wydane</span>':'<button class="bt btbar" data-action="bardone" data-ids="'+o.id+'">Wydano napoje</button>';
     var t=document.createElement('div');t.className='tkt '+(done?'bd':'bn');
     t.innerHTML='<div class="tkh"><span class="tktbl">'+tlabel(o.table)+(o.paid===false?'<span class="unpaid-badge">NIEOPL.</span>':'')+'</span><div class="tkm"><div class="tksc">#'+o.seq+' '+o.timeStr+syncBadge(o.id)+'</div></div></div><div class="tkb">'+rows+(o.note?'<div class="tknote">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+'</div><div class="tkf">'+btn+'</div>';
@@ -2327,7 +2504,7 @@ function renderKCounter(){
   if(!el)return;
   var ds=dSet();
   var act=Object.values(orders).filter(function(o){
-    return o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});
+    return o&&o.items&&o.status!=='done'&&o.items.some(function(i){return !ds.has(norm(i.name));});
   });
   if(!act.length){el.innerHTML='';return;}
 
@@ -2353,7 +2530,7 @@ function renderKCounter(){
   });
 
   function mkTile(item,cls){
-    return '<div class="kcnt'+(cls?' '+cls:'')+'">'+'<span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span>'+'<div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+item.name+'</span></div></div>';
+    return '<div class="kcnt'+(cls?' '+cls:'')+'">'+'<span class="kcnt-em">'+emo(item.emoji,'1.5rem')+'</span>'+'<div class="kcnt-info"><span class="kcnt-num">'+item.qty+'</span><span class="kcnt-lbl">'+esc(item.name)+'</span></div></div>';
   }
 
   var leftHtml='';
@@ -2498,8 +2675,24 @@ function setSF(f){
   sfilt=f;
   _chartExpandedDay=null;
   _statShown=false; // po zmianie okresu trzeba kliknac "Pokaz statystyki"
+  _statsCloud={};   // zwolnij dociagniete dane poprzedniego okresu (tylko RAM)
   if(f!=='range'){sDateFrom='';sDateTo='';}
   renderStats();
+}
+// Granice czasowe dociagania dla biezacego filtra statystyk.
+// Zwraca null gdy okres miesci sie w lokalnym oknie 24h (godzina/dzis) — nic nie pobieramy.
+function statsFetchBounds(){
+  var now=Date.now();
+  if(sfilt==='week')return {from:now-7*24*3600*1000,to:null};
+  if(sfilt==='month')return {from:now-30*24*3600*1000,to:null};
+  if(sfilt==='all')return {from:null,to:null};
+  if(sfilt==='range'){
+    var from=null,to=null;
+    if(sDateFrom){var f=new Date(sDateFrom);f.setHours(0,0,0,0);from=f.getTime();}
+    if(sDateTo){var t=new Date(sDateTo);t.setHours(23,59,59,999);to=t.getTime();}
+    return {from:from,to:to};
+  }
+  return null; // 'hour' / 'today' — w obrebie okna 24h
 }
 function showStats(){
   if(sfilt==='range'){
@@ -2507,8 +2700,35 @@ function showStats(){
     if(df)sDateFrom=df.value;
     if(dt)sDateTo=dt.value;
   }
-  _statShown=true;
   _chartExpandedDay=null;
+  var bounds=statsFetchBounds();
+  if(bounds){
+    // Okres wykracza poza lokalne okno 24h — dociagnij z chmury (tylko do RAM).
+    if(!(fbReady&&fbAuthReady)){
+      _statsCloud={};
+      toast('Brak chmury — pokazuje tylko ostatnie 24h','#f5a623');
+      _statShown=true;renderStats();
+      return;
+    }
+    toast('Pobieranie danych z chmury...','#1278a8');
+    fetchArchiveRange(bounds.from,bounds.to,function(err,data,mb){
+      if(err==='toobig'){
+        toast('&#x26A0;&#xFE0F; Za duzo danych ('+mb.toFixed(1)+' MB, limit '+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB) — zawez okres dat','#e85c3a');
+        return; // _statShown zostaje false — zawez okres i kliknij ponownie
+      }
+      if(err){
+        _statsCloud={};
+        toast('Blad pobierania — pokazuje tylko ostatnie 24h','#f5a623');
+      } else {
+        _statsCloud=data||{};
+        if(mb>1)toast('Pobrano '+mb.toFixed(1)+' MB danych','#27ae60');
+      }
+      _statShown=true;renderStats();
+    });
+    return;
+  }
+  _statsCloud={}; // godzina/dzis — wystarcza lokalne okno
+  _statShown=true;
   renderStats();
 }
 function setDateRange(){
@@ -2517,14 +2737,29 @@ function setDateRange(){
   if(df)sDateFrom=df.value;
   if(dt)sDateTo=dt.value;
   sfilt='range';
-  _chartExpandedDay=null;
-  _statShown=true;
-  renderStats();
+  showStats(); // wspolna sciezka — z dociaganiem i limitem 5 MB
 }
 // Eksport wszystkich danych sprzedazy do CSV (otwiera sie w Excelu).
 // Format pod polski Excel: separator ';', przecinek dziesietny, kodowanie UTF-8 z BOM.
+// Eksport SWIADOMIE pobiera pelne archiwum z chmury (bez limitu 5 MB) — to jawna akcja
+// uzytkownika, a dane trafiaja wprost do pliku, nie do localStorage.
 function exportStatsCSV(){
-  var all=Object.values(Object.assign({},archive,orders));
+  if(fbReady&&fbAuthReady){
+    toast('Pobieranie pelnego archiwum do eksportu...','#1278a8');
+    fetchArchiveRange(null,null,function(err,data){
+      if(err){
+        toast('Brak chmury — eksport tylko danych lokalnych (ostatnie 24h)','#f5a623');
+        _exportStatsCSVData(Object.assign({},_statsCloud,archive,orders));
+      } else {
+        _exportStatsCSVData(Object.assign({},data||{},orders));
+      }
+    },true); // noLimit — eksport ma prawo byc duzy
+  } else {
+    _exportStatsCSVData(Object.assign({},_statsCloud,archive,orders));
+  }
+}
+function _exportStatsCSVData(merged){
+  var all=Object.values(merged);
   var rows=all.filter(function(o){return o&&o.status==='done';}).sort(function(a,b){return (a.ts||0)-(b.ts||0);});
   if(!rows.length){toast('Brak wydanych zamowien do eksportu','#f5a623');return;}
   var SEP=';';
@@ -2800,7 +3035,7 @@ function openEditOrder(id){
       '</tr>';
     }).join('');
     var opts=[];
-    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+it.price.toFixed(2)+'zl)</option>');});});
+    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+(+it.price||0).toFixed(2)+'zl)</option>');});});
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
       '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+tlabel(o.table)+'</div>'+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
@@ -2935,6 +3170,7 @@ function openEditOrder(id){
         ord.total=ord.items.reduce(function(s,x){
           return s+(x.price||0)*x.qty;
         },0);
+        ord.wynos=ord.items.some(function(x){return !!x.wynos;}); // przelicz flage zbiorcza (bilet WYNOS)
 
         saveOrds();
 
@@ -2943,7 +3179,8 @@ function openEditOrder(id){
           fbBg(fbDB.ref('orders/'+id).update({
             items:ord.items,
             note:ord.note,
-            total:ord.total
+            total:ord.total,
+            wynos:ord.wynos
           }));
         }
 
@@ -3100,7 +3337,6 @@ function undoLastAction(){
       var prev=snap.arcPrev[id];
       if(prev)archive[id]=prev; else delete archive[id];
       if(fbReady){
-        window._fbSkipArchive=(window._fbSkipArchive||0)+1;
         if(prev)fbBg(fbDB.ref('archive/'+id).set(prev));
         else fbBg(fbDB.ref('archive/'+id).remove());
       }
@@ -3181,7 +3417,7 @@ function openAddToOrder(table){
   var allItems=[];
   catKeys().forEach(function(sec){(menu[sec]||[]).forEach(function(it){if(!it.unavailable)allItems.push(it);});});
   var opts=allItems.map(function(it){
-    return '<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+it.price.toFixed(2)+' zl)</option>';
+    return '<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+(+it.price||0).toFixed(2)+' zl)</option>';
   }).join('');
 
   var tblLabel=tlabel(table);
@@ -3375,9 +3611,9 @@ function openStats(){
 // te same dane z chmury jako zrodla prawdy, niezaleznie od stanu lokalnego.
 function refreshStatsFromCloud(){
   if(!fbReady||!fbAuthReady||!fbDB)return;
-  // Chmura jest NADRZEDNA — odzwierciedlamy ja bez dopisywania starych lokalnych wpisow
-  // (spojne z logika subAll). Swiezo wydane offline trafiaja do chmury osobno.
-  fbDB.ref('archive').once('value').then(function(snap){
+  // Odswiez tylko lokalne OKNO 24h (chmura nadrzedna). Dluzsze okresy dociaga showStats
+  // na zadanie — nigdy nie sciagamy tu pelnego archiwum.
+  fbDB.ref('archive').orderByChild('ts').startAt(arcWindowCutoff()).once('value').then(function(snap){
     archive=snap.val()||{};
     saveArc();
     if(curV==='s')renderStats();
@@ -3639,8 +3875,8 @@ function _wireChartFilter(host){
 function renderWeatherSalesChart(){
   var host=document.getElementById('weatherChart');
   if(!host)return;
-  // Zbierz wydane zamowienia respektujac aktywny filtr statystyk
-  var all=Object.values(Object.assign({},archive,orders));
+  // Zbierz wydane zamowienia respektujac aktywny filtr statystyk (z danymi dociagnietymi z chmury)
+  var all=Object.values(Object.assign({},_statsCloud,archive,orders));
   var done=all.filter(function(o){return o&&o.status==='done'&&o.ts&&_statsFilterMatch(o);});
   if(!done.length){host.innerHTML='<div style="color:rgba(255,255,255,.4);font-size:.8rem;text-align:center;padding:16px;">Brak danych do wykresu w wybranym zakresie</div>';return;}
 
@@ -3746,7 +3982,7 @@ function renderHourlyChart(host,done,dayKey){
 
 // Modal: pelna historia sprzedazy w danej godzinie konkretnego dnia
 function showHourOrders(dayKey,hour){
-  var all=Object.values(Object.assign({},archive,orders));
+  var all=Object.values(Object.assign({},_statsCloud,archive,orders));
   var list=all.filter(function(o){
     return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey&&new Date(o.ts).getHours()===hour;
   }).sort(function(a,b){return a.ts-b.ts;});
@@ -3814,8 +4050,8 @@ function showHourOrders(dayKey,hour){
 function tlabel(t){
   if(t==='my')return '\uD83D\uDC6A MY';
   if(t==='okienko')return '\uD83D\uDEB6 Okienko';
-  if(typeof t==='string'&&t.indexOf('odbior')===0)return 'Odbior '+t.slice(7);
-  return 'Stolik '+t;
+  if(typeof t==='string'&&t.indexOf('odbior')===0)return 'Odbior '+esc(t.slice(7));
+  return 'Stolik '+esc(String(t));
 }
 function statControlsHtml(){
   var dfVal=sDateFrom||'',dtVal=sDateTo||'';
@@ -3825,7 +4061,8 @@ function statControlsHtml(){
     (sfilt==='range'
       ?'<div class="sdr"><span class="sdlbl">Od:</span><input class="sdinp" id="sdf" type="date" value="'+dfVal+'"><span class="sdlbl">Do:</span><input class="sdinp" id="sdt" type="date" value="'+dtVal+'"></div>'
       :'')+
-    '<button class="sf" onclick="showStats()" style="width:100%;margin:6px 0 8px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
+    '<button class="sf" onclick="showStats()" style="width:100%;margin:6px 0 4px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
+    '<div class="set-hint" style="margin:0 2px 8px;">Lokalnie trzymane sa ostatnie 24h. Dluzsze okresy pobieraja sie z chmury po kliknieciu (limit '+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB — przy przekroczeniu zawez zakres dat).</div>'+
     '<button class="sf" onclick="exportStatsCSV()" style="width:100%;margin:0 0 14px;background:rgba(39,174,96,.14);border:1.5px solid rgba(39,174,96,.35);color:#27ae60;font-weight:800;padding:10px;border-radius:10px;">&#x1F4E5; Pobierz wszystkie statystyki (CSV / Excel)</button>';
 }
 function renderStats(){
@@ -3835,7 +4072,8 @@ function renderStats(){
     return;
   }
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
-  var all=Object.values(Object.assign({},archive,orders));
+  // _statsCloud = dane dociagniete na zadanie (RAM); archive = okno 24h; orders = aktywne
+  var all=Object.values(Object.assign({},_statsCloud,archive,orders));
   var filt=all.filter(function(o){
     if(!o||!o.ts)return sfilt==='all'; // wpisy bez daty tylko w widoku Wszystko
     if(sfilt==='hour')return (now-o.ts)<3600*1000;
@@ -3877,13 +4115,13 @@ function renderStats(){
   var histRows='';
   var doneSorted=done.slice().reverse();
   var _histCap=Math.min(doneSorted.length,300);
-  for(var i=0;i<_histCap;i++){var o=doneSorted[i];var istr=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+(o.timeStr||'')+'</span><span class="htbl">Stolik '+o.table+'</span><span class="hi">'+istr+'</span><span class="htot">'+(o.total||0).toFixed(2)+' zl</span></div>';}
-  if(doneSorted.length>_histCap)histRows+='<div class="ni" style="margin-top:6px;">...i '+(doneSorted.length-_histCap)+' wczesniejszych — zaw okres, aby zobaczyc mniej</div>';
+  for(var i=0;i<_histCap;i++){var o=doneSorted[i];var istr=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');histRows+='<div class="hr2"><span class="ht">'+new Date(o.ts).toLocaleDateString('pl-PL')+' '+(o.timeStr||'')+'</span><span class="htbl">'+tlabel(o.table)+'</span><span class="hi">'+istr+'</span><span class="htot">'+(o.total||0).toFixed(2)+' zl</span></div>';}
+  if(doneSorted.length>_histCap)histRows+='<div class="ni" style="margin-top:6px;">...i '+(doneSorted.length-_histCap)+' wczesniejszych — zawez okres, aby zobaczyc mniej</div>';
 
-  // Sredni czas wydawania - wszystkie zamowienia z doneTs (niezaleznie od statusu)
+  // Sredni czas wydawania - tylko zamowienia faktycznie WYDANE (usuniete recznie tez maja doneTs, ale nie liczymy ich)
   var timeData=[];
   filt.forEach(function(o){
-    if(o.ts && o.doneTs){
+    if(o.status==='done' && o.ts && o.doneTs){
       var mins=Math.round((o.doneTs-o.ts)/60000);
       if(mins>0&&mins<480){
         timeData.push({table:o.table,seq:o.seq,mins:mins});
@@ -3897,13 +4135,13 @@ function renderStats(){
     var td=timeSorted[i];
     var barW=Math.round(td.mins/Math.max(timeSorted[0].mins,1)*120);
     var col='var(--s)';
-    timeRows+='<tr><td>Stolik '+td.table+' #'+td.seq+'</td><td><b>'+td.mins+' min</b></td><td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:'+col+'"></div></div></td></tr>';
+    timeRows+='<tr><td>'+tlabel(td.table)+' #'+td.seq+'</td><td><b>'+td.mins+' min</b></td><td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:'+col+'"></div></div></td></tr>';
   }
 
-  // Czas smazenia - od klikniecia Gotowanie do wydania
+  // Czas smazenia - od klikniecia Gotowanie do wydania (tylko zamowienia wydane)
   var fryData=[];
   filt.forEach(function(o){
-    if(o.cookingTs && o.doneTs){
+    if(o.status==='done' && o.cookingTs && o.doneTs){
       var secs=Math.round((o.doneTs-o.cookingTs)/1000);
       var mins=Math.round(secs/60);
       if(secs>0&&secs<7200){
@@ -3919,13 +4157,13 @@ function renderStats(){
     var fd=frySorted[i];
     var fbarW=Math.round(fd.mins/Math.max(frySorted[0].mins,1)*120);
     var fcol='var(--s)';
-    fryRows+='<tr><td>Stolik '+fd.table+' #'+fd.seq+'</td><td><b>'+fd.str+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+fbarW+'px;background:'+fcol+'"></div></div></td></tr>';
+    fryRows+='<tr><td>'+tlabel(fd.table)+' #'+fd.seq+'</td><td><b>'+fd.str+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+fbarW+'px;background:'+fcol+'"></div></div></td></tr>';
   }
 
-  // Sredni czas wydania per godzina
+  // Sredni czas wydania per godzina (tylko zamowienia wydane)
   var timeByHour={};
   filt.forEach(function(o){
-    if(o.ts&&o.doneTs){
+    if(o.status==='done'&&o.ts&&o.doneTs){
       var mins=Math.round((o.doneTs-o.ts)/60000);
       if(mins>0&&mins<480){
         var hh=new Date(o.ts).getHours();
@@ -4178,7 +4416,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.15',
+    v:'v3.24',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -4197,7 +4435,7 @@ function renderDevices(){
     var el=document.getElementById('devList');
     if(!el)return;
     var now=Date.now();
-    var list=Object.values(devs).sort(function(a,b){return b.ts-a.ts;});
+    var list=Object.values(devs).filter(function(d){return d&&typeof d.ts==='number';}).sort(function(a,b){return b.ts-a.ts;});
     if(!list.length){el.innerHTML='<div style="color:rgba(255,255,255,.4);font-size:.8rem;">Brak aktywnych urządzeń</div>';return;}
     var html='';
     list.forEach(function(d){
@@ -4205,17 +4443,19 @@ function renderDevices(){
       var active=ago<120;
       var agoStr=ago<60?(ago+'s temu'):(Math.floor(ago/60)+'m temu');
       var isMine=d.did===DID;
+      var ua=String(d.ua||'').slice(0,50);
+      var ordCnt=parseInt(d.orders,10)||0;
       html+=
         '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08);">'+
           '<div style="width:10px;height:10px;border-radius:50%;background:'+(active?'#27ae60':'#666')+';flex-shrink:0;"></div>'+
           '<div style="flex:1;">'+
-            '<div style="font-size:.82rem;font-weight:700;color:#fff;">'+esc(d.did)+(isMine?' <span style="background:#1278a8;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:4px;">TEN TELEFON</span>':'')+'</div>'+
-            '<div style="font-size:.72rem;color:rgba(255,255,255,.5);">'+esc(d.ua.slice(0,50))+'</div>'+
+            '<div style="font-size:.82rem;font-weight:700;color:#fff;">'+esc(d.did||'?')+(isMine?' <span style="background:#1278a8;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:4px;">TEN TELEFON</span>':'')+'</div>'+
+            '<div style="font-size:.72rem;color:rgba(255,255,255,.5);">'+esc(ua)+'</div>'+
           '</div>'+
           '<div style="text-align:right;flex-shrink:0;">'+
             '<div style="font-size:.75rem;font-weight:800;color:'+(active?'#27ae60':'#888')+';">'+(active?'AKTYWNE':'offline')+'</div>'+
             '<div style="font-size:.68rem;color:rgba(255,255,255,.4);">'+agoStr+'</div>'+
-            '<div style="font-size:.68rem;color:rgba(255,255,255,.4);">zamow: '+d.orders+'</div>'+
+            '<div style="font-size:.68rem;color:rgba(255,255,255,.4);">zamow: '+ordCnt+'</div>'+
           '</div>'+
         '</div>';
     });
@@ -4677,13 +4917,14 @@ function testFb(){
 // ZEGAR
 // Zegar + timery kuchni — co sekunde aktualizuje tylko tekst, bez re-renderu DOM
 setInterval(function(){
+  try{
   var t=new Date().toLocaleTimeString('pl-PL');
   var k=document.getElementById('kclk');if(k)k.textContent=t;
   var b=document.getElementById('bclk');if(b)b.textContent=t;
 
   // Aktualizuj timery i przyciski biletow kuchennych co sekunde
+  // (licznikow NIE przerysowujemy co sekunde — zaleza tylko od danych, odswieza je renderKitch przy zmianie)
   if(curV==='k'){
-    renderKCounter();
     var now=Date.now();
     var tkts=document.querySelectorAll('#kg .tkt[data-oid]');
     for(var i=0;i<tkts.length;i++){
@@ -4722,6 +4963,7 @@ setInterval(function(){
       }
     }
   }
+  }catch(e){console.warn('tick:',e);}
 },1000);
 
 setInterval(savePhoneBackup,60000);
@@ -4822,6 +5064,7 @@ function autoClearOldOrders(){
 }
 
 var _clrStatsRange='all';
+var _clrFetched=null; // klucze policzone z chmury dla zakresu 'week' (lokalnie mamy tylko okno 24h)
 function confirmClearStats(){
   var existing=document.getElementById('clearStatsModal');
   if(existing)existing.parentNode.removeChild(existing);
@@ -4851,7 +5094,23 @@ function confirmClearStats(){
 
   function updRangeInfo(){
     var info=document.getElementById('clrRangeInfo');
-    if(info)info.textContent='Do usuniecia: '+countStatsInRange(_clrStatsRange)+' zamowien';
+    if(!info)return;
+    _clrFetched=null;
+    if(_clrStatsRange==='all'){info.textContent='Do usuniecia: CALE archiwum (pelna historia w chmurze)';return;}
+    if(_clrStatsRange==='hour'||_clrStatsRange==='today'){
+      info.textContent='Do usuniecia: '+countStatsInRange(_clrStatsRange)+' zamowien';
+      return;
+    }
+    // 'week' — lokalnie mamy tylko okno 24h, wiec policz z chmury
+    if(!(fbReady&&fbAuthReady)){info.textContent='Tydzien: wymaga polaczenia z chmura';return;}
+    info.textContent='Liczenie w chmurze...';
+    fetchArchiveRange(statsRangeCutoff('week'),null,function(err,data,mb){
+      if(_clrStatsRange!=='week')return; // zakres zmieniony w miedzyczasie
+      if(err==='toobig'){info.textContent='Za duzo wpisow (>'+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB) — uzyj Wszystko albo czysc krotszymi okresami';return;}
+      if(err){info.textContent='Blad pobierania — sprawdz internet';return;}
+      _clrFetched=Object.keys(data||{});
+      info.textContent='Do usuniecia: '+_clrFetched.length+' zamowien';
+    });
   }
   var rb=modal.querySelectorAll('.clr-range');
   for(var i=0;i<rb.length;i++){
@@ -4901,13 +5160,26 @@ function doClrStats(){
       return;
     }
     var range=_clrStatsRange||'all';
-    var cut=statsRangeCutoff(range);
-    var cnt=countStatsInRange(range);
-    var rangeLabel={hour:'z ostatniej godziny',today:'z dzisiaj',week:'z ostatniego tygodnia',all:''}[range]||'';
+    var delKeys=null,cnt=0;
+    var rangeLabel='';
+    if(range==='all'){
+      cnt=null; // cale archiwum — bez liczby
+    } else if(range==='week'){
+      if(!_clrFetched){
+        err.textContent=(fbReady&&fbAuthReady)?'Poczekaj na policzenie zakresu (chmura)':'Tydzien wymaga polaczenia z chmura';
+        return;
+      }
+      delKeys=_clrFetched.slice();cnt=delKeys.length;rangeLabel='z ostatniego tygodnia';
+    } else {
+      var cut=statsRangeCutoff(range);
+      delKeys=Object.keys(archive).filter(function(k){return archive[k]&&archive[k].ts>=cut;});
+      cnt=delKeys.length;rangeLabel=range==='hour'?'z ostatniej godziny':'z dzisiaj';
+    }
     if(cnt===0){
       err.textContent='Brak zamowien w tym zakresie';
       return;
     }
+    var cntTxt=(cnt==null)?'<b style="color:#e85c3a;">CALE archiwum</b> (pelna historia)':'<b style="color:#e85c3a;">'+cnt+'</b> zamowien'+(rangeLabel?' '+rangeLabel:'');
     // Haslo OK - drugie potwierdzenie
     var m1=document.getElementById('clearStatsModal');
     if(m1)m1.parentNode.removeChild(m1);
@@ -4918,8 +5190,8 @@ function doClrStats(){
       '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
         '<div style="font-size:2.5rem;margin-bottom:8px;">&#x26A0;&#xFE0F;</div>'+
         '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#e85c3a;margin-bottom:10px;">Jestes pewny?</div>'+
-        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Zostanie trwale usunietych <b style="color:#e85c3a;">'+cnt+'</b> zamowien'+(rangeLabel?' '+rangeLabel:'')+'.</div>'+
-        '<button id="clrSt2Ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Tak, usun ('+cnt+')</button>'+
+        '<div style="color:#666;font-size:.82rem;margin-bottom:16px;">Zostanie trwale usuniete: '+cntTxt+'.</div>'+
+        '<button id="clrSt2Ok" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">&#x2757; Tak, usun ('+(cnt==null?'wszystko':cnt)+')</button>'+
         '<button id="clrSt2No" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
       '</div>';
     document.body.appendChild(m2);
@@ -4927,39 +5199,31 @@ function doClrStats(){
     document.getElementById('clrSt2No').onclick=function(){m2.parentNode.removeChild(m2);};
     document.getElementById('clrSt2Ok').onclick=function(){
       m2.parentNode.removeChild(m2);
-      if(cut===null){
-        // Wszystko
-        archive={};
+      if(range==='all'){
+        // Cale archiwum: lokalnie i w chmurze. Echo z okna jest idempotentne — bez licznikow.
+        archive={};_statsCloud={};
         saveArc();
-        if(fbReady){
-          window._fbSkipArchive=(window._fbSkipArchive||0)+1;
-          fbBg(fbDB.ref('archive').remove());
-        }
+        if(fbReady)fbBg(fbDB.ref('archive').remove());
       } else {
-        // Tylko wpisy w wybranym zakresie
-        var removed=[];
-        Object.keys(archive).forEach(function(k){
-          if(archive[k]&&archive[k].ts>=cut){removed.push(k);delete archive[k];}
+        // Wybrane klucze: usun lokalnie (okno + dane dociagniete) i pojedynczo w chmurze.
+        delKeys.forEach(function(k){
+          delete archive[k];
+          if(_statsCloud)delete _statsCloud[k];
+          if(fbReady)fbBg(fbDB.ref('archive/'+k).remove());
         });
         saveArc();
-        if(fbReady&&removed.length){
-          window._fbSkipArchive=(window._fbSkipArchive||0)+1;
-          removed.forEach(function(k){fbBg(fbDB.ref('archive/'+k).remove());});
-        }
       }
       renderStats();
-      toast('Usunieto '+cnt+' zamowien ze statystyk','#27ae60');
+      toast('Usunieto '+(cnt==null?'cale archiwum':cnt+' zamowien')+' ze statystyk','#27ae60');
     };
   });
 }
 
-function checkSession(){
-  var exp=parseInt(localStorage.getItem('sp_session')||'0');
-  return exp>Date.now();
-}
+// (sprawdzanie sesji obsluguje skrypt logowania na dole pliku)
 
 function logoutApp(){
   savePhoneBackup();
+  detachFb(); // odepnij nasluchy Firebase i timery (heartbeat) — bez tego dzialaly w tle po wylogowaniu
   rawRemove(lsKey('sp_session'));
   try{localStorage.removeItem('sp_session');}catch(e){}
   fbReady=false;fbAuthReady=false;fbDB=null;dot('');
@@ -4973,28 +5237,13 @@ function logoutApp(){
 // BOOT (wywolywany po zalogowaniu)
 // ═══════════════════════════════════════
 
-// Timer kuchni - odswiezaj tylko liczniki czasu bez przebudowy DOM
-var _kitchTimer=null;
-function startKitchTimer(){
-  if(_kitchTimer)clearInterval(_kitchTimer);
-  _kitchTimer=setInterval(function(){
-    if(curV!=='k')return;
-    // Aktualizuj tylko elementy .tktmr bez przebudowy
-    var timers=document.querySelectorAll('.tktmr[data-ts]');
-    timers.forEach(function(el){
-      var ts=parseInt(el.getAttribute('data-ts')||'0');
-      if(!ts)return;
-      var sec=Math.floor((Date.now()-ts)/1000);
-      var m=Math.floor(sec/60);var s=sec%60;
-      el.textContent=(m<10?'0':'')+m+':'+(s<10?'0':'')+s;
-    });
-  },1000);
-}
+// (dawny startKitchTimer usuniety — timery biletow obsluguje glowna petla zegara wyzej)
 function bootApp(){
   orders={};
   archive={};
   stock={};
   cart={};
+  _splitOpen={};
   selTbl=null;
   wynos=false;
   ordSeq=Math.max(1,parseInt(lsGet('sp_seq'))||1);
@@ -5006,6 +5255,7 @@ function bootApp(){
   loadIconSize();
   countSetInvalidate();
   loadOrds();
+  purgeEmptyOrders();
   loadArc();
   loadStock();
   var _mc=lsGet('sp_menu');
@@ -5186,7 +5436,7 @@ applyProfileUI();
       try{
         var _appUrl=location.href.split('#')[0];
         fetch(_appUrl,{cache:'reload'}).then(function(r){
-          if(r&&r.status===200){caches.open('smazalnia-v7').then(function(c){c.put(_appUrl,r.clone());}).catch(function(){});}
+          if(r&&r.status===200){caches.open('smazalnia-v8').then(function(c){c.put(_appUrl,r.clone());}).catch(function(){});}
         }).catch(function(){});
       }catch(e){}
     }
@@ -5296,7 +5546,7 @@ applyProfileUI();
     function tryLogin(hash){
       sha256(pw).then(function(pwHash){
         if(pwHash===hash){
-          ls('sp_session',String(Date.now()+43200000));
+          ls('sp_session',String(Date.now()+7*24*3600*1000)); // sesja 7 dni (odnawiana przy kazdym otwarciu)
           document.getElementById('loginScreen').style.display='none';
           document.getElementById('app').style.display='block';
           if(err)err.textContent='';
@@ -5312,8 +5562,10 @@ applyProfileUI();
     if(storedHash){
       tryLogin(storedHash);
     } else {
-      // Brak lokalnego hasha - sprobuj Firebase, fallback na domyslne
-      function fallback(){sha256('smazalnia2024').then(function(h){saveHash(h);tryLogin(h);});}
+      // Brak lokalnego hasha - sprobuj Firebase, fallback na domyslne.
+      // UWAGA: domyslny hash zapisujemy TYLKO lokalnie (saveHashLocal) — zapis do chmury
+      // nadpisywalby niestandardowe haslo ustawione na innych urzadzeniach.
+      function fallback(){sha256('smazalnia2024').then(function(h){saveHashLocal(h);tryLogin(h);});}
       if(typeof firebase!=='undefined'&&firebase.apps&&firebase.apps.length){
         try{
           firebase.database().ref(FB_PW_PATH).once('value').then(function(snap){
@@ -5372,6 +5624,7 @@ applyProfileUI();
   function checkSessionAndSync(){
     var exp=parseInt(lg('sp_session')||'0');
     if(exp>Date.now()){
+      ls('sp_session',String(Date.now()+7*24*3600*1000)); // sesja przesuwna: odnow przy kazdym otwarciu
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
       if(typeof bootApp==='function')bootApp();
