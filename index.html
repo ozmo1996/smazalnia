@@ -95,14 +95,17 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .opht{color:#fff;font-weight:800;font-size:.88rem}.ophs{color:var(--a);font-weight:700;font-size:.78rem}
 .onr{padding:7px 12px 4px}.on2{width:100%;padding:7px 10px;border-radius:8px;border:1.5px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);color:#fff;font-family:'Nunito',sans-serif;font-size:.81rem;outline:none}
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
-.oi{padding:4px 12px;max-height:200px;overflow-y:auto}
+.oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-.or{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
-.orem{font-size:1.3rem;width:25px;text-align:center}.ornm{flex:1;color:#fff;font-weight:700;font-size:.81rem}
-.qc{display:flex;align-items:center;gap:4px}
-.qb{width:66px;height:66px;border-radius:12px;border:none;background:rgba(255,255,255,.15);color:#fff;font-size:1.9rem;font-weight:900;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
-.qb:active{background:var(--a)}.qn{color:#fff;font-weight:900;width:28px;text-align:center;font-size:1.1rem}
-.orpr{color:var(--a);font-weight:700;font-size:.79rem;min-width:48px;text-align:right}
+/* v3.27: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+.or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
+.or.split{flex-direction:column;align-items:stretch;gap:6px}
+.orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
+.ornm{flex:1;color:#fff;font-weight:700;font-size:.81rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qc{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.qb{width:46px;height:46px;border-radius:10px;border:none;background:rgba(255,255,255,.15);color:#fff;font-size:1.5rem;font-weight:900;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.qb:active{background:var(--a)}.qn{color:#fff;font-weight:900;width:26px;text-align:center;font-size:1rem}
+.orpr{color:var(--a);font-weight:700;font-size:.79rem;min-width:60px;text-align:right;flex-shrink:0}
 .of{padding:9px 12px;display:flex;gap:7px;align-items:center;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.1);flex-wrap:wrap}
 .ot{color:#fff;font-weight:800;font-size:.91rem;flex:1}.ot b{color:var(--a);font-size:1.03rem}
 .oczk{color:rgba(255,255,255,.5);font-size:.75rem;width:100%;padding-top:2px}
@@ -171,6 +174,9 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
+/* v3.27: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+   (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
+.tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
 .tkt.tw .tkh{background:rgba(0,0,0,.25);}
 .tkt.bn{border-color:var(--s)}.tkt.bd{opacity:.38;border-color:#334;background:#060f17}
@@ -178,8 +184,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tkt.tw.tc{background:#0d4a22!important;}
 .tkt.tw.tr{background:#0d6b2a!important;}
 .tkt.tw .tktbl{color:#4ade80!important;}
-.tkh{padding:6px 9px;display:flex;justify-content:space-between;align-items:flex-start;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06)}
-.tktbl{font-family:'Playfair Display',serif;color:#fff;font-size:1.1rem;font-weight:700}.tkm{text-align:right}
+.tkh{padding:6px 9px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:2px 8px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06)}
+.tktbl{font-family:'Playfair Display',serif;color:#fff;font-size:1.1rem;font-weight:700;flex:1 1 auto;min-width:0}.tkm{text-align:right;margin-left:auto;flex-shrink:0}
 .tktmr{font-size:.97rem;font-weight:900}.tktmr.warm{color:var(--gr)}.tktmr.hot{color:var(--a)}.tktmr.over{color:var(--e)}
 .tkct{font-size:.75rem;font-weight:900;margin-top:1px;color:rgba(255,255,255,.7)}
 .tksc{color:rgba(255,255,255,.35);font-size:.71rem}
@@ -462,7 +468,7 @@ button:disabled{cursor:not-allowed}
   .mg{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .mct{min-height:84px;display:flex;align-items:center;justify-content:center}
   .mcb{min-height:70px}
-  .qb{width:52px;height:52px}
+  .qb{width:44px;height:44px}
 }
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
@@ -535,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.24</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.27</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1172,6 +1178,99 @@ function fetchArchiveRange(fromTs,toTs,cb,noLimit){
   }).catch(function(e){cb(e);});
 }
 
+// ── STATYSTYKI OGOLNE (statsDaily) ──
+// Male dzienne sumy w chmurze: statsDaily/RRRR-MM-DD = {rev,cnt,frySum,fryCnt,srvSum,srvCnt,items:{klucz:{n,e,q,r}}}
+// Aktualizowane atomowo (ServerValue.increment) przy kazdym WYDANIU zamowienia, wiec przychod,
+// sprzedane pozycje i srednie czasy dla DOWOLNEGO okresu (nawet calej historii) laduja sie zawsze
+// w ulamku sekundy — niezaleznie od limitu 5 MB, ktory dotyczy tylko szczegolow.
+function statKey(name){return String(name).replace(/[.#$\/\[\]]/g,'_').slice(0,60)||'_';}
+function bumpDailyStats(o,sign){
+  if(!fbReady||!fbDB||!o||!o.ts)return;
+  sign=sign||1;
+  try{
+    var inc=firebase.database.ServerValue.increment;
+    var b='statsDaily/'+_dateKey(o.ts),upd={};
+    upd[b+'/rev']=inc(sign*(+o.total||0));
+    upd[b+'/cnt']=inc(sign);
+    (o.items||[]).forEach(function(it){
+      var k=statKey(it.name);
+      upd[b+'/items/'+k+'/q']=inc(sign*(+it.qty||0));
+      upd[b+'/items/'+k+'/r']=inc(sign*((+it.price||0)*(+it.qty||0)));
+      upd[b+'/items/'+k+'/n']=it.name;
+      if(it.emoji!==undefined)upd[b+'/items/'+k+'/e']=it.emoji;
+    });
+    if(o.cookingTs&&o.doneTs&&o.doneTs>o.cookingTs){
+      var fs_=Math.round((o.doneTs-o.cookingTs)/1000);
+      if(fs_>0&&fs_<7200){upd[b+'/frySum']=inc(sign*fs_);upd[b+'/fryCnt']=inc(sign);}
+    }
+    if(o.ts&&o.doneTs&&o.doneTs>o.ts){
+      var sm=Math.round((o.doneTs-o.ts)/60000);
+      if(sm>0&&sm<480){upd[b+'/srvSum']=inc(sign*sm);upd[b+'/srvCnt']=inc(sign);}
+    }
+    fbBg(fbDB.ref().update(upd));
+  }catch(e){}
+}
+// Pobierz dzienne sumy dla zakresu dat (klucze RRRR-MM-DD sortuja sie naturalnie — bez indeksu).
+function fetchDailyStats(fromTs,toTs,cb){
+  if(!fbReady||!fbAuthReady||!fbDB){cb('offline');return;}
+  var q=fbDB.ref('statsDaily').orderByKey();
+  if(fromTs!=null)q=q.startAt(_dateKey(fromTs));
+  if(toTs!=null)q=q.endAt(_dateKey(toTs));
+  q.once('value').then(function(s){cb(null,s.val()||{});}).catch(function(e){cb(e);});
+}
+function sumDailyStats(days){
+  var a={rev:0,cnt:0,frySum:0,fryCnt:0,srvSum:0,srvCnt:0,items:{}};
+  Object.keys(days||{}).forEach(function(d){
+    var v=days[d]||{};
+    a.rev+=+v.rev||0;a.cnt+=+v.cnt||0;
+    a.frySum+=+v.frySum||0;a.fryCnt+=+v.fryCnt||0;
+    a.srvSum+=+v.srvSum||0;a.srvCnt+=+v.srvCnt||0;
+    var its=v.items||{};
+    Object.keys(its).forEach(function(k){
+      var it=its[k]||{};
+      var r=a.items[k]||(a.items[k]={n:it.n||k,e:it.e,q:0,r:0});
+      r.q+=+it.q||0;r.r+=+it.r||0;
+      if(it.n)r.n=it.n;if(it.e!==undefined)r.e=it.e;
+    });
+  });
+  return a;
+}
+// Ten sam ksztalt agregatu liczony z listy zamowien (uzywane lokalnie i przy przeliczaniu historii).
+function buildAggFromOrders(list){
+  var a={rev:0,cnt:0,frySum:0,fryCnt:0,srvSum:0,srvCnt:0,items:{}};
+  (list||[]).forEach(function(o){
+    a.rev+=+o.total||0;a.cnt++;
+    (o.items||[]).forEach(function(it){
+      var k=statKey(it.name);
+      var r=a.items[k]||(a.items[k]={n:it.name,e:it.emoji,q:0,r:0});
+      r.q+=+it.qty||0;r.r+=(+it.price||0)*(+it.qty||0);
+    });
+    if(o.cookingTs&&o.doneTs&&o.doneTs>o.cookingTs){var f=Math.round((o.doneTs-o.cookingTs)/1000);if(f>0&&f<7200){a.frySum+=f;a.fryCnt++;}}
+    if(o.ts&&o.doneTs&&o.doneTs>o.ts){var s=Math.round((o.doneTs-o.ts)/60000);if(s>0&&s<480){a.srvSum+=s;a.srvCnt++;}}
+  });
+  return a;
+}
+// Jednorazowe przeliczenie statsDaily z PELNEJ historii archiwum (np. po wdrozeniu tej wersji).
+function rebuildDailyStats(){
+  if(!fbReady||!fbAuthReady){toast('Wymaga polaczenia z chmura','#f5a623');return;}
+  if(!confirm('Przeliczyc statystyki ogolne z PELNEJ historii?\nNadpisze to dzienne sumy w chmurze. Zwykle robi sie to raz, po aktualizacji.'))return;
+  toast('Pobieranie pelnej historii...','#1278a8');
+  fetchArchiveRange(null,null,function(err,data){
+    if(err){toast('Blad pobierania historii','#e85c3a');return;}
+    var byDay={};
+    Object.keys(data||{}).forEach(function(k){
+      var o=data[k];
+      if(o&&o.status==='done'&&o.ts)(byDay[_dateKey(o.ts)]||(byDay[_dateKey(o.ts)]=[])).push(o);
+    });
+    var days={};
+    Object.keys(byDay).forEach(function(d){days[d]=buildAggFromOrders(byDay[d]);});
+    fbBg(fbDB.ref('statsDaily').set(days));
+    _genCache=null;
+    toast('Przeliczono '+Object.keys(days).length+' dni','#27ae60');
+    loadGeneralStats();
+  },true); // noLimit — jawna akcja administracyjna
+}
+
 function phoneBackupData(){
   return {
     ts:Date.now(),
@@ -1507,6 +1606,7 @@ function subAll(){
       if(Object.keys(missing).length>0){
         Object.keys(missing).forEach(function(k){
           fbBg(fbDB.ref('archive/'+k).set(missing[k]));
+          bumpDailyStats(missing[k]); // wydane OFFLINE — sumy nie zostaly jeszcze podbite
         });
         toast('Dopisano '+Object.keys(missing).length+' wpisow z tej sesji','#27ae60');
       }
@@ -1805,23 +1905,32 @@ function renderCart(){
     var grp=groups[order[g]];var itm=grp.item;var sum=grp.here+grp.away;var base=order[g];
     tot+=itm.price*sum;
     var split=wynos&&(_splitOpen[base]||grp.away>0);
-    var r=document.createElement('div');r.className='or';
-    var nameRow=
-      '<div style="display:flex;align-items:center;gap:8px;width:100%;">'+
-        '<span class="orem">'+emo(itm.emoji,'1.4rem')+'</span>'+
-        '<span class="ornm" style="flex:1;">'+esc(itm.name)+'</span>'+
-        '<span class="orpr">'+(itm.price*sum).toFixed(2)+' zl</span>'+
-      '</div>';
-    var ctrl;
+    var r=document.createElement('div');r.className='or'+(split?' split':'');
     if(split){
-      ctrl='<div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-top:2px;">'+
-        cartCnt(base,false,grp.here)+cartCnt(base,true,grp.away)+
-        (grp.away===0?'<button onclick="closeSplit(\''+base+'\')" style="align-self:flex-start;background:none;border:none;color:rgba(255,255,255,.45);font-size:.72rem;padding:3px 0;text-decoration:underline;-webkit-tap-highlight-color:transparent;">\u2190 bez wynosu</button>':'')+
+      // Tryb podzialu: naglowek z cena + dwa paski (na miejscu / na wynos)
+      r.innerHTML=
+        '<div style="display:flex;align-items:center;gap:7px;width:100%;">'+
+          '<span class="orem">'+emo(itm.emoji,'1.3rem')+'</span>'+
+          '<span class="ornm">'+esc(itm.name)+'</span>'+
+          '<span class="orpr">'+(itm.price*sum).toFixed(2)+' zl</span>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:5px;width:100%;">'+
+          cartCnt(base,false,grp.here)+cartCnt(base,true,grp.away)+
+          (grp.away===0?'<button onclick="closeSplit(\''+base+'\')" style="align-self:flex-start;background:none;border:none;color:rgba(255,255,255,.45);font-size:.72rem;padding:2px 0;text-decoration:underline;-webkit-tap-highlight-color:transparent;">\u2190 bez wynosu</button>':'')+
         '</div>';
     } else {
-      ctrl=cartSingle(base,grp.here+grp.away,wynos);
+      // Jeden zwarty wiersz: emoji, nazwa (z wielokropkiem), -/+, [wynos], cena
+      r.innerHTML=
+        '<span class="orem">'+emo(itm.emoji,'1.3rem')+'</span>'+
+        '<span class="ornm">'+esc(itm.name)+'</span>'+
+        '<div class="qc">'+
+          '<button class="qb" onclick="adjCart(\''+base+'\',false,-1)">-</button>'+
+          '<span class="qn">'+sum+'</span>'+
+          '<button class="qb" onclick="adjCart(\''+base+'\',false,1)">+</button>'+
+        '</div>'+
+        (wynos?'<button onclick="openSplit(\''+base+'\')" title="Czesc na wynos" style="width:46px;height:46px;flex-shrink:0;background:rgba(18,120,168,.15);border:1px solid rgba(18,120,168,.4);border-radius:10px;font-size:1.15rem;cursor:pointer;-webkit-tap-highlight-color:transparent;">\uD83E\uDD61</button>':'')+
+        '<span class="orpr">'+(itm.price*sum).toFixed(2)+' zl</span>';
     }
-    r.innerHTML=nameRow+ctrl;
     el.appendChild(r);
   }
   document.getElementById('otot').textContent=tot.toFixed(2)+' zl';
@@ -1850,17 +1959,7 @@ function adjCart(base,wy,d){
   else if(d>0){var src=cart[base]||cart[base+'#w'];if(src){var c=cloneObj(src);c.qty=1;c.wynos=wy;cart[key]=c;}}
   renderCart();updSend();
 }
-// Pojedynczy licznik (na miejscu) + przycisk wlaczajacy podzial na wynos
-function cartSingle(base,q,showBtn){
-  return '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;margin-top:2px;">'+
-    '<div class="qc" style="margin:0;">'+
-      '<button class="qb" onclick="adjCart(\''+base+'\',false,-1)">-</button>'+
-      '<span class="qn">'+q+'</span>'+
-      '<button class="qb" onclick="adjCart(\''+base+'\',false,1)">+</button>'+
-    '</div>'+
-    (showBtn?'<button onclick="openSplit(\''+base+'\')" style="background:rgba(18,120,168,.15);border:1px solid rgba(18,120,168,.4);color:#7ec8e3;font-weight:800;font-size:.74rem;border-radius:9px;padding:9px 12px;white-space:nowrap;-webkit-tap-highlight-color:transparent;">\uD83E\uDD61 Na wynos</button>':'')+
-  '</div>';
-}
+// (dawny cartSingle usuniety — pojedyncza pozycja renderowana jest w jednym zwartym wierszu w renderCart)
 function openSplit(base){vib(10);_splitOpen[base]=true;renderCart();updSend();}
 function closeSplit(base){vib(10);delete _splitOpen[base];renderCart();updSend();}
 function updSend(){
@@ -2052,6 +2151,7 @@ function setStatus(id,status){
       archive[id]=orders[id];
       saveArc();
       if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id])); // echo okna idempotentne — bez licznikow
+      bumpDailyStats(orders[id]); // statystyki ogolne: +przychod, +pozycje, +czasy
     }
     saveOrds();onData();
   }
@@ -3323,6 +3423,9 @@ function undoLastAction(){
   // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
   ids.forEach(function(id){
     var prev=snap.ordPrev?snap.ordPrev[id]:null;
+    // Cofamy WYDANIE? Odejmij to, co bumpDailyStats dodal przy wydaniu (statystyki ogolne).
+    var curO=orders[id]||archive[id];
+    if(curO&&curO.status==='done'&&(!prev||prev.status!=='done'))bumpDailyStats(curO,-1);
     if(prev){
       orders[id]=prev;markPending(id);fbPushOrder(id);
     } else {
@@ -4046,6 +4149,70 @@ function showHourOrders(dayKey,hour){
   var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
+// ── Panel "Statystyki ogolne" ──
+var _genReq=0;      // token najnowszego zadania (ignorujemy spoznione odpowiedzi)
+var _genCache=null; // {key,ts,agg} — cache 30 s, zeby czeste renderStats nie odpytywaly chmury
+function loadGeneralStats(){
+  var box=document.getElementById('genStats');if(!box)return;
+  var body=box.querySelector('.genbody');if(!body)return;
+  var req=++_genReq;
+  // Godzina / Dzis: pelne dane sa w lokalnym oknie 24h — licz na miejscu, bez chmury.
+  if(sfilt==='hour'||sfilt==='today'){
+    var now=new Date(),tod=now.toLocaleDateString('pl-PL');
+    var list=Object.values(Object.assign({},archive,orders)).filter(function(o){
+      if(!o||o.status!=='done'||!o.ts)return false;
+      if(sfilt==='hour')return (Date.now()-o.ts)<3600*1000;
+      return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+    });
+    body.innerHTML=genStatsHtml(buildAggFromOrders(list));
+    return;
+  }
+  var key=sfilt+'|'+(sDateFrom||'')+'|'+(sDateTo||'');
+  if(_genCache&&_genCache.key===key&&Date.now()-_genCache.ts<30000){
+    body.innerHTML=genStatsHtml(_genCache.agg);
+    return;
+  }
+  if(!(fbReady&&fbAuthReady)){
+    body.innerHTML='<div class="ni">Brak polaczenia z chmura — ogolne dla dluzszych okresow wymagaja internetu</div>';
+    return;
+  }
+  body.innerHTML='<div class="ni">Ladowanie z chmury...</div>';
+  var b=statsFetchBounds()||{from:null,to:null};
+  fetchDailyStats(b.from,b.to,function(err,days){
+    if(req!==_genReq)return; // w miedzyczasie zmieniono okres
+    if(err){body.innerHTML='<div class="ni">Blad pobierania sum — sprawdz internet</div>';return;}
+    var agg=sumDailyStats(days);
+    _genCache={key:key,ts:Date.now(),agg:agg};
+    body.innerHTML=genStatsHtml(agg);
+  });
+}
+function genStatsHtml(a){
+  function tile(v,l){return '<div style="flex:1;min-width:86px;background:rgba(0,0,0,.18);border-radius:9px;padding:7px 6px;text-align:center;"><div style="font-weight:900;color:var(--a);font-size:.98rem;white-space:nowrap;">'+v+'</div><div style="font-size:.6rem;color:rgba(255,255,255,.5);font-weight:800;letter-spacing:.4px;">'+l+'</div></div>';}
+  var fryAvg=a.fryCnt?Math.round(a.frySum/a.fryCnt):0;
+  var fry=a.fryCnt?(Math.floor(fryAvg/60)+'m '+String(fryAvg%60).padStart(2,'0')+'s'):'\u2014';
+  var srv=a.srvCnt?(Math.round(a.srvSum/a.srvCnt)+' min'):'\u2014';
+  var h='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'+
+    tile((+a.rev||0).toFixed(2)+' zl','PRZYCHOD')+
+    tile(a.cnt||0,'ZAMOWIENIA')+
+    tile(fry,'SR. SMAZENIE')+
+    tile(srv,'SR. WYDANIE')+
+  '</div>';
+  var its=Object.values(a.items||{}).sort(function(x,y){return (y.q||0)-(x.q||0);});
+  if(its.length){
+    h+='<div style="max-height:176px;overflow-y:auto;">'+its.map(function(it){
+      return '<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.76rem;">'+
+        '<span style="flex-shrink:0;">'+emoText(it.e)+'</span>'+
+        '<span style="flex:1;color:#fff;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(it.n)+'</span>'+
+        '<span style="color:rgba(255,255,255,.7);font-weight:800;flex-shrink:0;">x'+(it.q||0)+'</span>'+
+        '<span style="color:var(--gr);font-weight:800;min-width:64px;text-align:right;flex-shrink:0;">'+(+it.r||0).toFixed(2)+' zl</span>'+
+      '</div>';
+    }).join('')+'</div>';
+  } else {
+    h+='<div class="ni">Brak sprzedazy w tym okresie</div>';
+  }
+  return h;
+}
+
 // Ladna etykieta stolika/typu zamowienia (obsluguje tez zamowienie "przy okienku").
 function tlabel(t){
   if(t==='my')return '\uD83D\uDC6A MY';
@@ -4057,12 +4224,22 @@ function statControlsHtml(){
   var dfVal=sDateFrom||'',dtVal=sDateTo||'';
   var lbl={hour:'ostatnia godzina',today:'dzis',week:'tydzien',month:'miesiac',all:'wszystko',range:'zakres'};
   function b(f,t){return '<button class="sf'+(sfilt===f?' on':'')+'" onclick="setSF(\''+f+'\')">'+t+'</button>';}
+  // Karta "Statystyki ogolne" jest czescia naglowka, wiec widac ja ZAWSZE (takze przed
+  // pobraniem szczegolow). Wypelnia ja loadGeneralStats() po wstawieniu HTML do DOM.
+  setTimeout(loadGeneralStats,0);
   return '<div class="sfr">'+b('hour','Godzina')+b('today','Dzis')+b('week','Tydzien')+b('month','Miesiac')+b('all','Wszystko')+b('range','Od-Do')+'</div>'+
     (sfilt==='range'
       ?'<div class="sdr"><span class="sdlbl">Od:</span><input class="sdinp" id="sdf" type="date" value="'+dfVal+'"><span class="sdlbl">Do:</span><input class="sdinp" id="sdt" type="date" value="'+dtVal+'"></div>'
       :'')+
-    '<button class="sf" onclick="showStats()" style="width:100%;margin:6px 0 4px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
-    '<div class="set-hint" style="margin:0 2px 8px;">Lokalnie trzymane sa ostatnie 24h. Dluzsze okresy pobieraja sie z chmury po kliknieciu (limit '+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB — przy przekroczeniu zawez zakres dat).</div>'+
+    '<div id="genStats" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;margin:4px 0 10px;">'+
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;">'+
+        '<span style="font-weight:900;color:#fff;font-size:.85rem;flex:1;">\uD83D\uDCCA Statystyki ogolne <span style="color:rgba(255,255,255,.45);font-weight:700;font-size:.72rem;">('+(lbl[sfilt]||sfilt)+')</span></span>'+
+        '<button onclick="rebuildDailyStats()" title="Jednorazowo po aktualizacji: przelicz sumy z pelnej historii" style="background:none;border:none;color:rgba(255,255,255,.45);font-size:.68rem;text-decoration:underline;padding:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;">\uD83D\uDD01 przelicz</button>'+
+      '</div>'+
+      '<div class="genbody"><div class="ni">Ladowanie...</div></div>'+
+    '</div>'+
+    '<button class="sf" onclick="showStats()" style="width:100%;margin:0 0 4px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz szczegolowe statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
+    '<div class="set-hint" style="margin:0 2px 8px;">Ogolne (wyzej) licza sie z malych dziennych sum i dzialaja zawsze, dla calej historii. Szczegoly (wykresy, historia, godziny) pobieraja sie z chmury po kliknieciu — limit '+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB, przy przekroczeniu zawez zakres dat.</div>'+
     '<button class="sf" onclick="exportStatsCSV()" style="width:100%;margin:0 0 14px;background:rgba(39,174,96,.14);border:1.5px solid rgba(39,174,96,.35);color:#27ae60;font-weight:800;padding:10px;border-radius:10px;">&#x1F4E5; Pobierz wszystkie statystyki (CSV / Excel)</button>';
 }
 function renderStats(){
@@ -4416,7 +4593,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.24',
+    v:'v3.27',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -5200,12 +5377,16 @@ function doClrStats(){
     document.getElementById('clrSt2Ok').onclick=function(){
       m2.parentNode.removeChild(m2);
       if(range==='all'){
-        // Cale archiwum: lokalnie i w chmurze. Echo z okna jest idempotentne — bez licznikow.
-        archive={};_statsCloud={};
+        // Cale archiwum + statystyki ogolne (pelny reset). Echo z okna jest idempotentne — bez licznikow.
+        archive={};_statsCloud={};_genCache=null;
         saveArc();
-        if(fbReady)fbBg(fbDB.ref('archive').remove());
+        if(fbReady){
+          fbBg(fbDB.ref('archive').remove());
+          fbBg(fbDB.ref('statsDaily').remove());
+        }
       } else {
         // Wybrane klucze: usun lokalnie (okno + dane dociagniete) i pojedynczo w chmurze.
+        // Dzienne SUMY zostaja nietkniete — mozna kasowac ciezkie szczegoly, a obroty ogolne przetrwaja.
         delKeys.forEach(function(k){
           delete archive[k];
           if(_statsCloud)delete _statsCloud[k];
