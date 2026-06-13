@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-/* v3.33: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+/* v3.34: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
 .or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .or.split{flex-direction:column;align-items:stretch;gap:6px}
 .orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
@@ -174,7 +174,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
-/* v3.33: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+/* v3.34: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
    (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
 .tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.33</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.34</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1409,6 +1409,9 @@ var _fbHeartbeatTimer=null;
 var _fbOnlineHandler=null;
 var _fbOfflineHandler=null;
 var _fbWakeHandler=null;
+var _fbWakeDebounced=null;
+var _fbWakeTimer=null;
+var _fbConnected=true;
 function detachFb(){
   if(_arcQuery){try{_arcQuery.off();}catch(e){}_arcQuery=null;}
   if(fbDB&&fbReady){
@@ -1420,7 +1423,9 @@ function detachFb(){
   if(_fbHeartbeatTimer){clearInterval(_fbHeartbeatTimer);_fbHeartbeatTimer=null;}
   if(_fbOnlineHandler){window.removeEventListener('online',_fbOnlineHandler);_fbOnlineHandler=null;}
   if(_fbOfflineHandler){window.removeEventListener('offline',_fbOfflineHandler);_fbOfflineHandler=null;}
-  if(_fbWakeHandler){window.removeEventListener('focus',_fbWakeHandler);window.removeEventListener('pageshow',_fbWakeHandler);_fbWakeHandler=null;}
+  if(_fbWakeTimer){clearTimeout(_fbWakeTimer);_fbWakeTimer=null;}
+  if(_fbWakeDebounced){window.removeEventListener('focus',_fbWakeDebounced);window.removeEventListener('pageshow',_fbWakeDebounced);_fbWakeDebounced=null;}
+  _fbWakeHandler=null;
   _fbSubscribed=false;
 }
 
@@ -1736,30 +1741,38 @@ function subAll(){
   window.addEventListener('offline',_fbOfflineHandler);
 
   // ── Utrzymanie polaczenia w czasie rzeczywistym ──
-  // Glowna przyczyna opoznien typu "nowe zamowienie pojawia sie po kilku sekundach":
-  // na pasywnie czekajacym tablecie (przygaszony ekran, zakladka w tle, oszczedzanie energii
-  // Android/WiFi) WebSocket Firebase usypia. Tablet wykonujacy akcje (gotowanie/gotowe) ma
-  // polaczenie cieple, bo ktos wlasnie dotyka ekranu — dlatego TAM jest natychmiast.
-  // Monitorujemy stan polaczenia i budzimy je natychmiast po powrocie aplikacji na pierwszy plan.
+  // Na pasywnie czekajacym tablecie (przygaszony ekran, tlo, oszczedzanie energii) WebSocket
+  // Firebase moze uspic. Budzimy go po powrocie aplikacji na pierwszy plan — ale TYLKO gdy
+  // polaczenie faktycznie pad lo. Sledzimy to przez .info/connected. (Wczesniejszy blad:
+  // goOnline() przy kazdym focus/visibility resetowal ZYWE polaczenie, co dodawalo latencji
+  // na wszystkich urzadzeniach — dlatego bylo gorzej.)
+  _fbConnected=true;
   try{
     fbDB.ref('.info/connected').on('value',function(s){
-      var on=s.val()===true;
-      dot(on?'ok':'er'); // zielona kropka = polaczono w czasie rzeczywistym, czerwona = brak
+      _fbConnected=(s.val()===true);
+      dot(_fbConnected?'ok':'er'); // zielona = polaczono w czasie rzeczywistym, czerwona = brak
     });
   }catch(e){}
 
   _fbWakeHandler=function(){
     if(!fbReady||!fbDB)return;
-    try{
-      firebase.database().goOnline(); // obudz ewentualnie uspione polaczenie
-    }catch(e){}
-    sendHeartbeat();
-    onData(); // odswiez widok od razu po powrocie (nie czekaj na nastepny przychodzacy event)
+    // goOnline TYLKO gdy realnie rozlaczeni — nie ruszaj zywego polaczenia.
+    if(!_fbConnected){
+      try{firebase.database().goOnline();}catch(e){}
+      sendHeartbeat();
+    }
+    // Odswiezenie widoku jest tanie i nieszkodliwe — zawsze (gdyby cos przyszlo w tle).
+    onData();
   };
-  // Powrot z tla / odblokowanie ekranu / ponowny fokus okna:
-  document.addEventListener('visibilitychange',function(){if(!document.hidden)_fbWakeHandler();});
-  window.addEventListener('focus',_fbWakeHandler);
-  window.addEventListener('pageshow',_fbWakeHandler);
+  // Powrot z tla / odblokowanie ekranu / ponowny fokus okna — z prostym debounce,
+  // by seria zdarzen focus/visibility nie wyzwalala wielu wywolan pod rzad.
+  _fbWakeDebounced=function(){
+    if(_fbWakeTimer)return;
+    _fbWakeTimer=setTimeout(function(){_fbWakeTimer=null;_fbWakeHandler();},250);
+  };
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)_fbWakeDebounced();});
+  window.addEventListener('focus',_fbWakeDebounced);
+  window.addEventListener('pageshow',_fbWakeDebounced);
 }
 
 function dot(s){
@@ -4762,7 +4775,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.33',
+    v:'v3.34',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
