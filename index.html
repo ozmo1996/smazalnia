@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-/* v3.28: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+/* v3.30: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
 .or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .or.split{flex-direction:column;align-items:stretch;gap:6px}
 .orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
@@ -174,7 +174,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
-/* v3.28: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+/* v3.30: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
    (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
 .tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.28</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.30</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -935,6 +935,52 @@ var orders={};
 // Zamowienia utworzone lokalnie, ktore nie zostaly jeszcze potwierdzone w chmurze (offline/niewyslane).
 // Tylko takie wolno "dopisywac" przy synchronizacji — dzieki temu usuniecia z innych urzadzen nie wracaja.
 var _pendingOrders={};
+// ── Tlumienie echa wlasnych zapisow (dla nasluchow child_*) ──
+// Po kazdym wlasnym zapisie do chmury zapamietujemy sygnature (sciezka -> JSON wartosci).
+// Gdy nasluch child_* odda nam te sama wartosc, rozpoznajemy ja jako echo i pomijamy,
+// ale cudze zmiany (inna wartosc) normalnie przyjmujemy. To zastepuje globalny licznik
+// _fbSkipNext, ktory przy nasluchach przyrostowych gubilby zdarzenia.
+var _localEcho={};
+// Stabilny JSON: klucze obiektow sortowane rekurencyjnie, by sygnatura nie zalezala od
+// kolejnosci pol (Firebase moze oddac echo wlasnego zapisu w innej kolejnosci kluczy).
+function stableStr(v){
+  if(v===null||v===undefined)return 'null';
+  if(typeof v!=='object')return JSON.stringify(v);
+  if(Array.isArray(v))return '['+v.map(stableStr).join(',')+']';
+  return '{'+Object.keys(v).sort().map(function(k){return JSON.stringify(k)+':'+stableStr(v[k]);}).join(',')+'}';
+}
+// Dla kazdej sciezki trzymamy KILKA ostatnich sygnatur wlasnych zapisow (nie tylko ostatnia).
+// Dzieki temu, gdy szybko po sobie zapiszemy v1 i v2, a echo v1 dotrze PO v2, wciaz rozpoznamy
+// je jako wlasne echo i nie cofniemy zamowienia. Sygnatury wygasaja po 15 s.
+var _ECHO_KEEP=6;
+function markEcho(path,val){
+  try{
+    var sig=stableStr(val),now=Date.now();
+    var arr=_localEcho[path]||(_localEcho[path]=[]);
+    arr.push({s:sig,t:now});
+    if(arr.length>_ECHO_KEEP)arr.shift();
+  }catch(e){}
+}
+var _echoLastSweep=0;
+function consumeEcho(path,val){
+  var now=Date.now();
+  // Czyszczenie wygaslych (>15 s) PRZED ewentualnym wczesnym returnem — inaczej wpisy dla
+  // sciezek, ktorych juz nie odpytujemy, zostawalyby na zawsze. Throttling co 5 s, by nie
+  // iterowac calej mapy przy kazdym evencie.
+  if(now-_echoLastSweep>5000){
+    _echoLastSweep=now;
+    for(var p in _localEcho){
+      _localEcho[p]=_localEcho[p].filter(function(e){return now-e.t<=15000;});
+      if(!_localEcho[p].length)delete _localEcho[p];
+    }
+  }
+  var arr=_localEcho[path];if(!arr||!arr.length)return false;
+  var sig;try{sig=stableStr(val);}catch(e){sig=null;}
+  for(var i=0;i<arr.length;i++){
+    if(arr[i].s===sig){arr.splice(i,1);if(!arr.length)delete _localEcho[path];return true;} // nasze echo
+  }
+  return false; // cudza zmiana — przyjmij
+}
 function savePending(){try{lsSet('sp_pending',JSON.stringify(_pendingOrders));}catch(e){}}
 function markPending(id){if(id){_pendingOrders[id]=Date.now();savePending();}}
 function clearPending(id){if(id&&_pendingOrders[id]!==undefined){delete _pendingOrders[id];savePending();}}
@@ -1047,7 +1093,7 @@ function fbBg(p){if(p&&p.catch)p.catch(function(e){console.warn('fb:',e);});}
 // Wyslij zamowienie do chmury; po POTWIERDZENIU zapisu zdejmij oznaczenie "offline".
 function fbPushOrder(id){
   if(!fbReady||!orders[id])return;
-  window._fbSkipNext=(window._fbSkipNext||0)+1;
+  markEcho('orders/'+id,orders[id]); // zapamietaj wlasny zapis, by zignorowac jego echo
   fbDB.ref('orders/'+id).set(orders[id]).then(function(){
     clearPending(id);
     if(curV==='l')renderList();else if(curV==='k')renderKitch();else if(curV==='b')renderBar();
@@ -1145,7 +1191,7 @@ function purgeEmptyOrders(){
     if(!o||!o.items||!o.items.length){
       delete orders[id];
       clearPending(id);
-      if(fbReady){window._fbSkipNext=(window._fbSkipNext||0)+1;fbBg(fbDB.ref('orders/'+id).remove());}
+      if(fbReady){markEcho('orders/'+id,null);fbBg(fbDB.ref('orders/'+id).remove());}
       removed++;
     }
   });
@@ -1465,17 +1511,45 @@ function subArchiveWindow(){
   _arcWindowStart=Date.now()-ARC_WINDOW_MS;
   _arcSubTs=Date.now();
   _arcQuery=fbDB.ref('archive').orderByChild('ts').startAt(_arcWindowStart);
-  _arcQuery.on('value',function(snap){
-    archive=snap.val()||{};
+  // PRZYROSTOWO: nowy wpis w oknie pobiera tylko ten jeden wpis (nie cale okno).
+  _arcQuery.on('child_added',function(snap){
+    var id=snap.key;
+    if(consumeEcho('archive/'+id,snap.val()))return; // wlasne wydanie — UI juz aktualne
+    archive[id]=snap.val();
     saveArc();
     if(curV==='s'&&_statShown)renderStats();
   });
+  _arcQuery.on('child_changed',function(snap){
+    var id=snap.key;
+    if(consumeEcho('archive/'+id,snap.val()))return;
+    archive[id]=snap.val();saveArc();
+    if(curV==='s'&&_statShown)renderStats();
+  });
+  _arcQuery.on('child_removed',function(snap){
+    var id=snap.key;
+    if(consumeEcho('archive/'+id,null))return;
+    if(archive[id]){delete archive[id];saveArc();if(curV==='s'&&_statShown)renderStats();}
+  });
 }
-// Tablety chodzace tygodniami: co 6h przeloz okno do przodu, zeby lokalne archiwum
-// nie gromadzilo wpisow starszych niz ~24-30h.
+// Co jakis czas usun z LOKALNEGO okna wpisy, ktore wypadly poza 24h (chmura zostaje pelna).
+// Tanie i czysto lokalne — nic nie pobiera.
+function slideArcWindow(){
+  var cut=Date.now()-ARC_WINDOW_MS;_arcWindowStart=cut;
+  var changed=false;
+  Object.keys(archive).forEach(function(k){
+    var o=archive[k];
+    if(!o||typeof o.ts!=='number'||o.ts<cut){delete archive[k];changed=true;}
+  });
+  if(changed){saveArc();if(curV==='s'&&_statShown)renderStats();}
+}
+// Z nasluchami przyrostowymi re-subskrypcja sciagnelaby cale okno od nowa, wiec:
+//  • co 30 min przesuwamy okno LOKALNIE (slideArcWindow — usuwa stare wpisy, nic nie pobiera),
+//  • raz na dobe odswiezamy realnie subskrypcje (swieza granica startAt dla nowych child_added).
 setInterval(function(){
-  if(fbReady&&_arcSubTs&&(Date.now()-_arcSubTs)>6*3600*1000)subArchiveWindow();
-},60000);
+  if(!fbReady)return;
+  slideArcWindow();
+  if(_arcSubTs&&(Date.now()-_arcSubTs)>24*3600*1000)subArchiveWindow();
+},30*60000);
 
 function subAll(){
   detachFb();
@@ -1488,28 +1562,52 @@ function subAll(){
   sendHeartbeat();
   _fbHeartbeatTimer=setInterval(sendHeartbeat,60000);
 
-  // ORDERS - chmura nadrzędna
-  fbDB.ref('orders').on('value',function(snap){
-    if(window._fbSkipNext>0){window._fbSkipNext--;return;}
-    if(_fbLocalChange)return;
+  // ORDERS — nasluchy PRZYROSTOWE (child_*) zamiast on('value').
+  // Dzieki temu zmiana jednego zamowienia pobiera z chmury TYLKO to zamowienie (~1-2 KB),
+  // a nie cala liste przy kazdym klikniecu. Przy ruchliwej sobocie i kilku tabletach to
+  // roznica rzedu kilkudziesieciu razy w transferze. Echo wlasnych zapisow tlumimy
+  // sygnatura per-id (_localEcho), wiec cudze zmiany przyjmujemy, a swoje ignorujemy.
+  var ordRef=fbDB.ref('orders');
+  var _ordReady=false; // czy minal pierwszy zrzut (child_added dla istniejacych wpisow)
+  function applyRemoteOrder(id,val){
+    if(!val){return;}
+    if(_pendingOrders[id])delete _pendingOrders[id]; // skoro jest w chmurze, nie jest juz "niewyslane"
+    orders[id]=val;
+  }
+  ordRef.on('child_added',function(snap){
+    var id=snap.key;
+    if(consumeEcho('orders/'+id,snap.val()))return; // wlasny zapis — UI juz aktualne
+    applyRemoteOrder(id,snap.val());
+    saveOrds();
+    // Maintenance (purge pustych, auto-czyszczenie starych) NIE na kazdym evencie:
+    // przy starcie zrobimy to raz hurtem (ponizej w once), a pojedyncze swieze zamowienie
+    // od innego tabletu nie powinno wyzwalac skanu calej listy ani kasowania "pustych w trakcie tworzenia".
+    if(_ordReady)onData(); // pojedyncza zmiana po starcie — tylko odswiez UI
+  });
+  ordRef.on('child_changed',function(snap){
+    var id=snap.key;
+    if(consumeEcho('orders/'+id,snap.val()))return;
+    applyRemoteOrder(id,snap.val());
+    saveOrds();onData();
+  });
+  ordRef.on('child_removed',function(snap){
+    var id=snap.key;
+    if(consumeEcho('orders/'+id,null))return; // wlasne usuniecie
+    if(orders[id]){delete orders[id];clearPending(id);saveOrds();onData();}
+  });
+  // Po pierwszym zaladowaniu (once odpala sie PO poczatkowych child_added): dowyslij lokalne
+  // zamowienia czekajace offline, zrob JEDNORAZOWY porzadek i odswiez UI. Potem _ordReady=true.
+  ordRef.once('value').then(function(snap){
     var fbOrders=snap.val()||{};
-    // Zamowienia obecne w chmurze przestaja byc "offline/niewyslane"
-    for(var pk in _pendingOrders){if(fbOrders[pk])delete _pendingOrders[pk];}
-    // Dopisz TYLKO lokalne, ktore wciaz czekaja na wyslanie (pending), i ponow ich wysylke.
-    // Zamowien usunietych na innym urzadzeniu NIE przywracamy.
     Object.keys(orders).forEach(function(k){
-      if(!fbOrders[k] && _pendingOrders[k]){
-        fbOrders[k]=orders[k];
-        fbPushOrder(k); // dowyslij (np. po przeladowaniu offline)
-      }
+      if(!fbOrders[k] && _pendingOrders[k])fbPushOrder(k);
     });
     savePending();
-    orders=fbOrders;
-    saveOrds();
-    purgeEmptyOrders();
-    autoClearOldOrders();
+    purgeEmptyOrders();   // raz, na pelnej liscie
+    autoClearOldOrders(); // raz, na pelnej liscie
+    _ordReady=true;
     onData();
-  });
+  }).catch(function(){_ordReady=true;});
 
   // ARCHIVE — automatycznie synchronizujemy TYLKO ostatnie 24h (zapytanie orderByChild('ts')).
   // Chmura pozostaje PELNYM zrodlem prawdy; lokalnie trzymamy male, swieze okno
@@ -1605,7 +1703,7 @@ function subAll(){
       });
       if(Object.keys(missing).length>0){
         Object.keys(missing).forEach(function(k){
-          fbBg(fbDB.ref('archive/'+k).set(missing[k]));
+          markEcho('archive/'+k,missing[k]);fbBg(fbDB.ref('archive/'+k).set(missing[k]));
           bumpDailyStats(missing[k]); // wydane OFFLINE — sumy nie zostaly jeszcze podbite
         });
         toast('Dopisano '+Object.keys(missing).length+' wpisow z tej sesji','#27ae60');
@@ -2150,7 +2248,7 @@ function setStatus(id,status){
       // Automatycznie archiwizuj - trafi do statystyk
       archive[id]=orders[id];
       saveArc();
-      if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id])); // echo okna idempotentne — bez licznikow
+      if(fbReady){markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(orders[id]));} // tylko ten 1 wpis pobierze sie z powrotem
       bumpDailyStats(orders[id]); // statystyki ogolne: +przychod, +pozycje, +czasy
     }
     saveOrds();onData();
@@ -2159,7 +2257,7 @@ function setStatus(id,status){
     var upd={status:status};
     if(status==='cooking')upd.cookingTs=ts;
     if(status==='done')upd.doneTs=ts;
-    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    markEcho('orders/'+id,orders[id]); // echo odda pelne zamowienie — sygnatura ze stanu lokalnego
     fbBg(fbDB.ref('orders/'+id).update(upd));
   }
 }
@@ -2193,7 +2291,7 @@ function setPaidGroup(mainId,ids){
       var czkAmt=currency==='CZK'?Math.round((orders[id].total||0)*rate):0;
       var upd={paid:true,currency:currency,czkAmount:czkAmt,czkRate:currency==='CZK'?rate:0};
       Object.assign(orders[id],upd);
-      window._fbSkipNext=(window._fbSkipNext||0)+1;
+      markEcho('orders/'+id,orders[id]);
       if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
     });
     saveOrds();
@@ -2232,7 +2330,7 @@ function setPaid(id){
     var upd={paid:true,currency:currency,czkAmount:czkTot,czkRate:currency==='CZK'?rate:0};
     Object.assign(orders[id],upd);
     saveOrds();
-    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    markEcho('orders/'+id,orders[id]);
     if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
     onDataImmediate();
     toast(currency==='CZK'?('Oplacono '+czkTot+' CZK'):('Oplacono '+(o.total||0).toFixed(2)+' zl'),'#27ae60');
@@ -2265,15 +2363,17 @@ function confirmDeleteOrders(ids){
 function delOrder(id){
   saveSnapshot('Usunieto: '+(orders[id]?'Stolik '+orders[id].table:id),id);
   if(orders[id]){
+    var wasCounted=orders[id].status==='done'; // setStatus('done') juz podbil sumy
     if(!orders[id].doneTs)orders[id].doneTs=Date.now();
     archive[id]=orders[id];saveArc();
-    if(fbReady)fbBg(fbDB.ref('archive/'+id).set(orders[id]));
+    if(fbReady){markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(orders[id]));}
+    if(!wasCounted)bumpDailyStats(orders[id]); // licz do obrotow tylko jesli jeszcze nie policzone
   }
   delete orders[id];clearPending(id);
   saveOrds();
   onDataImmediate();
   if(fbReady){
-    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    markEcho('orders/'+id,null);
     fbBg(fbDB.ref('orders/'+id).remove());
   }
 }
@@ -2284,7 +2384,7 @@ function cancelOrder(id){
   if(cancelled&&cancelled.items)restoreStock(cancelled.items);
   delete orders[id];clearPending(id);saveOrds();onDataImmediate();
   if(fbReady){
-    window._fbSkipNext=(window._fbSkipNext||0)+1;
+    markEcho('orders/'+id,null);
     fbBg(fbDB.ref('orders/'+id).remove());
   }
   toast('Zamowienie anulowane','#778');
@@ -3275,7 +3375,7 @@ function openEditOrder(id){
         saveOrds();
 
         if(fbReady){
-          window._fbSkipNext=(window._fbSkipNext||0)+1;
+          markEcho('orders/'+id,ord); // ord = pelne zamowienie po edycji
           fbBg(fbDB.ref('orders/'+id).update({
             items:ord.items,
             note:ord.note,
@@ -3430,7 +3530,7 @@ function undoLastAction(){
       orders[id]=prev;markPending(id);fbPushOrder(id);
     } else {
       delete orders[id];clearPending(id);
-      if(fbReady){window._fbSkipNext=(window._fbSkipNext||0)+1;fbBg(fbDB.ref('orders/'+id).remove());}
+      if(fbReady){markEcho('orders/'+id,null);fbBg(fbDB.ref('orders/'+id).remove());}
     }
   });
   saveOrds();
@@ -3440,8 +3540,8 @@ function undoLastAction(){
       var prev=snap.arcPrev[id];
       if(prev)archive[id]=prev; else delete archive[id];
       if(fbReady){
-        if(prev)fbBg(fbDB.ref('archive/'+id).set(prev));
-        else fbBg(fbDB.ref('archive/'+id).remove());
+        if(prev){markEcho('archive/'+id,prev);fbBg(fbDB.ref('archive/'+id).set(prev));}
+        else {markEcho('archive/'+id,null);fbBg(fbDB.ref('archive/'+id).remove());}
       }
     });
     saveArc();
@@ -4607,7 +4707,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.28',
+    v:'v3.30',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -5211,7 +5311,7 @@ function doClrOrders(){
   for(var i=0;i<ks.length;i++){
     if(!orders[ks[i]].doneTs)orders[ks[i]].doneTs=Date.now();
     archive[ks[i]]=orders[ks[i]];
-    if(fbReady)fbBg(fbDB.ref('archive/'+ks[i]).set(orders[ks[i]]));
+    if(fbReady){markEcho('archive/'+ks[i],orders[ks[i]]);fbBg(fbDB.ref('archive/'+ks[i]).set(orders[ks[i]]));}
   }
   saveArc();
   orders={};saveOrds();
@@ -5240,9 +5340,9 @@ function autoClearOldOrders(){
     if(!o||typeof o.ts!=='number'||o.ts>=cutoff)continue;
     if(!o.doneTs)o.doneTs=Date.now();
     archive[id]=o;                                   // zachowaj w archiwum
-    if(fbReady)fbBg(fbDB.ref('archive/'+id).set(o));
+    if(fbReady){markEcho('archive/'+id,o);fbBg(fbDB.ref('archive/'+id).set(o));}
     delete orders[id];
-    if(fbReady){window._fbSkipNext=(window._fbSkipNext||0)+1;fbBg(fbDB.ref('orders/'+id).remove());}
+    if(fbReady){markEcho('orders/'+id,null);fbBg(fbDB.ref('orders/'+id).remove());}
     n++;
   }
   if(n){
@@ -5391,12 +5491,16 @@ function doClrStats(){
     document.getElementById('clrSt2Ok').onclick=function(){
       m2.parentNode.removeChild(m2);
       if(range==='all'){
-        // Cale archiwum + statystyki ogolne (pelny reset). Echo z okna jest idempotentne — bez licznikow.
+        // Cale archiwum + statystyki ogolne (pelny reset).
+        // Odpinamy nasluch okna PRZED remove, zeby usuniecie tysiecy wpisow nie wywolalo
+        // lawiny zdarzen child_removed; po chwili subskrybujemy ponownie (juz pusty wezel).
+        if(_arcQuery){try{_arcQuery.off();}catch(e){}_arcQuery=null;}
         archive={};_statsCloud={};_genCache=null;
         saveArc();
         if(fbReady){
           fbBg(fbDB.ref('archive').remove());
           fbBg(fbDB.ref('statsDaily').remove());
+          setTimeout(subArchiveWindow,800);
         }
       } else {
         // Wybrane klucze: usun lokalnie (okno + dane dociagniete) i pojedynczo w chmurze.
@@ -5404,7 +5508,7 @@ function doClrStats(){
         delKeys.forEach(function(k){
           delete archive[k];
           if(_statsCloud)delete _statsCloud[k];
-          if(fbReady)fbBg(fbDB.ref('archive/'+k).remove());
+          if(fbReady){markEcho('archive/'+k,null);fbBg(fbDB.ref('archive/'+k).remove());}
         });
         saveArc();
       }
