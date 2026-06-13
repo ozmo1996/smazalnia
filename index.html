@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-/* v3.30: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+/* v3.31: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
 .or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .or.split{flex-direction:column;align-items:stretch;gap:6px}
 .orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
@@ -174,7 +174,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
-/* v3.30: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+/* v3.31: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
    (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
 .tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.30</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.31</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -3223,10 +3223,12 @@ function openEditOrder(id){
 
   function getHTML(){
     var rows=items.map(function(it,i){
+      var wy=!!it.wynos;
       return '<tr>'+
         '<td style="padding:6px 4px;font-size:1.2rem;">'+emo(it.emoji,'1.2rem')+'</td>'+
         '<td style="padding:6px 4px;font-size:.85rem;font-weight:700;color:#111;flex:1;">'+esc(it.name)+'</td>'+
         '<td style="padding:6px 4px;white-space:nowrap;">'+
+          '<button id="ewb'+i+'" title="'+(wy?'Na wynos':'Na miejscu')+'" style="width:40px;height:34px;font-size:1rem;border:1.5px solid '+(wy?'#e8821e':'#ccc')+';border-radius:7px;background:'+(wy?'#fff3e6':'#f4f4f4')+';cursor:pointer;margin-right:5px;" data-wy="'+i+'">'+(wy?'\uD83E\uDD61':'\uD83C\uDF7D\uFE0F')+'</button>'+
           '<button id="emb'+i+'" style="width:34px;height:34px;font-size:1.1rem;font-weight:900;border:none;border-radius:7px;background:#eee;cursor:pointer;">-</button>'+
           '<span id="eqs'+i+'" style="display:inline-block;min-width:28px;text-align:center;font-weight:900;">'+it.qty+'</span>'+
           '<button id="epb'+i+'" style="width:34px;height:34px;font-size:1.1rem;font-weight:900;border:none;border-radius:7px;background:#eee;cursor:pointer;">+</button>'+
@@ -3239,6 +3241,7 @@ function openEditOrder(id){
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
       '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+tlabel(o.table)+'</div>'+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
+      '<div style="font-size:.72rem;color:#999;margin-top:4px;">Dotknij \uD83C\uDF7D\uFE0F / \uD83E\uDD61 przy pozycji, aby przelaczyc na miejscu / na wynos.</div>'+
       '<div style="margin-top:10px;display:flex;gap:8px;">'+
         '<select id="eadd_sel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.82rem;">'+opts.join('')+'</select>'+
         '<button id="eadd_btn" style="padding:8px 12px;border:none;border-radius:8px;background:#1278a8;color:#fff;font-weight:900;cursor:pointer;">+Dodaj</button>'+
@@ -3271,7 +3274,14 @@ function openEditOrder(id){
       var bm=document.getElementById('emb'+i);
       var bp=document.getElementById('epb'+i);
       var bx=document.getElementById('exb'+i);
+      var bw=document.getElementById('ewb'+i);
       var qs=document.getElementById('eqs'+i);
+
+      if(bw)bw.onclick=function(e){
+        e.preventDefault();
+        it.wynos=!it.wynos; // przelacz na miejscu <-> na wynos dla tej pozycji
+        rebuildModal(); // odswiez ikone/kolor (i ewentualne inne wiersze)
+      };
 
       if(bm)bm.onclick=function(e){
         e.preventDefault();
@@ -3308,7 +3318,7 @@ function openEditOrder(id){
       if(!found)return;
 
       var ex=items.filter(function(x){
-        return x.name===found.name;
+        return x.name===found.name && !x.wynos; // dokladaj tylko do pozycji "na miejscu"
       })[0];
 
       if(ex){
@@ -3319,7 +3329,8 @@ function openEditOrder(id){
           name:found.name,
           emoji:found.emoji,
           price:found.price,
-          qty:1
+          qty:1,
+          wynos:false
         });
       }
 
@@ -4707,7 +4718,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.30',
+    v:'v3.31',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
