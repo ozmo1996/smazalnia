@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-/* v3.32: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+/* v3.33: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
 .or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .or.split{flex-direction:column;align-items:stretch;gap:6px}
 .orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
@@ -174,7 +174,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
-/* v3.32: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+/* v3.33: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
    (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
 .tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.32</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.33</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1330,7 +1330,21 @@ function phoneBackupData(){
   };
 }
 
+var _phoneBackupTimer=null;
 function savePhoneBackup(){
+  // Debounce — pelny zrzut (orders+archiwum+menu+stock, ~kilkadziesiat KB) jest kosztowny na
+  // wolnym localStorage tabletu. Zamiast zapisywac przy KAZDYM zdarzeniu z chmury, zbieramy
+  // zmiany i zapisujemy raz na 1.5s. Dzieki temu obsluga child_added/changed/removed nie blokuje
+  // sie na synchronicznym zapisie i UI odswieza sie natychmiast.
+  if(_phoneBackupTimer)return; // juz zaplanowany
+  _phoneBackupTimer=setTimeout(function(){
+    _phoneBackupTimer=null;
+    try{lsSet('sp_phone_backup',JSON.stringify(phoneBackupData()));}catch(e){}
+  },1500);
+}
+// Natychmiastowy zapis backupu — do krytycznych momentow (wyslanie wlasnego zamowienia, wylogowanie).
+function savePhoneBackupNow(){
+  if(_phoneBackupTimer){clearTimeout(_phoneBackupTimer);_phoneBackupTimer=null;}
   try{lsSet('sp_phone_backup',JSON.stringify(phoneBackupData()));}catch(e){}
 }
 
@@ -1579,7 +1593,11 @@ function subAll(){
   ordRef.on('child_added',function(snap){
     var id=snap.key;
     if(consumeEcho('orders/'+id,snap.val()))return; // wlasny zapis — UI juz aktualne
-    applyRemoteOrder(id,snap.val());
+    var val=snap.val();
+    if(window._syncDebug&&val&&val.ts){ // diagnostyka: realne opoznienie dostarczenia
+      console.log('[sync] nowe zamowienie #'+(val.seq||'?')+' dotarlo po '+((Date.now()-val.ts)/1000).toFixed(1)+'s od utworzenia');
+    }
+    applyRemoteOrder(id,val);
     saveOrds();
     onData(); // ZAWSZE odswiez — nowe zamowienie ma pojawic sie natychmiast (throttle 300ms zlaczy
               // ewentualna serie przy starcie w jeden render, wiec nie ma potrzeby bramki _ordReady)
@@ -1773,7 +1791,8 @@ function gv(name){
 
 var _onDataTimer=null;
 function onData(){
-  // Throttle - max raz na 300ms
+  // Throttle - max raz na 120ms (laczy serie zdarzen przy starcie/synchronizacji w jeden render,
+  // ale dla pojedynczego zamowienia opoznienie jest niezauwazalne).
   if(_onDataTimer)clearTimeout(_onDataTimer);
   _onDataTimer=setTimeout(function(){
     _onDataTimer=null;
@@ -1782,7 +1801,7 @@ function onData(){
     if(curV==='b')renderBar();
     if(curV==='k')renderKitch();
     if(curV==='s')renderStats();
-  },300);
+  },120);
 }
 function onDataImmediate(){
   if(_onDataTimer){clearTimeout(_onDataTimer);_onDataTimer=null;}
@@ -4743,7 +4762,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.32',
+    v:'v3.33',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -5295,7 +5314,8 @@ setInterval(function(){
 
 setInterval(savePhoneBackup,60000);
 setInterval(autoClearOldOrders,60000); // dzienne auto-czyszczenie zamowien o 6:00
-window.addEventListener('beforeunload',savePhoneBackup);
+window.addEventListener('beforeunload',savePhoneBackupNow);
+window.addEventListener('pagehide',savePhoneBackupNow);
 
 function clearAllOrders(){
   var count=Object.keys(orders).length;
@@ -5557,7 +5577,7 @@ function doClrStats(){
 // (sprawdzanie sesji obsluguje skrypt logowania na dole pliku)
 
 function logoutApp(){
-  savePhoneBackup();
+  savePhoneBackupNow(); // flush natychmiast — zaraz odpinamy Firebase, debounce nie zdazylby
   detachFb(); // odepnij nasluchy Firebase i timery (heartbeat) — bez tego dzialaly w tle po wylogowaniu
   rawRemove(lsKey('sp_session'));
   try{localStorage.removeItem('sp_session');}catch(e){}
