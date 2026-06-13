@@ -97,7 +97,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .on2::placeholder{color:rgba(255,255,255,.28)}.on2:focus{border-color:var(--a)}
 .oi{padding:4px 12px;max-height:min(300px,42vh);overflow-y:auto}
 .oe{color:rgba(255,255,255,.3);text-align:center;padding:15px;font-size:.81rem}
-/* v3.31: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
+/* v3.32: pozycja koszyka w JEDNYM wierszu (nazwa+ilosc+cena) — widac ~4 pozycje bez przewijania */
 .or{display:flex;align-items:center;gap:7px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06)}.or:last-child{border:none}
 .or.split{flex-direction:column;align-items:stretch;gap:6px}
 .orem{font-size:1.25rem;width:24px;text-align:center;flex-shrink:0}
@@ -174,7 +174,7 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 @media(min-width:1400px){
   .tkg{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
-/* v3.31: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
+/* v3.32: bilet jako spojna karta — bazowa ramka + overflow:hidden, zeby zawartosc
    (liczniki czasu, numer) NIGDY nie wystawala poza bilet przy duzym powiekszeniu */
 .tkt{border:2px solid rgba(255,255,255,.12);border-radius:13px;overflow:hidden;min-width:0;background:#0c1e2c}
 .tkt.tw{background:linear-gradient(135deg,#0a3d1f,#0d5c2e)!important;border-color:#1a8a45!important;}
@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.31</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.32</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1394,16 +1394,19 @@ var _fbSubscribed=false;
 var _fbHeartbeatTimer=null;
 var _fbOnlineHandler=null;
 var _fbOfflineHandler=null;
+var _fbWakeHandler=null;
 function detachFb(){
   if(_arcQuery){try{_arcQuery.off();}catch(e){}_arcQuery=null;}
   if(fbDB&&fbReady){
     ['orders','archive','menu','stock','config','settings/app'].forEach(function(path){
       try{fbDB.ref(path).off();}catch(e){}
     });
+    try{fbDB.ref('.info/connected').off();}catch(e){}
   }
   if(_fbHeartbeatTimer){clearInterval(_fbHeartbeatTimer);_fbHeartbeatTimer=null;}
   if(_fbOnlineHandler){window.removeEventListener('online',_fbOnlineHandler);_fbOnlineHandler=null;}
   if(_fbOfflineHandler){window.removeEventListener('offline',_fbOfflineHandler);_fbOfflineHandler=null;}
+  if(_fbWakeHandler){window.removeEventListener('focus',_fbWakeHandler);window.removeEventListener('pageshow',_fbWakeHandler);_fbWakeHandler=null;}
   _fbSubscribed=false;
 }
 
@@ -1568,7 +1571,6 @@ function subAll(){
   // roznica rzedu kilkudziesieciu razy w transferze. Echo wlasnych zapisow tlumimy
   // sygnatura per-id (_localEcho), wiec cudze zmiany przyjmujemy, a swoje ignorujemy.
   var ordRef=fbDB.ref('orders');
-  var _ordReady=false; // czy minal pierwszy zrzut (child_added dla istniejacych wpisow)
   function applyRemoteOrder(id,val){
     if(!val){return;}
     if(_pendingOrders[id])delete _pendingOrders[id]; // skoro jest w chmurze, nie jest juz "niewyslane"
@@ -1579,10 +1581,8 @@ function subAll(){
     if(consumeEcho('orders/'+id,snap.val()))return; // wlasny zapis — UI juz aktualne
     applyRemoteOrder(id,snap.val());
     saveOrds();
-    // Maintenance (purge pustych, auto-czyszczenie starych) NIE na kazdym evencie:
-    // przy starcie zrobimy to raz hurtem (ponizej w once), a pojedyncze swieze zamowienie
-    // od innego tabletu nie powinno wyzwalac skanu calej listy ani kasowania "pustych w trakcie tworzenia".
-    if(_ordReady)onData(); // pojedyncza zmiana po starcie — tylko odswiez UI
+    onData(); // ZAWSZE odswiez — nowe zamowienie ma pojawic sie natychmiast (throttle 300ms zlaczy
+              // ewentualna serie przy starcie w jeden render, wiec nie ma potrzeby bramki _ordReady)
   });
   ordRef.on('child_changed',function(snap){
     var id=snap.key;
@@ -1596,7 +1596,7 @@ function subAll(){
     if(orders[id]){delete orders[id];clearPending(id);saveOrds();onData();}
   });
   // Po pierwszym zaladowaniu (once odpala sie PO poczatkowych child_added): dowyslij lokalne
-  // zamowienia czekajace offline, zrob JEDNORAZOWY porzadek i odswiez UI. Potem _ordReady=true.
+  // zamowienia czekajace offline, zrob JEDNORAZOWY porzadek i odswiez UI.
   ordRef.once('value').then(function(snap){
     var fbOrders=snap.val()||{};
     Object.keys(orders).forEach(function(k){
@@ -1605,9 +1605,8 @@ function subAll(){
     savePending();
     purgeEmptyOrders();   // raz, na pelnej liscie
     autoClearOldOrders(); // raz, na pelnej liscie
-    _ordReady=true;
     onData();
-  }).catch(function(){_ordReady=true;});
+  }).catch(function(){});
 
   // ARCHIVE — automatycznie synchronizujemy TYLKO ostatnie 24h (zapytanie orderByChild('ts')).
   // Chmura pozostaje PELNYM zrodlem prawdy; lokalnie trzymamy male, swieze okno
@@ -1717,6 +1716,32 @@ function subAll(){
     toast('Tryb offline — dane zapisywane lokalnie','#f5a623');
   };
   window.addEventListener('offline',_fbOfflineHandler);
+
+  // ── Utrzymanie polaczenia w czasie rzeczywistym ──
+  // Glowna przyczyna opoznien typu "nowe zamowienie pojawia sie po kilku sekundach":
+  // na pasywnie czekajacym tablecie (przygaszony ekran, zakladka w tle, oszczedzanie energii
+  // Android/WiFi) WebSocket Firebase usypia. Tablet wykonujacy akcje (gotowanie/gotowe) ma
+  // polaczenie cieple, bo ktos wlasnie dotyka ekranu — dlatego TAM jest natychmiast.
+  // Monitorujemy stan polaczenia i budzimy je natychmiast po powrocie aplikacji na pierwszy plan.
+  try{
+    fbDB.ref('.info/connected').on('value',function(s){
+      var on=s.val()===true;
+      dot(on?'ok':'er'); // zielona kropka = polaczono w czasie rzeczywistym, czerwona = brak
+    });
+  }catch(e){}
+
+  _fbWakeHandler=function(){
+    if(!fbReady||!fbDB)return;
+    try{
+      firebase.database().goOnline(); // obudz ewentualnie uspione polaczenie
+    }catch(e){}
+    sendHeartbeat();
+    onData(); // odswiez widok od razu po powrocie (nie czekaj na nastepny przychodzacy event)
+  };
+  // Powrot z tla / odblokowanie ekranu / ponowny fokus okna:
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)_fbWakeHandler();});
+  window.addEventListener('focus',_fbWakeHandler);
+  window.addEventListener('pageshow',_fbWakeHandler);
 }
 
 function dot(s){
@@ -4718,7 +4743,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.31',
+    v:'v3.32',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
