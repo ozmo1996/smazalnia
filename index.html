@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.34</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.36</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1039,8 +1039,14 @@ function saveSettings(){
   lsSet('sp_settings',JSON.stringify(appSettings));
   savePhoneBackup();
   if(fbReady){
-    window._fbSkipSettings=(window._fbSkipSettings||0)+1; // pomin echo wlasnego zapisu (nie przerysowuj UI w trakcie edycji)
-    fbBg(fbDB.ref('settings/app').set(appSettings));
+    window._fbSkipSettings=(window._fbSkipSettings||0)+1;
+    // Nie synchronizuj customEmojis i brandLogo przez Firebase settings/app —
+    // customEmojis to do 60 obrazków base64 (~kilkaset KB), brandLogo to ~50KB.
+    // Są lokalne per-urządzenie. Synchronizuj tylko mały payload ustawień operacyjnych.
+    var slim={};
+    var SKIP_KEYS={customEmojis:1,brandLogo:1};
+    for(var k in appSettings){if(!SKIP_KEYS[k])slim[k]=appSettings[k];}
+    fbBg(fbDB.ref('settings/app').set(slim));
   }
 }
 // Przytnij wartosci ustawien do bezpiecznych zakresow (uzywane tez dla danych z chmury).
@@ -1415,7 +1421,7 @@ var _fbConnected=true;
 function detachFb(){
   if(_arcQuery){try{_arcQuery.off();}catch(e){}_arcQuery=null;}
   if(fbDB&&fbReady){
-    ['orders','archive','menu','stock','config','settings/app'].forEach(function(path){
+    ['orders','archive','menu','stock','config','settings/app'].forEach(function(path){ // stock ma teraz child_* ale .off() na 'stock' odpina wszystkie
       try{fbDB.ref(path).off();}catch(e){}
     });
     try{fbDB.ref('.info/connected').off();}catch(e){}
@@ -1534,17 +1540,24 @@ function subArchiveWindow(){
   _arcSubTs=Date.now();
   _arcQuery=fbDB.ref('archive').orderByChild('ts').startAt(_arcWindowStart);
   // PRZYROSTOWO: nowy wpis w oknie pobiera tylko ten jeden wpis (nie cale okno).
+  // Debounce saveArc przy child_added — przy starcie może przyjść 100+ wpisów jednocześnie.
+  // Zbieramy je w pamięci i zapisujemy do localStorage raz po 800ms ciszy.
+  var _arcSaveTimer=null;
+  function _arcSaveDebounced(){
+    if(_arcSaveTimer)clearTimeout(_arcSaveTimer);
+    _arcSaveTimer=setTimeout(function(){_arcSaveTimer=null;saveArc();},800);
+  }
   _arcQuery.on('child_added',function(snap){
     var id=snap.key;
     if(consumeEcho('archive/'+id,snap.val()))return; // wlasne wydanie — UI juz aktualne
     archive[id]=snap.val();
-    saveArc();
+    _arcSaveDebounced(); // debounce: nie pisz localStorage przy każdym z 100+ wpisów startu
     if(curV==='s'&&_statShown)renderStats();
   });
   _arcQuery.on('child_changed',function(snap){
     var id=snap.key;
     if(consumeEcho('archive/'+id,snap.val()))return;
-    archive[id]=snap.val();saveArc();
+    archive[id]=snap.val();saveArc(); // zmiana pojedyncza - zapisz od razu
     if(curV==='s'&&_statShown)renderStats();
   });
   _arcQuery.on('child_removed',function(snap){
@@ -1580,9 +1593,9 @@ function subAll(){
   window._fbSkipNext=0;
   window._fbSkipSettings=0;
 
-  // Heartbeat
+  // Heartbeat co 10 min — oszczędność transferu
   sendHeartbeat();
-  _fbHeartbeatTimer=setInterval(sendHeartbeat,60000);
+  _fbHeartbeatTimer=setInterval(sendHeartbeat,600000);
 
   // ORDERS — nasluchy PRZYROSTOWE (child_*) zamiast on('value').
   // Dzieki temu zmiana jednego zamowienia pobiera z chmury TYLKO to zamowienie (~1-2 KB),
@@ -1642,6 +1655,7 @@ function subAll(){
 
   // MENU - chmura nadrzędna
   fbDB.ref('menu').on('value',function(snap){
+    if(consumeEcho('menu',snap.val()))return; // własny zapis menu — edytor już aktualny
     var v=snap.val();
     if(v){
       menu=v;
@@ -1660,11 +1674,33 @@ function subAll(){
     }
   });
 
-  // STOCK - chmura nadrzędna
-  fbDB.ref('stock').on('value',function(snap){
+  // STOCK - nasluch PRZYROSTOWY: child_changed/added pobiera tylko 1 zmieniona pozycje (~100B)
+  // zamiast calego obiektu (~1-5KB) przy kazdym zamowieniu. Echo wlasnych zapisow blokowane
+  // przez fbUpdateStock (echo suppression juz dziala per-sciezka przez _localEcho).
+  fbDB.ref('stock').once('value').then(function(snap){
     var v=snap.val();
     if(v){stock=v;ensureStock();saveStock();}
-    else{ensureStock();fbBg(fbDB.ref('stock').set(stock));}
+    else{ensureStock();fbBg(fbDB.ref('stock').set(stock));} // inicjalizacja pustego stock
+    if(curV==='w')renderStock();
+  }).catch(function(){});
+  // Zmiany przyrostowe po inicjalizacji
+  fbDB.ref('stock').on('child_changed',function(snap){
+    var key=snap.key,val=snap.val();
+    if(!val)return;
+    // Znajdz nazwe pozycji po kluczu Firebase
+    var found=false;
+    Object.keys(stock).forEach(function(n){if(encodeStockKey(n)===key){stock[n]=val;found=true;}});
+    if(!found)stock[key]=val; // fallback: klucz = nazwa
+    saveStock();
+    if(curV==='w')renderStock();
+  });
+  fbDB.ref('stock').on('child_added',function(snap){
+    var key=snap.key,val=snap.val();
+    if(!val)return;
+    var found=false;
+    Object.keys(stock).forEach(function(n){if(encodeStockKey(n)===key){stock[n]=val;found=true;}});
+    if(!found)stock[key]=val;
+    saveStock();
     if(curV==='w')renderStock();
   });
 
@@ -1685,7 +1721,11 @@ function subAll(){
     if(window._fbSkipSettings>0){window._fbSkipSettings--;return;} // echo wlasnego zapisu — UI juz aktualne
     var v=snap.val();
     if(!v)return;
-    for(var k in SETTINGS_DEF){if(v[k]!==undefined)appSettings[k]=v[k];}
+    // Nie nadpisuj pól lokalnych (customEmojis, brandLogo) danymi z chmury —
+    // celowo nie są synchronizowane (zbyt duże). Chronione są przez sprawdzenie v[k]!==undefined,
+    // ale dla pewności jawnie pomijamy te klucze.
+    var CLOUD_SKIP={customEmojis:1,brandLogo:1};
+    for(var k in SETTINGS_DEF){if(!CLOUD_SKIP[k]&&v[k]!==undefined)appSettings[k]=v[k];}
     sanitizeSettings(appSettings); // nie wpuszczaj spoza zakresu (np. holdMs=5 z innego urzadzenia)
     lsSet('sp_settings',JSON.stringify(appSettings));
     countSetInvalidate();
@@ -2400,7 +2440,10 @@ function setBarDone(id){
     saveSnapshot('Wydano napoje',id);
     orders[id].barDone=true;saveOrds();renderBar();
   }
-  if(fbReady)fbBg(fbDB.ref('orders/'+id).update({barDone:true}));
+  if(fbReady){
+    markEcho('orders/'+id,orders[id]); // zapobiegaj przerysowaniu z własnego echa
+    fbBg(fbDB.ref('orders/'+id).update({barDone:true}));
+  }
 }
 function confirmDeleteOrders(ids){
   var modal=document.createElement('div');
@@ -3063,6 +3106,20 @@ function getAllMenuItems(){
   return all;
 }
 
+// Bezpieczny klucz Firebase dla nazwy produktu (Firebase nie pozwala na . # $ / [ ] w kluczach)
+function encodeStockKey(name){return String(name).replace(/[.#$\[\]]/g,'_').slice(0,60)||'_';}
+// Aktualizuj stock w Firebase: per-pozycja (oszczednosc transferu).
+// Gdy names=null -> caly obiekt (reset, init). Gdy names=tablica -> tylko te pozycje.
+function fbUpdateStock(names){
+  if(!fbReady)return;
+  if(!names){
+    fbBg(fbDB.ref('stock').set(stock)); // reset/init - caly obiekt (jednorazowo)
+    return;
+  }
+  var upd={};
+  names.forEach(function(n){if(stock[n])upd['stock/'+encodeStockKey(n)]=stock[n];});
+  if(Object.keys(upd).length)fbBg(fbDB.ref().update(upd));
+}
 function ensureStock(){
   // Upewnij sie ze kazda pozycja menu ma wpis w stock
   var items=getAllMenuItems();
@@ -3168,7 +3225,7 @@ function applyInit(inp,name){
   stock[name].init=val;
   stock[name].current=val;
   saveStock();
-  if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+  if(fbReady)fbUpdateStock([name]); // tylko ta pozycja
   renderStock();
   toast('&#x2714; Stan ustawiony: '+esc(name)+' = '+val+' (sprzedano 0)','#27ae60');
   vib([10,30,10]);
@@ -3182,7 +3239,7 @@ function setStock(name,val){
   // zeby licznik "Sprzedano" (init - current) nie byl ujemny i mial sens.
   if(val>(stock[name].init||0))stock[name].init=val;
   saveStock();
-  if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+  if(fbReady)fbUpdateStock([name]); // tylko ta pozycja
 }
 
 function resetStock(){
@@ -3224,7 +3281,7 @@ function resetStock(){
         }
       });
       saveStock();
-      if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+      if(fbReady)fbUpdateStock(null); // caly reset - zapisz wszystko
       renderStock();
       toast('Stan magazynowy zresetowany','#27ae60');
     };
@@ -3243,7 +3300,8 @@ function deductStock(items){
   });
   if(changed){
     saveStock();
-    if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+    var changedNames=items.map(function(it){return it.name;});
+    if(fbReady)fbUpdateStock(changedNames); // tylko zmienione pozycje (per-pozycja)
     if(curV==='w')renderStock();
   }
 }
@@ -3263,7 +3321,8 @@ function restoreStock(items){
   });
   if(changed){
     saveStock();
-    if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+    var restoredNames=items.map(function(it){return it.name;});
+    if(fbReady)fbUpdateStock(restoredNames); // tylko przywrocone pozycje
     if(curV==='w')renderStock();
   }
 }
@@ -3618,7 +3677,7 @@ function undoLastAction(){
   if(snap.stock){
     stock=snap.stock;
     saveStock();
-    if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+    if(fbReady)fbUpdateStock(null); // cofniecie - zapisz caly stan
     if(curV==='w')renderStock();
   }
   onDataImmediate();
@@ -3807,7 +3866,7 @@ function resetSold(){
         stock[it.name].init=Math.max(0,Math.round(stock[it.name].current)||0);
       });
       saveStock();
-      if(fbReady)fbBg(fbDB.ref('stock').set(stock));
+      if(fbReady)fbUpdateStock(null); // pelny reset sprzedazy
       renderStock();
       toast('Sprzedaz zresetowana','#27ae60');
     };
@@ -4666,7 +4725,13 @@ function saveMenu(){
   savePhoneBackup();
   dSetInvalidate();countSetInvalidate();
   renderMGs();renderEditor();
-  if(fbReady){fbBg(fbDB.ref('menu').set(menu));toast('Menu zapisano i zsynchronizowano!');}
+  if(fbReady){
+    // Przed zapisem: menu może zawierać base64 emoji pozycji, więc jest duże.
+    // markEcho zapobiega niepotrzebnemu przerysowaniu edytora na tym samym urządzeniu.
+    markEcho('menu',menu);
+    fbBg(fbDB.ref('menu').set(menu));
+    toast('Menu zapisano i zsynchronizowano!');
+  }
   else toast('Menu zapisano lokalnie');
 }
 
@@ -4775,7 +4840,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.34',
+    v:'v3.36',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -4799,7 +4864,7 @@ function renderDevices(){
     var html='';
     list.forEach(function(d){
       var ago=Math.floor((now-d.ts)/1000);
-      var active=ago<120;
+      var active=ago<900;
       var agoStr=ago<60?(ago+'s temu'):(Math.floor(ago/60)+'m temu');
       var isMine=d.did===DID;
       var ua=String(d.ua||'').slice(0,50);
