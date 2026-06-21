@@ -541,7 +541,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.36</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.40</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -989,7 +989,7 @@ var archive={};
 // Automatycznie synchronizujemy z chmura TYLKO wpisy z ostatnich 24h (male, swieze okno).
 // Starsze okresy pobieraja sie na zadanie w Statystykach (przycisk "Pokaz statystyki").
 var _statsCloud={};                       // dane pobrane na zadanie do statystyk — TYLKO w pamieci, nie zapisywane
-var ARC_WINDOW_MS=24*3600*1000;           // szerokosc automatycznego okna archiwum
+var ARC_WINDOW_MS=8*3600*1000;            // szerokosc automatycznego okna archiwum (8h = czas pracy restauracji)
 var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
 var _arcQuery=null;                       // aktywne zapytanie nasluchu archiwum (do odpinania)
 var _arcSubTs=0;                          // kiedy zalozono nasluch (okno odswiezane co 6h)
@@ -1096,11 +1096,58 @@ function emo(v,size){
 function emoText(v){return isImgEmoji(v)?'\uD83C\uDF7D\uFE0F':(v||'');}
 function xv(id){var el=document.getElementById(id);return el?el.value.trim():'';}
 function fbBg(p){if(p&&p.catch)p.catch(function(e){console.warn('fb:',e);});}
+// Odszukaj emoji pozycji w lokalnym menu po id lub nazwie (fallback).
+// Uzywane gdy emoji bylo zastapione przez "__img__" przy zapisie do chmury.
+function findMenuEmoji(id,name){
+  var cats=catKeys();
+  for(var i=0;i<cats.length;i++){
+    var sec=menu[cats[i]]||[];
+    for(var j=0;j<sec.length;j++){
+      if(sec[j].id===id||(name&&norm(sec[j].name)===norm(name)))return sec[j].emoji||'';
+    }
+  }
+  return '';
+}
+// Zwroc odchudzone items do zapisu w chmurze:
+//  • base64 emoji → "__img__" (odtwarzane z lokalnego menu po id)
+//  • usuwamy: badge, bc, e — zbędne w kuchni/barze/statystykach, tylko styl menu
+// Oszczędność: ~46B per pozycja × 8 pozycji = ~370B per zamówienie.
+function stripItemsForCloud(items){
+  var SKIP={badge:1,bc:1,e:1}; // pola tylko-menu, niepotrzebne w zamówieniu
+  return (items||[]).map(function(it){
+    var s={};
+    for(var k in it){
+      if(SKIP[k])continue; // pomiń zbędne pola
+      s[k]=it[k];
+    }
+    if(s.emoji&&s.emoji.indexOf('data:image')===0){
+      s.emoji='__img__'; // zastąp base64 placeholderem
+    }
+    return s;
+  });
+}
+// Przywroc emoji z lokalnego menu dla items ktore maja placeholder "__img__".
+// Wywolywane po odebraniu zamowienia z chmury (child_added/changed).
+function restoreItemsEmoji(items){
+  if(!items)return items;
+  return items.map(function(it){
+    if(it.emoji==='__img__'){
+      var s={}; for(var k in it)s[k]=it[k];
+      s.emoji=findMenuEmoji(it.id,it.name)||'__img__';
+      return s;
+    }
+    return it;
+  });
+}
+
 // Wyslij zamowienie do chmury; po POTWIERDZENIU zapisu zdejmij oznaczenie "offline".
 function fbPushOrder(id){
   if(!fbReady||!orders[id])return;
-  markEcho('orders/'+id,orders[id]); // zapamietaj wlasny zapis, by zignorowac jego echo
-  fbDB.ref('orders/'+id).set(orders[id]).then(function(){
+  markEcho('orders/'+id,orders[id]);
+  // Zapisz do chmury bez base64 emoji (strip → "__img__") — oszczędność kilkudziesięciu KB per zamówienie
+  var cloudOrder={}; for(var _k in orders[id])cloudOrder[_k]=orders[id][_k];
+  cloudOrder.items=stripItemsForCloud(orders[id].items);
+  fbDB.ref('orders/'+id).set(cloudOrder).then(function(){
     clearPending(id);
     if(curV==='l')renderList();else if(curV==='k')renderKitch();else if(curV==='b')renderBar();
   }).catch(function(e){console.warn('fb push:',e);});
@@ -1549,15 +1596,19 @@ function subArchiveWindow(){
   }
   _arcQuery.on('child_added',function(snap){
     var id=snap.key;
-    if(consumeEcho('archive/'+id,snap.val()))return; // wlasne wydanie — UI juz aktualne
-    archive[id]=snap.val();
-    _arcSaveDebounced(); // debounce: nie pisz localStorage przy każdym z 100+ wpisów startu
+    if(consumeEcho('archive/'+id,snap.val()))return;
+    var v=snap.val();
+    if(v&&v.items)v.items=restoreItemsEmoji(v.items); // przywroc emoji z menu
+    archive[id]=v;
+    _arcSaveDebounced();
     if(curV==='s'&&_statShown)renderStats();
   });
   _arcQuery.on('child_changed',function(snap){
     var id=snap.key;
     if(consumeEcho('archive/'+id,snap.val()))return;
-    archive[id]=snap.val();saveArc(); // zmiana pojedyncza - zapisz od razu
+    var v=snap.val();
+    if(v&&v.items)v.items=restoreItemsEmoji(v.items);
+    archive[id]=v;saveArc();
     if(curV==='s'&&_statShown)renderStats();
   });
   _arcQuery.on('child_removed',function(snap){
@@ -1583,7 +1634,7 @@ function slideArcWindow(){
 setInterval(function(){
   if(!fbReady)return;
   slideArcWindow();
-  if(_arcSubTs&&(Date.now()-_arcSubTs)>24*3600*1000)subArchiveWindow();
+  if(_arcSubTs&&(Date.now()-_arcSubTs)>8*3600*1000)subArchiveWindow(); // re-subskrypcja co 8h
 },30*60000);
 
 function subAll(){
@@ -1605,7 +1656,9 @@ function subAll(){
   var ordRef=fbDB.ref('orders');
   function applyRemoteOrder(id,val){
     if(!val){return;}
-    if(_pendingOrders[id])delete _pendingOrders[id]; // skoro jest w chmurze, nie jest juz "niewyslane"
+    if(_pendingOrders[id])delete _pendingOrders[id];
+    // Przywroc emoji base64 z lokalnego menu jeśli byly zastapione przez "__img__"
+    if(val.items)val.items=restoreItemsEmoji(val.items);
     orders[id]=val;
   }
   ordRef.on('child_added',function(snap){
@@ -1631,18 +1684,19 @@ function subAll(){
     if(consumeEcho('orders/'+id,null))return; // wlasne usuniecie
     if(orders[id]){delete orders[id];clearPending(id);saveOrds();onData();}
   });
-  // Po pierwszym zaladowaniu (once odpala sie PO poczatkowych child_added): dowyslij lokalne
-  // zamowienia czekajace offline, zrob JEDNORAZOWY porzadek i odswiez UI.
-  ordRef.once('value').then(function(snap){
-    var fbOrders=snap.val()||{};
-    Object.keys(orders).forEach(function(k){
-      if(!fbOrders[k] && _pendingOrders[k])fbPushOrder(k);
+  // Po pierwszym zaladowaniu: dowyslij lokalne offline, zrob porzadek.
+  // Uzywamy setTimeout zamiast ordRef.once('value') — once byloby PODWOJNYM
+  // pobraniem (child_added juz pobral wszystkie zamowienia z chmury).
+  // 3s bufor: wystarczy nawet na powolne WiFi (Firebase zwykle dostarcza w <1s).
+  setTimeout(function(){
+    Object.keys(_pendingOrders).forEach(function(k){
+      if(!orders[k])fbPushOrder(k); // wyslij tylko naprawde brakujace w chmurze
     });
     savePending();
-    purgeEmptyOrders();   // raz, na pelnej liscie
-    autoClearOldOrders(); // raz, na pelnej liscie
+    purgeEmptyOrders();
+    autoClearOldOrders();
     onData();
-  }).catch(function(){});
+  },3000);
 
   // ARCHIVE — automatycznie synchronizujemy TYLKO ostatnie 24h (zapytanie orderByChild('ts')).
   // Chmura pozostaje PELNYM zrodlem prawdy; lokalnie trzymamy male, swieze okno
@@ -1684,25 +1738,20 @@ function subAll(){
     if(curV==='w')renderStock();
   }).catch(function(){});
   // Zmiany przyrostowe po inicjalizacji
-  fbDB.ref('stock').on('child_changed',function(snap){
+  function _applyStockSnap(snap){
     var key=snap.key,val=snap.val();
     if(!val)return;
-    // Znajdz nazwe pozycji po kluczu Firebase
+    // Szukaj pozycji: najpierw po zakodowanym kluczu, potem po kluczu wprost (stare dane Firebase)
     var found=false;
-    Object.keys(stock).forEach(function(n){if(encodeStockKey(n)===key){stock[n]=val;found=true;}});
-    if(!found)stock[key]=val; // fallback: klucz = nazwa
+    Object.keys(stock).forEach(function(n){
+      if(encodeStockKey(n)===key||n===key){stock[n]=val;found=true;}
+    });
+    if(!found)stock[key]=val; // nowa pozycja
     saveStock();
     if(curV==='w')renderStock();
-  });
-  fbDB.ref('stock').on('child_added',function(snap){
-    var key=snap.key,val=snap.val();
-    if(!val)return;
-    var found=false;
-    Object.keys(stock).forEach(function(n){if(encodeStockKey(n)===key){stock[n]=val;found=true;}});
-    if(!found)stock[key]=val;
-    saveStock();
-    if(curV==='w')renderStock();
-  });
+  }
+  fbDB.ref('stock').on('child_changed',_applyStockSnap);
+  fbDB.ref('stock').on('child_added',_applyStockSnap);
 
   // CONFIG
   fbDB.ref('config').on('value',function(snap){
@@ -1765,7 +1814,9 @@ function subAll(){
       });
       if(Object.keys(missing).length>0){
         Object.keys(missing).forEach(function(k){
-          markEcho('archive/'+k,missing[k]);fbBg(fbDB.ref('archive/'+k).set(missing[k]));
+          var _mo={}; for(var _mk in missing[k])_mo[_mk]=missing[k][_mk];
+          _mo.items=stripItemsForCloud(missing[k].items);
+          markEcho('archive/'+k,missing[k]);fbBg(fbDB.ref('archive/'+k).set(_mo));
           bumpDailyStats(missing[k]); // wydane OFFLINE — sumy nie zostaly jeszcze podbite
         });
         toast('Dopisano '+Object.keys(missing).length+' wpisow z tej sesji','#27ae60');
@@ -2194,6 +2245,7 @@ function sendOrder(paid,currency,czkAmount){
     czkAmount:czkAmount||0,
     czkRate:getCZK(),
     timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
+    did:DID, // urządzenie-właściciel: tylko ono zapisuje to zamówienie do archive
     ts:Date.now()};
   lsSet('sp_seq',ordSeq);
   saveSnapshot('Zamowienie #'+order.seq,id,true);
@@ -2345,7 +2397,11 @@ function setStatus(id,status){
       // Automatycznie archiwizuj - trafi do statystyk
       archive[id]=orders[id];
       saveArc();
-      if(fbReady){markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(orders[id]));} // tylko ten 1 wpis pobierze sie z powrotem
+      if(fbReady){
+        var _ao={}; for(var _k in orders[id])_ao[_k]=orders[id][_k];
+        _ao.items=stripItemsForCloud(orders[id].items);
+        markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(_ao));
+      }
       bumpDailyStats(orders[id]); // statystyki ogolne: +przychod, +pozycje, +czasy
     }
     saveOrds();onData();
@@ -2466,7 +2522,11 @@ function delOrder(id){
     var wasCounted=orders[id].status==='done'; // setStatus('done') juz podbil sumy
     if(!orders[id].doneTs)orders[id].doneTs=Date.now();
     archive[id]=orders[id];saveArc();
-    if(fbReady){markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(orders[id]));}
+    if(fbReady){
+      var _dao={}; for(var _k in orders[id])_dao[_k]=orders[id][_k];
+      _dao.items=stripItemsForCloud(orders[id].items);
+      markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(_dao));
+    }
     if(!wasCounted)bumpDailyStats(orders[id]); // licz do obrotow tylko jesli jeszcze nie policzone
   }
   delete orders[id];clearPending(id);
@@ -3502,9 +3562,9 @@ function openEditOrder(id){
         saveOrds();
 
         if(fbReady){
-          markEcho('orders/'+id,ord); // ord = pelne zamowienie po edycji
+          markEcho('orders/'+id,ord);
           fbBg(fbDB.ref('orders/'+id).update({
-            items:ord.items,
+            items:stripItemsForCloud(ord.items), // strip badge/bc/e i base64 emoji
             note:ord.note,
             total:ord.total,
             wynos:ord.wynos
@@ -3667,7 +3727,11 @@ function undoLastAction(){
       var prev=snap.arcPrev[id];
       if(prev)archive[id]=prev; else delete archive[id];
       if(fbReady){
-        if(prev){markEcho('archive/'+id,prev);fbBg(fbDB.ref('archive/'+id).set(prev));}
+        if(prev){
+          var _up={}; for(var _k in prev)_up[_k]=prev[_k];
+          _up.items=stripItemsForCloud(prev.items);
+          markEcho('archive/'+id,prev);fbBg(fbDB.ref('archive/'+id).set(_up));
+        }
         else {markEcho('archive/'+id,null);fbBg(fbDB.ref('archive/'+id).remove());}
       }
     });
@@ -4840,7 +4904,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.36',
+    v:'v3.40',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -5445,7 +5509,11 @@ function doClrOrders(){
   for(var i=0;i<ks.length;i++){
     if(!orders[ks[i]].doneTs)orders[ks[i]].doneTs=Date.now();
     archive[ks[i]]=orders[ks[i]];
-    if(fbReady){markEcho('archive/'+ks[i],orders[ks[i]]);fbBg(fbDB.ref('archive/'+ks[i]).set(orders[ks[i]]));}
+    if(fbReady){
+      var _cao={}; for(var _k in orders[ks[i]])_cao[_k]=orders[ks[i]][_k];
+      _cao.items=stripItemsForCloud(orders[ks[i]].items);
+      markEcho('archive/'+ks[i],orders[ks[i]]);fbBg(fbDB.ref('archive/'+ks[i]).set(_cao));
+    }
   }
   saveArc();
   orders={};saveOrds();
@@ -5473,10 +5541,23 @@ function autoClearOldOrders(){
     var id=ks[i],o=orders[id];
     if(!o||typeof o.ts!=='number'||o.ts>=cutoff)continue;
     if(!o.doneTs)o.doneTs=Date.now();
-    archive[id]=o;                                   // zachowaj w archiwum
-    if(fbReady){markEcho('archive/'+id,o);fbBg(fbDB.ref('archive/'+id).set(o));}
+    archive[id]=o; // zachowaj lokalnie zawsze
+    // Do Firebase zapisuje TYLKO urządzenie które jest właścicielem zamówienia
+    // (stworzyło je lub wysłało offline). Pozostałe tablety tylko czyszczą lokalny stan.
+    // Zapobiega to 3× zapisowi tego samego wpisu do archive przez 3 tablety.
+    // Właściciel = ten kto stworzył zamówienie (did) lub kto je wysłał (pending).
+    // Fallback: jeśli brak did (stara wersja <v3.37) → KAŻDY zapisuje do archive,
+    // bo lepiej 3× ten sam wpis niż utrata danych.
+    var isOwner=!o.did||!!_pendingOrders[id]||(o.did===DID);
+    if(fbReady){
+      if(isOwner){
+        var _co={}; for(var _k in o)_co[_k]=o[_k];
+        _co.items=stripItemsForCloud(o.items);
+        markEcho('archive/'+id,o);fbBg(fbDB.ref('archive/'+id).set(_co));
+      }
+      markEcho('orders/'+id,null);fbBg(fbDB.ref('orders/'+id).remove());
+    }
     delete orders[id];
-    if(fbReady){markEcho('orders/'+id,null);fbBg(fbDB.ref('orders/'+id).remove());}
     n++;
   }
   if(n){
