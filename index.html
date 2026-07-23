@@ -1937,10 +1937,53 @@ function renderTbls(){
 
   // Kafelek MY i Odbior na koncu
   var selO=(typeof selTbl==='string'&&selTbl.indexOf('odbior')===0);
-  var selMy=(selTbl==='my');
-  h+='<button class="tb tb-special'+(selMy?' sel':'')+'" onclick="pickTbl(\'my\')" style="aspect-ratio:1;padding:4px 2px;font-size:.7rem;line-height:1.3;">&#x1F46A;<br>MY</button>';
+  var selMy=(selTbl==='my'||(typeof selTbl==='string'&&selTbl.indexOf('my:')===0));
+  h+='<button class="tb tb-special'+(selMy?' sel':'')+'" onclick="showMyPicker()" style="aspect-ratio:1;padding:4px 2px;font-size:.7rem;line-height:1.3;">&#x1F46A;<br>MY'+(typeof selTbl==='string'&&selTbl.indexOf('my:')===0?'<br><span style="font-size:.62rem;opacity:.85;">'+esc(selTbl.slice(3))+'</span>':'')+'</button>';
   h+='<button class="tb tb-special'+(selO?' sel':'')+'" onclick="showOdbiorPicker()" style="grid-column:span 2;aspect-ratio:auto;padding:8px 6px;font-size:.78rem;line-height:1.3;">&#x23F0; Odbior o godz.</button>';
   g.innerHTML=h;
+}
+
+// Modal MY: pozwala szybko dopisac imie/oznaczenie osoby, zeby kilka roznych zamowien
+// "MY" (bez stolika, obsluga przy okienku) dalo sie odroznic od siebie na liscie.
+function showMyPicker(){
+  vib(10);
+  var existing=document.getElementById('myModal');
+  if(existing)existing.parentNode.removeChild(existing);
+  // Podpowiedz ostatnio uzywane imiona (z aktywnych zamowien MY), zeby szybciej wybrac ponownie
+  var recent=[];
+  Object.keys(orders).forEach(function(k){
+    var o=orders[k];
+    if(o&&o.status!=='done'&&typeof o.table==='string'&&o.table.indexOf('my:')===0){
+      var nm=o.table.slice(3);
+      if(nm&&recent.indexOf(nm)<0)recent.push(nm);
+    }
+  });
+  var chipsHtml=recent.length?('<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px;">'+
+    recent.map(function(nm){return '<button type="button" onclick="pickTbl(\'my:\'+'+JSON.stringify(nm)+')" style="padding:7px 12px;border-radius:20px;border:1.5px solid var(--s);background:rgba(18,120,168,.12);color:#0b1e28;font-family:Nunito,sans-serif;font-weight:800;font-size:.8rem;cursor:pointer;">'+esc(nm)+'</button>';}).join('')+
+    '</div>'):'';
+  var modal=document.createElement('div');
+  modal.id='myModal';
+  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML=
+    '<div style="background:#fff;border-radius:14px;padding:22px;max-width:320px;width:100%;text-align:center;">'+
+      '<div style="font-size:2rem;margin-bottom:6px;">&#x1F46A;</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:10px;">Zamowienie MY</div>'+
+      '<div style="color:#666;font-size:.8rem;margin-bottom:12px;">Dopisz imie/oznaczenie, zeby odroznic od innych zamowien MY (opcjonalne)</div>'+
+      chipsHtml+
+      '<input id="myName" type="text" placeholder="np. Ania, kasa 2, gosc w kurtce..." style="width:100%;padding:12px;border-radius:9px;border:2px solid #ddd;font-family:Nunito,sans-serif;font-size:1rem;font-weight:700;text-align:center;outline:none;color:#0b1e28;margin-bottom:14px;box-sizing:border-box;">'+
+      '<button onclick="confirmMy()" style="width:100%;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#0d4a6a,#1278a8);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.95rem;cursor:pointer;margin-bottom:8px;">Potwierdz</button>'+
+      '<button onclick="pickTbl(\'my\');document.getElementById(\'myModal\').remove();" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;margin-bottom:8px;">Pomin (ogolne MY)</button>'+
+      '<button onclick="document.getElementById(\'myModal\').remove()" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
+    '</div>';
+  document.body.appendChild(modal);
+  setTimeout(function(){var inp=document.getElementById('myName');if(inp)inp.focus();},100);
+}
+function confirmMy(){
+  var inp=document.getElementById('myName');
+  var name=inp?inp.value.trim():'';
+  var modal=document.getElementById('myModal');
+  if(modal)modal.parentNode.removeChild(modal);
+  pickTbl(name?('my:'+name):'my');
 }
 
 function showOdbiorPicker(){
@@ -2012,6 +2055,7 @@ function pickTbl(n){
   var el=document.getElementById('ophs');
   if(el){
     if(selTbl==='my') el.textContent='MY - obsluga';
+    else if(typeof selTbl==='string'&&selTbl.indexOf('my:')===0) el.textContent='MY - '+selTbl.slice(3);
     else if(typeof selTbl==='string'&&selTbl.indexOf('odbior')===0) el.textContent='Odbior o '+selTbl.split(':').slice(1).join(':');
     else el.textContent='Stolik '+selTbl;
   }
@@ -2671,6 +2715,8 @@ function renderList(){
       // Szukaj po stoliku - dokladne dopasowanie dla liczb
       var tbl=String(o.table||'').toLowerCase();
       if(tbl===q)return true;
+      // Szukaj po dopisanym imieniu przy MY (np. "ania" znajdzie stolik "my:Ania")
+      if(tbl.indexOf('my:')===0&&tbl.slice(3).indexOf(q)>=0)return true;
       // Szukaj po numerze zamowienia (#seq) — np. "12" albo "#12"
       var qn=q.replace(/^#/,'');
       if(qn&&String(o.seq)===qn)return true;
@@ -2684,18 +2730,19 @@ function renderList(){
 
   if(!arr.length){el.innerHTML='<div class="ni">'+(q?'Brak wynikow dla "'+esc(q)+'"':'Brak zamowien')+'</div>';return;}
 
-  // Grupuj zamówienia z tego samego stolika złożone w ciągu 15 min
+  // Grupuj zamówienia z tego samego stolika, dopoki sa niewydane (bez wzgledu na odstep czasu
+  // miedzy nimi — dosiadanie sie do stolika po 20-30 min tez ma zostac polaczone w jedna pozycje).
   var grouped=[];
   var used={};
   for(var i=0;i<arr.length;i++){
     if(used[arr[i].id])continue;
     var o=arr[i];
     var group=[o];
-    if(o.status!=='done'){
+    if(o.status!=='done'&&String(o.table)!=='okienko'&&o.table!=='my'){ // "okienko" i nienazwane "my" (sprzedaz bez stolika) nie laczymy
       for(var j=i+1;j<arr.length;j++){
         var o2=arr[j];
         if(used[o2.id])continue;
-        if(o2.status!=='done'&&String(o2.table)===String(o.table)&&Math.abs(o2.ts-o.ts)<15*60*1000){ // String() - odporna na type mismatch (liczba vs string)
+        if(o2.status!=='done'&&String(o2.table)===String(o.table)){ // String() - odporna na type mismatch (liczba vs string)
           group.push(o2);used[o2.id]=true;
         }
       }
@@ -3161,6 +3208,12 @@ function setSF(f){
 // Zwraca null gdy okres miesci sie w lokalnym oknie 24h (godzina/dzis) — nic nie pobieramy.
 function statsFetchBounds(){
   var now=Date.now();
+  if(sfilt==='yesterday'){
+    var y=new Date();y.setDate(y.getDate()-1);
+    var yf=new Date(y.getFullYear(),y.getMonth(),y.getDate(),0,0,0,0);
+    var yt=new Date(y.getFullYear(),y.getMonth(),y.getDate(),23,59,59,999);
+    return {from:yf.getTime(),to:yt.getTime()};
+  }
   if(sfilt==='week')return {from:now-7*24*3600*1000,to:null};
   if(sfilt==='month')return {from:now-30*24*3600*1000,to:null};
   if(sfilt==='all')return {from:null,to:null};
@@ -4344,6 +4397,10 @@ function _statsFilterMatch(o){
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
   if(sfilt==='hour')return (now-o.ts)<3600*1000;
   if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+  if(sfilt==='yesterday'){
+    var y=new Date();y.setDate(y.getDate()-1);
+    return new Date(o.ts).toLocaleDateString('pl-PL')===y.toLocaleDateString('pl-PL');
+  }
   if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
   if(sfilt==='month')return (now-o.ts)<30*24*3600*1000;
   if(sfilt==='range'){
@@ -4642,18 +4699,19 @@ function genStatsHtml(a){
 // Ladna etykieta stolika/typu zamowienia (obsluguje tez zamowienie "przy okienku").
 function tlabel(t){
   if(t==='my')return '\uD83D\uDC6A MY';
+  if(typeof t==='string'&&t.indexOf('my:')===0)return '\uD83D\uDC6A MY - '+esc(t.slice(3));
   if(t==='okienko')return '\uD83D\uDEB6 Okienko';
   if(typeof t==='string'&&t.indexOf('odbior')===0)return 'Odbior '+esc(t.slice(7));
   return 'Stolik '+esc(String(t));
 }
 function statControlsHtml(){
   var dfVal=sDateFrom||'',dtVal=sDateTo||'';
-  var lbl={hour:'ostatnia godzina',today:'dzis',week:'tydzien',month:'miesiac',all:'wszystko',range:'zakres'};
+  var lbl={hour:'ostatnia godzina',today:'dzis',yesterday:'wczoraj',week:'tydzien',month:'miesiac',all:'wszystko',range:'zakres'};
   function b(f,t){return '<button class="sf'+(sfilt===f?' on':'')+'" onclick="setSF(\''+f+'\')">'+t+'</button>';}
   // Karta "Statystyki ogolne" jest czescia naglowka, wiec widac ja ZAWSZE (takze przed
   // pobraniem szczegolow). Wypelnia ja loadGeneralStats() po wstawieniu HTML do DOM.
   setTimeout(loadGeneralStats,0);
-  return '<div class="sfr">'+b('hour','Godzina')+b('today','Dzis')+b('week','Tydzien')+b('month','Miesiac')+b('all','Wszystko')+b('range','Od-Do')+'</div>'+
+  return '<div class="sfr">'+b('hour','Godzina')+b('today','Dzis')+b('yesterday','Wczoraj')+b('week','Tydzien')+b('month','Miesiac')+b('all','Wszystko')+b('range','Od-Do')+'</div>'+
     (sfilt==='range'
       ?'<div class="sdr"><span class="sdlbl">Od:</span><input class="sdinp" id="sdf" type="date" value="'+dfVal+'"><span class="sdlbl">Do:</span><input class="sdinp" id="sdt" type="date" value="'+dtVal+'"></div>'
       :'')+
@@ -4675,12 +4733,14 @@ function renderStats(){
     return;
   }
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
+  var yest=new Date();yest.setDate(yest.getDate()-1);yest=yest.toLocaleDateString('pl-PL');
   // _statsCloud = dane dociagniete na zadanie (RAM); archive = okno 24h; orders = aktywne
   var all=Object.values(Object.assign({},_statsCloud,archive,orders));
   var filt=all.filter(function(o){
     if(!o||!o.ts)return sfilt==='all'; // wpisy bez daty tylko w widoku Wszystko
     if(sfilt==='hour')return (now-o.ts)<3600*1000;
     if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
+    if(sfilt==='yesterday')return new Date(o.ts).toLocaleDateString('pl-PL')===yest;
     if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
     if(sfilt==='month')return (now-o.ts)<30*24*3600*1000;
     if(sfilt==='range'){
@@ -5577,6 +5637,8 @@ setInterval(function(){
 
 setInterval(savePhoneBackup,60000);
 setInterval(autoClearOldOrders,60000); // dzienne auto-czyszczenie zamowien o 6:00
+setInterval(autoCloseOpenOrdersAt23,60000); // dzienne auto-zamykanie niedomknietych zamowien o 23:00
+autoCloseOpenOrdersAt23(); // sprawdz od razu przy starcie (np. gdy tablet zostal wlaczony po 23:00)
 window.addEventListener('beforeunload',savePhoneBackupNow);
 window.addEventListener('pagehide',savePhoneBackupNow);
 
@@ -5643,10 +5705,42 @@ function doClrOrders(){
   toast('Usunieto '+count+' zamowien','#27ae60');
 }
 
+// ── AUTOMATYCZNE ZAMYKANIE NIEDOMKNIETYCH ZAMOWIEN O 23:00 ──
+// Zamowienia, ktore zostaly zlozone ale nikt nie oznaczyl ich jako "Wydano" (np. zapomniano
+// kliknac), o godzinie 23:00 kazdego dnia sa automatycznie oznaczane jako wydane. Uzywamy do tego
+// TEJ SAMEJ funkcji setStatus('done'), ktorej uzywa recznie personel — dzieki temu zamowienie
+// trafia do archiwum I do statystyk (bumpDailyStats) dokladnie tak samo jak przy normalnym
+// wydaniu. To naprawia problem, w ktorym zamowienia niezamkniete do 6:00 byly po cichu
+// przenoszone do archiwum przez autoClearOldOrders() BEZ doliczenia ich do statystyk.
+var AUTOCLOSE_HOUR=23;
+function _autoCloseRunKey(){
+  var d=new Date();
+  return 'sp_autoclose23_'+d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function autoCloseOpenOrdersAt23(){
+  var now=new Date();
+  if(now.getHours()<AUTOCLOSE_HOUR)return; // jeszcze nie 23:00 — nic nie rob
+  var key=_autoCloseRunKey();
+  if(lsGet(key))return; // dzisiaj juz wykonane — nie powtarzaj (zamowienia zlozone PO 23:00 zostana same, do jutra)
+  var ks=Object.keys(orders),n=0;
+  for(var i=0;i<ks.length;i++){
+    var id=ks[i],o=orders[id];
+    if(!o||o.status==='done')continue; // juz wydane — pomin
+    setStatus(id,'done'); // to samo co reczne "Wydano": archiwizuje + dolicza do statystyk
+    n++;
+  }
+  lsSet(key,'1');
+  if(n>0){
+    onDataImmediate();
+    toast('Zamknieto automatycznie '+n+' niedomknietych zamowien (23:00)','#f5a623');
+  }
+}
+
 // ── AUTOMATYCZNE CZYSZCZENIE O 6:00 ──
 // Zamowienia starsze niz ostatnia godzina 6:00 sa przenoszone do archiwum (statystyki/historia
 // zostaja zachowane) i usuwane z aktywnych zamowien — dzieki temu Kuchnia/Bar nigdy nie zapychaja
-// sie nagromadzonymi zamowieniami z poprzednich dni.
+// sie nagromadzonymi zamowieniami z poprzednich dni. Dzieki funkcji powyzej, do tej pory wszystkie
+// zamowienia z danego dnia powinny juz miec status 'done', wiec te tutaj to realny wyjatek.
 var RESET_HOUR=6;
 function lastResetCutoff(){
   var d=new Date();
