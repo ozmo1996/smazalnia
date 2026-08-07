@@ -2685,6 +2685,44 @@ function registerSplitPayment(table,amtPLN,currency,rate){
   saveOrds();saveArc();onDataImmediate();
 }
 
+// Oznacza KONKRETNE pozycje (np. "3 zestawy") jako juz opłacone na poziomie pojedynczych
+// sztuk (pole it.pq = ile sztuk danej pozycji juz rozliczono w ramach podzialu rachunku).
+// Dzieki temu przy kolejnym otwarciu okna "Podziel" te sztuki znikaja z listy do wyboru —
+// nie da sie ich przypadkiem oznaczyc do zaplaty po raz drugi.
+function markItemsPaid(table,selMap){
+  var need={};
+  for(var k in selMap){if(selMap[k]>0)need[k]=selMap[k];}
+  if(!Object.keys(need).length)return;
+  var ordsArr=Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
+    .sort(function(a,b){return a.ts-b.ts;});
+  ordsArr.forEach(function(o){
+    var changed=false;
+    (o.items||[]).forEach(function(it){
+      var k=it.name+'|'+(!!it.wynos);
+      if(need[k]>0){
+        var avail=Math.max(0,(it.qty||0)-(it.pq||0));
+        var take=Math.min(avail,need[k]);
+        if(take>0){
+          it.pq=(it.pq||0)+take;
+          need[k]-=take;
+          changed=true;
+        }
+      }
+    });
+    if(changed){
+      var newItems=stripItemsForCloud(o.items);
+      var upd={items:newItems};
+      markEcho('orders/'+o.id,orders[o.id]);
+      if(fbReady)fbBg(fbDB.ref('orders/'+o.id).update(upd));
+      if(archive[o.id]){
+        archive[o.id].items=newItems;
+        if(fbReady){markEcho('archive/'+o.id,archive[o.id]);fbBg(fbDB.ref('archive/'+o.id).update({items:newItems}));}
+      }
+    }
+  });
+  saveOrds();saveArc();
+}
+
 function openSplitBill(table){
   function liveUnpaidOrders(){
     return Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
@@ -2694,14 +2732,20 @@ function openSplitBill(table){
     return ordsArr.reduce(function(s,o){return s+Math.max(0,(o.total||0)-(o.paidAmt||0));},0);
   }
   function itemKey(it){return it.name+'|'+(!!it.wynos);}
+  // Agreguje pozycje ze wszystkich nieoplaconych zamowien stolika, ale liczy TYLKO
+  // sztuki jeszcze nie oznaczone jako oplacone (qty - pq). Pozycje w calosci juz
+  // rozliczone (np. 1 z 3 zestawow oplacony wczesniej) pokazuja pozostala ilosc,
+  // a gdy caly item jest juz oplacony — znika z listy do wyboru.
   function aggItems(ordsArr){
     var out=[];
     ordsArr.forEach(function(o){
       (o.items||[]).forEach(function(it){
+        var remQty=Math.max(0,(it.qty||0)-(it.pq||0));
+        if(remQty<=0)return;
         var k=itemKey(it),found=null;
         for(var i=0;i<out.length;i++){if(itemKey(out[i])===k){found=out[i];break;}}
-        if(found)found.qty+=it.qty;
-        else out.push({name:it.name,emoji:it.emoji,price:it.price,qty:it.qty,wynos:!!it.wynos});
+        if(found){found.qty+=remQty;found.origQty+=(it.qty||0);}
+        else out.push({name:it.name,emoji:it.emoji,price:it.price,qty:remQty,origQty:(it.qty||0),wynos:!!it.wynos});
       });
     });
     return out;
@@ -2743,7 +2787,7 @@ function openSplitBill(table){
         '<span style="font-size:1.1rem;">'+emo(it.emoji,'1.1rem')+'</span>'+
         '<div style="flex:1;min-width:0;">'+
           '<div style="color:#fff;font-size:.85rem;font-weight:700;">'+esc(it.name)+(it.wynos?' <span style="color:var(--a);font-size:.65rem;">(na wynos)</span>':'')+'</div>'+
-          '<div style="color:rgba(255,255,255,.5);font-size:.7rem;">'+(+it.price).toFixed(2)+' zl/szt &bull; razem '+it.qty+' szt.</div>'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.7rem;">'+(+it.price).toFixed(2)+' zl/szt &bull; '+(it.qty!==it.origQty?'pozostalo '+it.qty+' z '+it.origQty+' szt.':'razem '+it.qty+' szt.')+'</div>'+
         '</div>'+
         '<button class="spstep" data-k="'+esc(k)+'" data-d="-1" style="width:30px;height:30px;border-radius:8px;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:1.1rem;font-weight:900;touch-action:manipulation;">-</button>'+
         '<span style="min-width:22px;text-align:center;color:#e7c06b;font-weight:900;">'+cur+'</span>'+
@@ -2799,8 +2843,12 @@ function openSplitBill(table){
       var amt=parseFloat(document.getElementById('spAmt').value)||0;
       if(amt<=0){toast('Podaj kwote wplaty','#f5a623');return;}
       if(amt>remain+0.01){toast('Kwota wieksza niz pozostalo do zaplaty','#f5a623');return;}
+      var selSnapshot={};for(var k in sel)selSnapshot[k]=sel[k];
       showChangeModal(amt,currency,rate,function(){
         registerSplitPayment(table,amt,currency,rate);
+        // Jesli przy tej wplacie wybrano konkretne pozycje (np. "1 zestaw"), oznacz je
+        // trwale jako oplacone — nie beda juz dostepne do ponownego wyboru w tym oknie.
+        markItemsPaid(table,selSnapshot);
         sel={};
         toast('Wplata zarejestrowana: '+(currency==='CZK'?Math.round(amt*rate)+' CZK':amt.toFixed(2)+' zl'),'#27ae60');
         render();
