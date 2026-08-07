@@ -59,6 +59,8 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
 .hdr{position:sticky;top:0;z-index:200;background:linear-gradient(135deg,#07131b,#0d3d56);border-bottom:2px solid var(--a);padding:8px 10px;display:flex;align-items:center;gap:6px;box-shadow:0 3px 18px rgba(0,0,0,.5);flex-wrap:wrap}
 .logo{display:flex;align-items:center;gap:7px}.logo-f{font-size:1.7rem}.logo-t{font-family:'Playfair Display',serif;color:#fff;font-size:.9rem;line-height:1.1}.logo-t em{color:var(--a);font-style:normal}
+.vac-cd{font-size:.62rem;font-weight:700;color:#e7c06b;background:rgba(231,192,107,.1);border:1px solid rgba(231,192,107,.3);border-radius:6px;padding:2px 6px;margin-left:4px;white-space:nowrap;align-self:flex-end;line-height:1.3}
+@media(max-width:600px){.vac-cd{font-size:.56rem;padding:2px 4px}}
 .nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
 .nb{background:rgba(255,255,255,.08);color:rgba(255,255,255,.75);border:1.5px solid rgba(255,255,255,.13);border-radius:22px;padding:6px 11px;font-family:'Nunito',sans-serif;font-weight:800;font-size:.73rem;cursor:pointer;white-space:nowrap;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .nb.on{background:var(--a);border-color:var(--g);color:#fff}
@@ -541,7 +543,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.43</span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.43</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -696,6 +698,16 @@ button:disabled{cursor:not-allowed}
       <span>Wymagaj wyboru stolika przy zamowieniu</span>
     </label>
     <div class="set-hint">Gdy wylaczone, mozesz wydac zamowienie (np. napoje przy okienku) bez wybierania stolika — trafi jako &#x1F6B6; Okienko.</div>
+
+    <label class="set-check" style="margin-top:12px;">
+      <input type="checkbox" id="setVacCd">
+      <span>&#x1F3D6;&#xFE0F; Pokaz licznik do konca wakacji przy logo</span>
+    </label>
+    <div style="margin-top:8px;">
+      <label style="font-size:.8rem;color:rgba(255,255,255,.6);display:block;margin-bottom:4px;">Data i godzina, do ktorej liczy licznik:</label>
+      <input type="datetime-local" id="setVacDate" step="1" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;">
+      <div class="set-hint">Domyslnie 31 sierpnia biezacego roku, 23:59:59. Zmien wedlug wlasnego terminu — po zapisaniu licznik bedzie odliczal do podanej chwili.</div>
+    </div>
 
     <button class="set-save" onclick="saveSettingsFromUI()">&#x1F4BE; Zapisz ustawienia</button>
   </div>
@@ -1017,7 +1029,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null,vacationCountdown:true,vacationEndDate:null};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -1075,6 +1087,48 @@ function applyProfileUI(){
   var lt=document.querySelector('.logo-t');if(lt)lt.innerHTML=esc(l1)+(l2?'<br><em>'+esc(l2)+'</em>':'');
   var li=document.querySelector('.login-fish');if(li)li.innerHTML=brandLogoHtml('64px');
   var title=document.querySelector('.login-title');if(title)title.textContent=fullName;
+  applyVacationCountdown();
+}
+
+// ── LICZNIK DO KONCA WAKACJI (przy logo) ──
+var _vacCdTimer=null;
+function vacationEndDate(){
+  if(appSettings&&appSettings.vacationEndDate){
+    var custom=new Date(appSettings.vacationEndDate);
+    if(!isNaN(custom.getTime()))return custom;
+  }
+  var now=new Date();
+  var y=now.getFullYear();
+  var end=new Date(y,7,31,23,59,59,0); // 31 sierpnia, 23:59:59
+  if(now.getTime()>end.getTime()){end=new Date(y+1,7,31,23,59,59,0);}
+  return end;
+}
+function pad2(n){return (n<10?'0':'')+n;}
+function dateToLocalInputVal(d){
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'T'+pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds());
+}
+function tickVacationCountdown(){
+  var el=document.getElementById('vacCd');if(!el)return;
+  var diffMs=vacationEndDate().getTime()-Date.now();
+  if(diffMs<0)diffMs=0;
+  var totalSec=Math.floor(diffMs/1000);
+  var d=Math.floor(totalSec/86400);
+  var h=Math.floor((totalSec%86400)/3600);
+  var m=Math.floor((totalSec%3600)/60);
+  var s=totalSec%60;
+  el.textContent='\uD83C\uDFD6\uFE0F '+d+'d '+(h<10?'0':'')+h+'g '+(m<10?'0':'')+m+'m '+(s<10?'0':'')+s+'s';
+}
+function applyVacationCountdown(){
+  var el=document.getElementById('vacCd');if(!el)return;
+  var on=!!(appSettings&&appSettings.vacationCountdown!==false);
+  if(_vacCdTimer){clearInterval(_vacCdTimer);_vacCdTimer=null;}
+  if(on){
+    el.style.display='inline-block';
+    tickVacationCountdown();
+    _vacCdTimer=setInterval(tickVacationCountdown,1000);
+  }else{
+    el.style.display='none';
+  }
 }
 
 function uid(){return DID+Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
@@ -2540,9 +2594,11 @@ function setStatus(id,status){
   }
 }
 function setPaidGroup(mainId,ids){
-  // Jeden modal dla calej grupy
+  // Jeden modal dla calej grupy — kwota to TYLKO to, co jeszcze zostalo do zaplaty
+  // (jesli wczesniej zarejestrowano czesciowe wplaty przez "Podziel rachunek", ich
+  // kwota jest juz odjeta od sumy ponizej — nie placi sie dwa razy za to samo).
   var o=orders[mainId];if(!o)return;
-  var total=ids.reduce(function(s,id){return s+(orders[id]?orders[id].total||0:0);},0);
+  var total=ids.reduce(function(s,id){var ord=orders[id];if(!ord)return s;return s+Math.max(0,(ord.total||0)-(ord.paidAmt||0));},0);
   var rate=getCZK();
   var czkTotal=Math.round(total*rate);
 
@@ -2567,7 +2623,7 @@ function setPaidGroup(mainId,ids){
     ids.forEach(function(id){
       if(!orders[id])return;
       var czkAmt=currency==='CZK'?Math.round((orders[id].total||0)*rate):0;
-      var upd={paid:true,currency:currency,czkAmount:czkAmt,czkRate:currency==='CZK'?rate:0};
+      var upd={paid:true,currency:currency,czkAmount:czkAmt,czkRate:currency==='CZK'?rate:0,paidAmt:orders[id].total||0};
       Object.assign(orders[id],upd);
       markEcho('orders/'+id,orders[id]);
       if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
@@ -2591,6 +2647,171 @@ function setPaidGroup(mainId,ids){
   document.getElementById('spg_CZK').onclick=function(){
     showChangeModal(total,'CZK',rate,function(){doPay('CZK');});
   };
+}
+
+// ── PODZIAL RACHUNKU (czesciowe wplaty, gdy kilka osob placi osobno) ──
+// Kazde zamowienie moze miec pole paidAmt = ile PLN juz na nie wplacono czesciowo.
+// Gdy paidAmt osiaga pelna wartosc total, zamowienie oznaczane jest jako paid=true
+// (dokladnie tak samo jak przy zwyklym "Oplacono"). Dzieki temu w kazdej chwili widac
+// ile z rachunku zostalo juz zaplacone, a ile jeszcze zostalo — niezaleznie od tego,
+// ile osob placi i w ilu ratach.
+function registerSplitPayment(table,amtPLN,currency,rate){
+  var ordsArr=Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
+    .sort(function(a,b){return a.ts-b.ts;});
+  var left=amtPLN;
+  saveSnapshot('Wplata czesciowa: '+tlabel(table),ordsArr.map(function(o){return o.id;}));
+  for(var i=0;i<ordsArr.length&&left>0.004;i++){
+    var o=ordsArr[i];
+    var remain=Math.max(0,(o.total||0)-(o.paidAmt||0));
+    if(remain<=0.004)continue;
+    var take=Math.min(remain,left);
+    var newPaidAmt=Math.round(((o.paidAmt||0)+take)*100)/100;
+    var upd={paidAmt:newPaidAmt};
+    if(newPaidAmt>=(o.total||0)-0.004){
+      upd.paid=true;
+      upd.currency=currency;
+      upd.czkAmount=currency==='CZK'?Math.round((o.total||0)*rate):0;
+      upd.czkRate=currency==='CZK'?rate:0;
+    }
+    Object.assign(orders[o.id],upd);
+    markEcho('orders/'+o.id,orders[o.id]);
+    if(fbReady)fbBg(fbDB.ref('orders/'+o.id).update(upd));
+    if(archive[o.id]){
+      Object.assign(archive[o.id],upd);
+      if(fbReady){markEcho('archive/'+o.id,archive[o.id]);fbBg(fbDB.ref('archive/'+o.id).update(upd));}
+    }
+    left-=take;
+  }
+  saveOrds();saveArc();onDataImmediate();
+}
+
+function openSplitBill(table){
+  function liveUnpaidOrders(){
+    return Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
+      .sort(function(a,b){return a.ts-b.ts;});
+  }
+  function remainingTotal(ordsArr){
+    return ordsArr.reduce(function(s,o){return s+Math.max(0,(o.total||0)-(o.paidAmt||0));},0);
+  }
+  function itemKey(it){return it.name+'|'+(!!it.wynos);}
+  function aggItems(ordsArr){
+    var out=[];
+    ordsArr.forEach(function(o){
+      (o.items||[]).forEach(function(it){
+        var k=itemKey(it),found=null;
+        for(var i=0;i<out.length;i++){if(itemKey(out[i])===k){found=out[i];break;}}
+        if(found)found.qty+=it.qty;
+        else out.push({name:it.name,emoji:it.emoji,price:it.price,qty:it.qty,wynos:!!it.wynos});
+      });
+    });
+    return out;
+  }
+
+  var m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;';
+  document.body.appendChild(m);
+
+  var rate=getCZK();
+  var sel={}; // itemKey -> wybrana ilosc dla tej wplaty
+  var curItems=[];
+
+  function selAmount(){
+    var s=0;
+    for(var k in sel){
+      var qty=sel[k];if(!qty)continue;
+      for(var i=0;i<curItems.length;i++){if(itemKey(curItems[i])===k){s+=curItems[i].price*qty;break;}}
+    }
+    return s;
+  }
+
+  function render(){
+    var ordsArr=liveUnpaidOrders();
+    if(!ordsArr.length){
+      m.remove();
+      toast('Caly rachunek juz oplacony!','#27ae60');
+      renderList();
+      return;
+    }
+    curItems=aggItems(ordsArr);
+    var remain=remainingTotal(ordsArr);
+    var selAmt=selAmount();
+
+    var rows=curItems.map(function(it){
+      var k=itemKey(it);
+      var cur=sel[k]||0;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08);">'+
+        '<span style="font-size:1.1rem;">'+emo(it.emoji,'1.1rem')+'</span>'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="color:#fff;font-size:.85rem;font-weight:700;">'+esc(it.name)+(it.wynos?' <span style="color:var(--a);font-size:.65rem;">(na wynos)</span>':'')+'</div>'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.7rem;">'+(+it.price).toFixed(2)+' zl/szt &bull; razem '+it.qty+' szt.</div>'+
+        '</div>'+
+        '<button class="spstep" data-k="'+esc(k)+'" data-d="-1" style="width:30px;height:30px;border-radius:8px;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:1.1rem;font-weight:900;touch-action:manipulation;">-</button>'+
+        '<span style="min-width:22px;text-align:center;color:#e7c06b;font-weight:900;">'+cur+'</span>'+
+        '<button class="spstep" data-k="'+esc(k)+'" data-d="1" style="width:30px;height:30px;border-radius:8px;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:1.1rem;font-weight:900;touch-action:manipulation;">+</button>'+
+      '</div>';
+    }).join('');
+
+    m.innerHTML=
+      '<div style="background:#132430;border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">'+
+        '<div style="font-family:\'Playfair Display\',serif;font-size:1.15rem;font-weight:700;color:#fff;margin-bottom:2px;">&#x1F9FE; Podziel rachunek &mdash; '+tlabel(table)+'</div>'+
+        '<div style="color:rgba(255,255,255,.55);font-size:.78rem;margin-bottom:14px;">Pozostalo do zaplaty: <b style="color:#ffb1a1;">'+remain.toFixed(2)+' zl</b></div>'+
+        '<div style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:700;margin-bottom:4px;">Zaznacz co placi ta osoba (kalkulator kwoty):</div>'+
+        '<div id="spItems">'+rows+'</div>'+
+        '<div style="margin:12px 0;padding:10px;background:rgba(255,255,255,.05);border-radius:10px;text-align:center;">'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.68rem;">Kwota tej wplaty (zl)</div>'+
+          '<input id="spAmt" type="number" step="0.01" min="0" value="'+selAmt.toFixed(2)+'" style="width:100%;text-align:center;background:transparent;border:none;color:#e7c06b;font-size:1.6rem;font-weight:900;font-family:Nunito,sans-serif;outline:none;">'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">'+
+          '<input id="spN" type="number" min="2" step="1" placeholder="podziel po rowno na ilu?" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.8rem;">'+
+          '<button id="spEq" style="padding:8px 12px;border-radius:8px;border:none;background:rgba(231,192,107,.18);color:#e7c06b;font-weight:800;font-size:.75rem;white-space:nowrap;touch-action:manipulation;">1 / N</button>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;margin-bottom:8px;">'+
+          '<button id="spPLN" style="flex:1;padding:12px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-weight:900;touch-action:manipulation;">&#x1F1F5;&#x1F1F1; PLN</button>'+
+          '<button id="spCZK" style="flex:1;padding:12px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-weight:900;touch-action:manipulation;">&#x1F1E8;&#x1F1FF; CZK</button>'+
+        '</div>'+
+        '<button id="spClose" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font-weight:700;touch-action:manipulation;">Zamknij</button>'+
+      '</div>';
+
+    Array.prototype.forEach.call(m.querySelectorAll('.spstep'),function(btn){
+      btn.onclick=function(){
+        var k=btn.getAttribute('data-k');
+        var d=parseInt(btn.getAttribute('data-d'),10);
+        var item=null;
+        for(var i=0;i<curItems.length;i++){if(itemKey(curItems[i])===k){item=curItems[i];break;}}
+        if(!item)return;
+        var cur=sel[k]||0;
+        cur=Math.max(0,Math.min(item.qty,cur+d));
+        sel[k]=cur;
+        render();
+      };
+    });
+
+    document.getElementById('spEq').onclick=function(){
+      var n=parseInt(document.getElementById('spN').value,10)||0;
+      if(n<2){toast('Podaj liczbe osob (min. 2)','#f5a623');return;}
+      var amt=remain/n;
+      document.getElementById('spAmt').value=amt.toFixed(2);
+    };
+
+    document.getElementById('spClose').onclick=function(){m.remove();};
+
+    function doConfirm(currency){
+      var amt=parseFloat(document.getElementById('spAmt').value)||0;
+      if(amt<=0){toast('Podaj kwote wplaty','#f5a623');return;}
+      if(amt>remain+0.01){toast('Kwota wieksza niz pozostalo do zaplaty','#f5a623');return;}
+      showChangeModal(amt,currency,rate,function(){
+        registerSplitPayment(table,amt,currency,rate);
+        sel={};
+        toast('Wplata zarejestrowana: '+(currency==='CZK'?Math.round(amt*rate)+' CZK':amt.toFixed(2)+' zl'),'#27ae60');
+        render();
+      });
+    }
+    document.getElementById('spPLN').onclick=function(){doConfirm('PLN');};
+    document.getElementById('spCZK').onclick=function(){doConfirm('CZK');};
+  }
+
+  render();
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
 }
 
 function setPaid(id){
@@ -2730,19 +2951,25 @@ function renderList(){
 
   if(!arr.length){el.innerHTML='<div class="ni">'+(q?'Brak wynikow dla "'+esc(q)+'"':'Brak zamowien')+'</div>';return;}
 
-  // Grupuj zamówienia z tego samego stolika, dopoki sa niewydane (bez wzgledu na odstep czasu
-  // miedzy nimi — dosiadanie sie do stolika po 20-30 min tez ma zostac polaczone w jedna pozycje).
+  // Grupuj zamówienia z tego samego stolika — dopoki sa NIEOPLACONE (bez wzgledu na
+  // odstep czasu miedzy nimi — dosiadanie sie do stolika po 20-30 min, czy dodatkowe
+  // zamowienie po tym jak poprzednie zostalo juz wydane, tez ma zostac polaczone w jedna
+  // pozycje, zeby rachunek dalo sie latwo podliczyc w calosci). Gdy caly stolik jest juz
+  // oplacony, zamowienia moga sie rozdzielic — nie ma wtedy potrzeby ich scalac.
+  function canGroup(o){
+    return String(o.table)!=='okienko'&&o.table!=='my'&&(o.status!=='done'||o.paid===false);
+  }
   var grouped=[];
   var used={};
   for(var i=0;i<arr.length;i++){
     if(used[arr[i].id])continue;
     var o=arr[i];
     var group=[o];
-    if(o.status!=='done'&&String(o.table)!=='okienko'&&o.table!=='my'){ // "okienko" i nienazwane "my" (sprzedaz bez stolika) nie laczymy
+    if(canGroup(o)){
       for(var j=i+1;j<arr.length;j++){
         var o2=arr[j];
         if(used[o2.id])continue;
-        if(o2.status!=='done'&&String(o2.table)===String(o.table)){ // String() - odporna na type mismatch (liczba vs string)
+        if(canGroup(o2)&&String(o2.table)===String(o.table)){
           group.push(o2);used[o2.id]=true;
         }
       }
@@ -2793,6 +3020,13 @@ function renderList(){
     // Wydane zamowienia nie powinny miec "Anuluj" (anulowanie bledne zwracaloby towar na magazyn)
     var allDone=grp.every(function(o){return o.status==='done';});
 
+    // Ile juz wplacono na poczet tej grupy (przez czesciowe platnosci / podzial rachunku)
+    // + ile jeszcze zostalo do zaplaty. paidAmt na zamowieniu = kwota wplacona czesciowo
+    // (rejestrowana przez "Podziel rachunek"), niezalezna od pelnego oznaczenia paid=true.
+    var paidSoFar=grp.reduce(function(s,o){return s+(o.paid?(o.total||0):Math.min(o.paidAmt||0,o.total||0));},0);
+    var remainAmt=Math.max(0,totalSum-paidSoFar);
+    var isPartial=hasUnpaid&&paidSoFar>0.004;
+
     // Helper - dodaje onclick + touchend na przycisku
     function tb(el,fn){
       el.onclick=fn;
@@ -2803,7 +3037,10 @@ function renderList(){
     // Przyciski statusu
     var idsStr=grp.map(function(o){return o.id;}).join(',');
     var nx=null;
-    var idsArr=grp.map(function(o){return o.id;});
+    // Uwaga: idsArr obejmuje tylko zamowienia w grupie ktore faktycznie maja status
+    // rowny mainO.status — dzieki temu przycisk "nastepny etap" nie cofa juz wydanych
+    // (done) pozycji, ktore moga teraz byc w tej samej grupie (bo sa nieoplacone).
+    var idsArr=grp.filter(function(o){return o.status===mainO.status;}).map(function(o){return o.id;});
     if(mainO.status==='pending'){
       nx=tb(document.createElement('button'),
         (function(ids){return function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'cooking');};})(idsArr));
@@ -2828,16 +3065,33 @@ function renderList(){
           setPaidGroup(mainId,ids);
         };})(mainO.id,unpaidIds2));
       payBtnEl2.className='ba';payBtnEl2.style.cssText='background:var(--gr);color:#fff;min-width:90px;';
-      payBtnEl2.innerHTML='&#x1F4B0; Oplacono';
+      payBtnEl2.innerHTML='&#x1F4B0; '+(isPartial?'Doplac reszte':'Oplacono');
+    }
+
+    // Przycisk Podziel rachunek — pozwala zarejestrowac czesciowa wplate (np. gdy kilka
+    // osob placi osobno za swoja czesc), zeby zawsze bylo widac ile juz wplacono i ile zostalo.
+    var splitBtnEl=null;
+    if(hasUnpaid){
+      splitBtnEl=tb(document.createElement('button'),
+        (function(tbl){return function(){openSplitBill(tbl);};})(mainO.table));
+      splitBtnEl.className='ba';
+      splitBtnEl.style.cssText='background:rgba(18,120,168,.15);color:#7ec8e3;border:1.5px solid rgba(18,120,168,.3);min-width:90px;';
+      splitBtnEl.innerHTML='&#x1F9FE; Podziel';
     }
 
     var allIds=grp.map(function(o){return o.id;}).join(',');
+    // Anuluj powinno dotyczyc TYLKO jeszcze niewydanych pozycji w grupie — wydane (done)
+    // pozycje moga teraz trafic do tej samej grupy (bo sa nieoplacone), a ich anulowanie
+    // bledne zwracaloby na magazyn juz zjedzony/podany towar.
+    var cancellableIds=grp.filter(function(o){return o.status!=='done';}).map(function(o){return o.id;});
 
     // Znaczki
     var mergedBadge=isMerged?'<span style="background:var(--s);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">POLACZONE</span>':'';
-    var paidBadge=hasUnpaid
-      ?'<span style="background:var(--e);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">NIEOPLACONE</span>'
-      :'<span style="background:var(--gr);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">OPLACONE</span>';
+    var paidBadge=!hasUnpaid
+      ?'<span style="background:var(--gr);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">OPLACONE</span>'
+      :(isPartial
+        ?'<span style="background:#c9852b;color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">CZESCIOWO OPLACONE</span>'
+        :'<span style="background:var(--e);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">NIEOPLACONE</span>');
 
     // Wiersze pozycji
     var rows='';
@@ -2859,7 +3113,9 @@ function renderList(){
         (allDone?'':'<button class="cancelBtn" style="background:rgba(0,0,0,.25);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:5px 10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;touch-action:manipulation;flex-shrink:0;white-space:nowrap;">&#x274C; Anuluj</button>')+
         '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
       '</div>'+
-      '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
+      '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+
+        (isPartial?'<div style="margin-top:6px;padding:6px 8px;background:rgba(201,133,43,.12);border:1px solid rgba(201,133,43,.35);border-radius:8px;font-size:.72rem;color:rgba(255,255,255,.8);">&#x1F9FE; Wplacono: <b style="color:#8fd19e;">'+paidSoFar.toFixed(2)+' zl</b> &bull; Zostalo: <b style="color:#ffb1a1;">'+remainAmt.toFixed(2)+' zl</b> z '+totalSum.toFixed(2)+' zl</div>':'')+
+      '</div>'+
       '<div class="ocf" style="flex-wrap:wrap;gap:5px;"></div>';
 
     el.appendChild(c);
@@ -2872,6 +3128,9 @@ function renderList(){
 
     // Przycisk Oplacono
     if(payBtnEl2)footer.appendChild(payBtnEl2);
+
+    // Przycisk Podziel rachunek
+    if(splitBtnEl)footer.appendChild(splitBtnEl);
 
     // Przycisk Dodaj
     var addBtnEl=tb(document.createElement('button'),
@@ -2920,7 +3179,7 @@ function renderList(){
           document.getElementById('canOk').onclick=function(){modal.parentNode.removeChild(modal);for(var i=0;i<ids.length;i++)cancelOrder(ids[i]);};
           document.getElementById('canNo').onclick=function(){modal.parentNode.removeChild(modal);};
         };
-      })(allIds.split(','));
+      })(cancellableIds);
     }
   }
 }
@@ -5187,6 +5446,8 @@ function renderCloud(){
   var sV=document.getElementById('setView');if(sV)sV.value=appSettings.startView;
   var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
   var sR=document.getElementById('setReqTbl');if(sR)sR.checked=(appSettings.requireTable!==false);
+  var sVc=document.getElementById('setVacCd');if(sVc)sVc.checked=(appSettings.vacationCountdown!==false);
+  var sVd=document.getElementById('setVacDate');if(sVd)sVd.value=dateToLocalInputVal(vacationEndDate());
   _catsEdit=null; // odswiez z aktualnego stanu
   renderCatEditor();
   renderCountItems();
@@ -5491,17 +5752,25 @@ function saveSettingsFromUI(){
   var v=(document.getElementById('setView')||{}).value;
   var d=(document.getElementById('setConfDel')||{}).checked;
   var rt=(document.getElementById('setReqTbl')||{}).checked;
+  var vc=(document.getElementById('setVacCd')||{}).checked;
+  var vd=(document.getElementById('setVacDate')||{}).value;
   var h=parseInt((document.getElementById('setHold')||{}).value);
   if(c>0&&c<=50)appSettings.czkRate=c;
   if(l>=1&&l<=100)appSettings.lowStockPct=l;
   if(v&&VL.indexOf(v)>=0)appSettings.startView=v;
   appSettings.confirmDelete=!!d;
   appSettings.requireTable=!!rt;
+  appSettings.vacationCountdown=!!vc;
+  if(vd){
+    var vdParsed=new Date(vd);
+    if(!isNaN(vdParsed.getTime()))appSettings.vacationEndDate=vdParsed.toISOString();
+  }
   if(h>=50&&h<=1000)appSettings.holdMs=h;
   saveSettings();
   // Zastosuj kurs od razu w polu zamowienia
   var cr=document.getElementById('czkrate');if(cr){cr.value=appSettings.czkRate;renderCart();}
   if(curV==='w')renderStock();
+  applyVacationCountdown();
   toast('Ustawienia zapisane!','#27ae60');
   vib([10,30,10]);
 }
