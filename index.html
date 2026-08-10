@@ -1001,6 +1001,8 @@ var archive={};
 // Automatycznie synchronizujemy z chmura TYLKO wpisy z ostatnich 24h (male, swieze okno).
 // Starsze okresy pobieraja sie na zadanie w Statystykach (przycisk "Pokaz statystyki").
 var _statsCloud={};                       // dane pobrane na zadanie do statystyk — TYLKO w pamieci, nie zapisywane
+var _dayRankCache=null;                   // bufor rankingu dni (dayAgg/dayKeys) do okienka showDayRankingModal
+var _wkdayCache=null;                     // bufor sredniej sprzedazy wg dnia tygodnia (cala historia)
 var ARC_WINDOW_MS=8*3600*1000;            // szerokosc automatycznego okna archiwum (8h = czas pracy restauracji)
 var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
 var _arcQuery=null;                       // aktywne zapytanie nasluchu archiwum (do odpinania)
@@ -4925,6 +4927,50 @@ function showHourOrders(dayKey,hour){
   var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
+// Osobne okienko z rankingiem dni (oddzielone od glownego widoku statystyk).
+// Dane licza sie raz w renderStats() i sa buforowane w _dayRankCache — to okienko
+// tylko je wyswietla i pozwala kliknac dzien, by zobaczyc showDayDetail.
+function showDayRankingModal(){
+  if(!_dayRankCache||!_dayRankCache.dayKeys.length){toast('Brak danych do rankingu','#f5a623');return;}
+  var dayAgg=_dayRankCache.dayAgg,dayKeys=_dayRankCache.dayKeys,periodLbl=_dayRankCache.label;
+  var maxDayRev=dayAgg[dayKeys[0]].rev||1;
+  var rows='';
+  for(var i=0;i<dayKeys.length;i++){
+    var dk=dayKeys[i],dv=dayAgg[dk];
+    var ddd=new Date(dk+'T12:00');
+    var wd=ddd.toLocaleDateString('pl-PL',{weekday:'short'});
+    var dstr=ddd.toLocaleDateString('pl-PL',{day:'numeric',month:'short'});
+    var medal=i===0?'&#x1F947;':i===1?'&#x1F948;':i===2?'&#x1F949;':(i+1)+'.';
+    var barW=Math.round((dv.rev||0)/Math.max(maxDayRev,1)*110);
+    rows+='<tr onclick="showDayDetail(\''+dk+'\')" style="cursor:pointer;">'+
+      '<td>'+medal+'</td>'+
+      '<td style="text-transform:capitalize;">'+esc(wd)+' '+esc(dstr)+'</td>'+
+      '<td><b>'+(dv.rev||0).toFixed(0)+' zl</b></td>'+
+      '<td>'+(dv.n||0)+' zam.</td>'+
+      '<td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:linear-gradient(90deg,var(--a),var(--gr))"></div></div></td>'+
+    '</tr>';
+  }
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML=
+    '<div style="background:#1a1d24;width:100%;max-width:520px;max-height:82vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+      '<div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+        '<div>'+
+          '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.1rem;">&#x1F3C6; Ranking dni</div>'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;">wg przychodu &bull; okres: '+esc(periodLbl)+' &bull; kliknij dzien, by zobaczyc szczegoly</div>'+
+        '</div>'+
+        '<button id="drClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">&#x2715;</button>'+
+      '</div>'+
+      '<div style="overflow-y:auto;padding:10px 16px 16px;flex:1;">'+
+        '<table class="stbl"><tr><th></th><th>Dzien</th><th>Przychod</th><th>Zamowien</th><th></th></tr>'+rows+'</table>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function close(){if(modal.parentNode)modal.parentNode.removeChild(modal);}
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  var cb=document.getElementById('drClose');if(cb)cb.addEventListener('click',close);
+}
+
 // Szczegoly konkretnego dnia — otwierane klikniecie w wiersz "Rankingu dni".
 // Pokazuje: sume/liczbe zamowien/dan, top pozycje dnia, rozklad godzinowy (klikalny
 // do showHourOrders) i pelna liste zamowien z tego dnia.
@@ -5093,6 +5139,47 @@ function genStatsHtml(a){
   return h;
 }
 
+// ── SREDNIA SPRZEDAZ WG DNIA TYGODNIA (cala historia, niezaleznie od filtra okresu) ──
+// Liczy sie z tych samych malych sum statsDaily co "Statystyki ogolne" — pobiera CALA
+// historie (fromTs=null, toTs=null) raz i grupuje po dniu tygodnia. Lekkie zapytanie,
+// bo statsDaily to jeden maly rekord na dzien, nie surowe zamowienia.
+function loadWeekdayStats(){
+  var box=document.getElementById('wkdayStats');if(!box)return;
+  if(_wkdayCache&&Date.now()-_wkdayCache.ts<60000){box.innerHTML=weekdayStatsHtml(_wkdayCache.agg);return;}
+  if(!(fbReady&&fbAuthReady)){box.innerHTML='<div class="ni">Brak polaczenia z chmura</div>';return;}
+  box.innerHTML='<div class="ni">Ladowanie...</div>';
+  fetchDailyStats(null,null,function(err,days){
+    var box2=document.getElementById('wkdayStats');if(!box2)return;
+    if(err){box2.innerHTML='<div class="ni">Blad pobierania</div>';return;}
+    var wk=[];for(var i=0;i<7;i++)wk.push({rev:0,cnt:0,days:0});
+    Object.keys(days||{}).forEach(function(dk){
+      var v=days[dk]||{};
+      if(!v.cnt)return; // pomin dni bez zadnej sprzedazy (np. jeszcze nieuzupelniona historia)
+      var wd=new Date(dk+'T12:00').getDay(); // 0=Nd..6=Sob
+      wk[wd].rev+=(+v.rev||0);
+      wk[wd].cnt+=(+v.cnt||0);
+      wk[wd].days+=1;
+    });
+    _wkdayCache={ts:Date.now(),agg:wk};
+    box2.innerHTML=weekdayStatsHtml(wk);
+  });
+}
+function weekdayStatsHtml(wk){
+  var names=['Niedziela','Poniedzialek','Wtorek','Sroda','Czwartek','Piatek','Sobota'];
+  var order=[1,2,3,4,5,6,0]; // Pon..Nd — czytelniejsze niz kalendarzowe Nd..Sob
+  if(!wk.some(function(d){return d.days>0;}))return '<div class="ni">Brak jeszcze danych historycznych</div>';
+  var maxAvg=0;
+  order.forEach(function(i){var a=wk[i].days?wk[i].rev/wk[i].days:0;if(a>maxAvg)maxAvg=a;});
+  var rows=order.map(function(i){
+    var d=wk[i];
+    var avg=d.days?d.rev/d.days:0;
+    var avgOrd=d.days?d.cnt/d.days:0;
+    var barW=maxAvg?Math.round(avg/maxAvg*110):0;
+    return '<tr><td>'+names[i]+'</td><td><b>'+avg.toFixed(0)+' zl</b></td><td>'+avgOrd.toFixed(1)+' zam.</td><td style="color:rgba(255,255,255,.45);">'+d.days+' dni</td><td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:linear-gradient(90deg,var(--a),var(--gr))"></div></div></td></tr>';
+  }).join('');
+  return '<table class="stbl"><tr><th>Dzien</th><th>Sr. przychod</th><th>Sr. zamowien</th><th>Probka</th><th></th></tr>'+rows+'</table>';
+}
+
 // Ladna etykieta stolika/typu zamowienia (obsluguje tez zamowienie "przy okienku").
 function tlabel(t){
   if(t==='my')return '\uD83D\uDC6A MY';
@@ -5108,6 +5195,7 @@ function statControlsHtml(){
   // Karta "Statystyki ogolne" jest czescia naglowka, wiec widac ja ZAWSZE (takze przed
   // pobraniem szczegolow). Wypelnia ja loadGeneralStats() po wstawieniu HTML do DOM.
   setTimeout(loadGeneralStats,0);
+  setTimeout(loadWeekdayStats,0);
   return '<div class="sfr">'+b('hour','Godzina')+b('today','Dzis')+b('yesterday','Wczoraj')+b('week','Tydzien')+b('month','Miesiac')+b('all','Wszystko')+b('range','Od-Do')+'</div>'+
     (sfilt==='range'
       ?'<div class="sdr"><span class="sdlbl">Od:</span><input class="sdinp" id="sdf" type="date" value="'+dfVal+'"><span class="sdlbl">Do:</span><input class="sdinp" id="sdt" type="date" value="'+dtVal+'"></div>'
@@ -5118,6 +5206,10 @@ function statControlsHtml(){
         '<button onclick="rebuildDailyStats()" title="Jednorazowo po aktualizacji: przelicz sumy z pelnej historii" style="background:none;border:none;color:rgba(255,255,255,.45);font-size:.68rem;text-decoration:underline;padding:2px;cursor:pointer;-webkit-tap-highlight-color:transparent;">\uD83D\uDD01 przelicz</button>'+
       '</div>'+
       '<div class="genbody"><div class="ni">Ladowanie...</div></div>'+
+    '</div>'+
+    '<div id="wkdayBox" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;margin:0 0 10px;">'+
+      '<div style="font-weight:900;color:#fff;font-size:.85rem;margin-bottom:7px;">\uD83D\uDCC5 Srednia sprzedaz wg dnia tygodnia <span style="color:rgba(255,255,255,.45);font-weight:700;font-size:.7rem;">(cala historia)</span></div>'+
+      '<div id="wkdayStats"><div class="ni">Ladowanie...</div></div>'+
     '</div>'+
     '<button class="sf" onclick="showStats()" style="width:100%;margin:0 0 4px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz szczegolowe statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
     '<div class="set-hint" style="margin:0 2px 8px;">Ogolne (wyzej) licza sie z malych dziennych sum i dzialaja zawsze, dla calej historii. Szczegoly (wykresy, historia, godziny) pobieraja sie z chmury po kliknieciu — limit '+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB, przy przekroczeniu zawez zakres dat.</div>'+
@@ -5173,27 +5265,13 @@ function renderStats(){
   var bhKeys=Object.keys(bh).sort(function(a,b){return +a-+b;});
   var bhRows='';for(var i=0;i<bhKeys.length;i++){var hh=bhKeys[i],c=bh[hh];bhRows+='<tr><td>'+String(hh).padStart(2,'0')+':00</td><td><b>'+c+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(c/mh*130)+'px;background:linear-gradient(90deg,var(--w),var(--gr))"></div></div></td></tr>';}
 
-  // Ranking dni wg przychodu (w obrebie wybranego okresu) — klikalne wiersze pokazuja
-  // dokladne dane danego dnia (showDayDetail).
+  // Ranking dni wg przychodu (w obrebie wybranego okresu) — obliczony tutaj i
+  // zbuforowany, ale wyswietlany w OSOBNYM okienku (showDayRankingModal), nie wprost
+  // w glownym widoku statystyk.
+  var _rankLbl={hour:'ostatnia godzina',today:'dzis',yesterday:'wczoraj',week:'tydzien',month:'miesiac',all:'wszystko',range:'zakres'};
   var dayAgg=aggregateSalesByDay(done);
   var dayKeys=Object.keys(dayAgg).sort(function(a,b){return dayAgg[b].rev-dayAgg[a].rev;});
-  var maxDayRev=dayKeys.length?dayAgg[dayKeys[0]].rev:1;
-  var dayRows='';
-  for(var i=0;i<dayKeys.length;i++){
-    var dk=dayKeys[i],dv=dayAgg[dk];
-    var ddd=new Date(dk+'T12:00');
-    var wd=ddd.toLocaleDateString('pl-PL',{weekday:'short'});
-    var dstr=ddd.toLocaleDateString('pl-PL',{day:'numeric',month:'short'});
-    var medal=i===0?'&#x1F947;':i===1?'&#x1F948;':i===2?'&#x1F949;':(i+1)+'.';
-    var barW=Math.round((dv.rev||0)/Math.max(maxDayRev,1)*120);
-    dayRows+='<tr onclick="showDayDetail(\''+dk+'\')" style="cursor:pointer;">'+
-      '<td>'+medal+'</td>'+
-      '<td style="text-transform:capitalize;">'+esc(wd)+' '+esc(dstr)+'</td>'+
-      '<td><b>'+(dv.rev||0).toFixed(0)+' zl</b></td>'+
-      '<td>'+(dv.n||0)+' zam.</td>'+
-      '<td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:linear-gradient(90deg,var(--a),var(--gr))"></div></div></td>'+
-    '</tr>';
-  }
+  _dayRankCache={dayAgg:dayAgg,dayKeys:dayKeys,label:(_rankLbl[sfilt]||sfilt)};
   var histRows='';
   var doneSorted=done.slice().reverse();
   var _histCap=Math.min(doneSorted.length,300);
@@ -5299,7 +5377,7 @@ function renderStats(){
         '</div>'+
       '</div>'+
     '</div>':'')+ 
-    (dayKeys.length?'<div class="ss2">&#x1F3C6; Ranking dni (wg przychodu) &mdash; kliknij dzien, by zobaczyc szczegoly</div><table class="stbl"><tr><th></th><th>Dzien</th><th>Przychod</th><th>Zamowien</th><th></th></tr>'+dayRows+'</table>':'')+
+    (dayKeys.length?'<button class="sf" onclick="showDayRankingModal()" style="width:100%;margin:2px 0 4px;background:rgba(231,192,107,.14);border:1.5px solid rgba(231,192,107,.4);color:var(--a);font-weight:900;padding:10px;border-radius:10px;">&#x1F3C6; Ranking dni ('+dayKeys.length+') &mdash; zobacz</button>':'')+
     (top.length?'<div class="ss2">Najczesciej zamawiane</div><table class="stbl"><tr><th>Pozycja</th><th>Ilosc</th><th>Przychod</th><th>Popularnosc</th></tr>'+topRows+'</table>':'')+
     (bhKeys.length?'<div class="ss2">Ruch wg godziny</div><table class="stbl"><tr><th>Godzina</th><th>Zamowien</th><th>Ruch</th></tr>'+bhRows+'</table>':'')+
     (timeRows
