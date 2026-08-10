@@ -543,7 +543,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.43</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.44</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -4925,6 +4925,96 @@ function showHourOrders(dayKey,hour){
   var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
+// Szczegoly konkretnego dnia — otwierane klikniecie w wiersz "Rankingu dni".
+// Pokazuje: sume/liczbe zamowien/dan, top pozycje dnia, rozklad godzinowy (klikalny
+// do showHourOrders) i pelna liste zamowien z tego dnia.
+function showDayDetail(dayKey){
+  var all=Object.values(Object.assign({},_statsCloud,archive,orders));
+  var list=all.filter(function(o){return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey;}).sort(function(a,b){return a.ts-b.ts;});
+
+  var dd=new Date(dayKey+'T12:00');
+  var dateLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  var totalRev=list.reduce(function(s,o){return s+(o.total||0);},0);
+  var totalQty=list.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
+  var avgOrd=list.length?totalRev/list.length:0;
+
+  var w=weatherForDay(dayKey);
+  var wInfo=w?wmoToInfo(w.code):null;
+  var wStr=wInfo?(wInfo[0]+' '+wInfo[1]+(w.temp!=null?', '+w.temp+'\u00B0C':'')+(w.precip>0.2?' \u2022 '+w.precip.toFixed(1)+'mm deszczu':'')):'';
+
+  // Top pozycje dnia
+  var im={};
+  list.forEach(function(o){(o.items||[]).forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=(it.qty||0);im[it.name].rev+=(it.qty||0)*(it.price||0);});});
+  var top=Object.values(im).sort(function(a,b){return b.qty-a.qty;});
+  var topRows='';
+  for(var i=0;i<Math.min(top.length,10);i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+'</b> szt.</td><td>'+it.rev.toFixed(2)+' zl</td></tr>';}
+
+  // Rozklad godzinowy — kazdy wiersz klikalny, otwiera juz istniejacy widok showHourOrders
+  var byHour=aggregateSalesByHour(list,dayKey);
+  var hKeys=Object.keys(byHour).filter(function(h){return byHour[h].n>0;}).sort(function(a,b){return +a-+b;});
+  var maxH=Math.max.apply(null,hKeys.map(function(h){return byHour[h].rev||0;}).concat([1]));
+  var hourRows='';
+  for(var i=0;i<hKeys.length;i++){
+    var hh=hKeys[i],hv=byHour[hh];
+    var bw=Math.round((hv.rev||0)/maxH*110);
+    hourRows+='<tr style="cursor:pointer;" onclick="showHourOrders(\''+dayKey+'\','+hh+')"><td>'+String(hh).padStart(2,'0')+':00</td><td>'+(hv.rev||0).toFixed(0)+' zl</td><td>'+hv.n+' zam.</td><td><div class="sbw"><div class="sbar" style="width:'+bw+'px"></div></div></td></tr>';
+  }
+
+  var ordersRows='';
+  if(!list.length){
+    ordersRows='<div style="color:rgba(255,255,255,.4);text-align:center;padding:16px;">Brak zamowien</div>';
+  }else{
+    list.forEach(function(o){
+      var t=new Date(o.ts);
+      var tStr=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+      var items=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');
+      var cur=o.currency==='CZK'?' <span style="color:#7ec8e3;">(CZK)</span>':'';
+      var wynos=o.wynos?' <span style="color:#7ec8e3;font-size:.65rem;">WYNOS</span>':'';
+      ordersRows+=
+        '<div style="background:rgba(255,255,255,.04);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'+
+            '<span style="font-weight:800;color:#fff;font-size:.82rem;">'+tlabel(o.table)+' #'+o.seq+cur+wynos+'</span>'+
+            '<span style="color:rgba(255,255,255,.5);font-size:.7rem;">'+tStr+'</span>'+
+          '</div>'+
+          '<div style="color:rgba(255,255,255,.65);font-size:.75rem;margin-bottom:3px;">'+items+'</div>'+
+          (o.note?'<div style="color:var(--a);font-size:.68rem;margin-bottom:3px;">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+
+          '<div style="text-align:right;font-weight:900;color:var(--gr);font-size:.8rem;">'+(o.total||0).toFixed(2)+' zl</div>'+
+        '</div>';
+    });
+  }
+
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML=
+    '<div style="background:#1a1d24;width:100%;max-width:560px;max-height:88vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+      '<div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08);">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+          '<div>'+
+            '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;text-transform:capitalize;">'+dateLabel+'</div>'+
+            (wStr?'<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;">'+wStr+'</div>':'')+
+          '</div>'+
+          '<button id="ddClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">&#x2715;</button>'+
+        '</div>'+
+        '<div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;align-items:baseline;">'+
+          '<span style="color:var(--gr);font-size:1.05rem;font-weight:900;">'+totalRev.toFixed(2)+' zl</span>'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+list.length+'</b> zam.</span>'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+totalQty+'</b> dan</span>'+
+          '<span style="color:#fff;font-size:.78rem;">Sr. <b>'+avgOrd.toFixed(0)+'</b> zl</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="overflow-y:auto;padding:14px 16px;flex:1;">'+
+        (top.length?'<div class="ss2" style="margin-top:0;">Najczesciej zamawiane</div><table class="stbl"><tr><th>Pozycja</th><th>Ilosc</th><th>Przychod</th></tr>'+topRows+'</table>':'')+
+        (hourRows?'<div class="ss2">Rozklad godzinowy (kliknij godzine, by zobaczyc zamowienia)</div><table class="stbl"><tr><th>Godzina</th><th>Przychod</th><th>Zamowien</th><th></th></tr>'+hourRows+'</table>':'')+
+        '<div class="ss2">Wszystkie zamowienia</div>'+ordersRows+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function close(){if(modal.parentNode)modal.parentNode.removeChild(modal);}
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  var cb=document.getElementById('ddClose');if(cb)cb.addEventListener('click',close);
+}
+
 // ── Panel "Statystyki ogolne" ──
 var _genReq=0;      // token najnowszego zadania (ignorujemy spoznione odpowiedzi)
 var _genCache=null; // {key,ts,agg} — cache 30 s, zeby czeste renderStats nie odpytywaly chmury
@@ -5082,6 +5172,28 @@ function renderStats(){
   for(var i=0;i<top.length;i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1.1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+' szt.</b></td><td>'+it.rev.toFixed(2)+' zl</td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(it.qty/mq*110)+'px"></div></div></td></tr>';}
   var bhKeys=Object.keys(bh).sort(function(a,b){return +a-+b;});
   var bhRows='';for(var i=0;i<bhKeys.length;i++){var hh=bhKeys[i],c=bh[hh];bhRows+='<tr><td>'+String(hh).padStart(2,'0')+':00</td><td><b>'+c+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(c/mh*130)+'px;background:linear-gradient(90deg,var(--w),var(--gr))"></div></div></td></tr>';}
+
+  // Ranking dni wg przychodu (w obrebie wybranego okresu) — klikalne wiersze pokazuja
+  // dokladne dane danego dnia (showDayDetail).
+  var dayAgg=aggregateSalesByDay(done);
+  var dayKeys=Object.keys(dayAgg).sort(function(a,b){return dayAgg[b].rev-dayAgg[a].rev;});
+  var maxDayRev=dayKeys.length?dayAgg[dayKeys[0]].rev:1;
+  var dayRows='';
+  for(var i=0;i<dayKeys.length;i++){
+    var dk=dayKeys[i],dv=dayAgg[dk];
+    var ddd=new Date(dk+'T12:00');
+    var wd=ddd.toLocaleDateString('pl-PL',{weekday:'short'});
+    var dstr=ddd.toLocaleDateString('pl-PL',{day:'numeric',month:'short'});
+    var medal=i===0?'&#x1F947;':i===1?'&#x1F948;':i===2?'&#x1F949;':(i+1)+'.';
+    var barW=Math.round((dv.rev||0)/Math.max(maxDayRev,1)*120);
+    dayRows+='<tr onclick="showDayDetail(\''+dk+'\')" style="cursor:pointer;">'+
+      '<td>'+medal+'</td>'+
+      '<td style="text-transform:capitalize;">'+esc(wd)+' '+esc(dstr)+'</td>'+
+      '<td><b>'+(dv.rev||0).toFixed(0)+' zl</b></td>'+
+      '<td>'+(dv.n||0)+' zam.</td>'+
+      '<td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:linear-gradient(90deg,var(--a),var(--gr))"></div></div></td>'+
+    '</tr>';
+  }
   var histRows='';
   var doneSorted=done.slice().reverse();
   var _histCap=Math.min(doneSorted.length,300);
@@ -5187,6 +5299,7 @@ function renderStats(){
         '</div>'+
       '</div>'+
     '</div>':'')+ 
+    (dayKeys.length?'<div class="ss2">&#x1F3C6; Ranking dni (wg przychodu) &mdash; kliknij dzien, by zobaczyc szczegoly</div><table class="stbl"><tr><th></th><th>Dzien</th><th>Przychod</th><th>Zamowien</th><th></th></tr>'+dayRows+'</table>':'')+
     (top.length?'<div class="ss2">Najczesciej zamawiane</div><table class="stbl"><tr><th>Pozycja</th><th>Ilosc</th><th>Przychod</th><th>Popularnosc</th></tr>'+topRows+'</table>':'')+
     (bhKeys.length?'<div class="ss2">Ruch wg godziny</div><table class="stbl"><tr><th>Godzina</th><th>Zamowien</th><th>Ruch</th></tr>'+bhRows+'</table>':'')+
     (timeRows
@@ -5392,7 +5505,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.43',
+    v:'v3.44',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
