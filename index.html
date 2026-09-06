@@ -546,7 +546,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.44</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.46</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -851,7 +851,23 @@ function sha256(msg){
 }
 
 function lsGet(k){try{return localStorage.getItem(lsKey(k));}catch(e){return null;}}
-function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
+// Zapis do localStorage. Przepelnienie pamieci (QuotaExceededError) bylo dotad polykane
+// po cichu — zamowienia przestawaly zapisywac sie lokalnie bez zadnego sygnalu, co przy
+// pracy offline oznacza realna utrate danych. Teraz ostrzegamy (raz na sesje, bez spamu).
+var _lsQuotaWarned=false;
+function lsSet(k,v){
+  try{localStorage.setItem(lsKey(k),v);}
+  catch(e){
+    var isQuota=e&&(e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED'||e.code===22||e.code===1014);
+    if(isQuota&&!_lsQuotaWarned){
+      _lsQuotaWarned=true;
+      console.warn('localStorage pelny — zapis lokalny nieudany:',k);
+      try{setTimeout(function(){
+        toast('\u26A0\uFE0F Pamiec urzadzenia pelna — dane zapisuja sie tylko w chmurze. Wyczysc stare statystyki.','#e85c3a');
+      },0);}catch(e2){}
+    }
+  }
+}
 function cloneObj(o){return JSON.parse(JSON.stringify(o));}
 function safeObj(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}
 function readObj(k){try{var r=lsGet(k);return r?safeObj(JSON.parse(r)):{};}catch(e){return {};}}
@@ -1724,6 +1740,15 @@ function subAll(){
     // Przywroc emoji base64 z lokalnego menu jeśli byly zastapione przez "__img__"
     if(val.items)val.items=restoreItemsEmoji(val.items);
     orders[id]=val;
+    // Numeracja zamowien (seq) jest liczona lokalnie na kazdym urzadzeniu, wiec dwa
+    // urzadzenia moglyby wystawic dwa zamowienia z tym samym numerem. Gdy widzimy
+    // zamowienie z chmury o numerze >= naszego licznika, przesuwamy licznik nad nie —
+    // numery zbiegaja sie same, bez dodatkowej komunikacji.
+    var rs=parseInt(val.seq,10);
+    if(!isNaN(rs)&&rs>=ordSeq){
+      ordSeq=rs+1;
+      lsSet('sp_seq',ordSeq);
+    }
   }
   ordRef.on('child_added',function(snap){
     var id=snap.key;
@@ -2676,6 +2701,10 @@ function registerSplitPayment(table,amtPLN,currency,rate){
     if(remain<=0.004)continue;
     var take=Math.min(remain,left);
     var newPaidAmt=Math.round(((o.paidAmt||0)+take)*100)/100;
+    // Koncowka groszowa: przy podziale 1/N kwoty niepodzielnej (np. 100 zl / 3 = 33,33)
+    // zostawaloby 1 gr i rachunek nigdy by sie nie domknal. Reszte ponizej 5 gr
+    // traktujemy jako zaplacona — to ponizej najmniejszej realnie uzywanej monety.
+    if((o.total||0)-newPaidAmt<0.05)newPaidAmt=o.total||0;
     var upd={paidAmt:newPaidAmt};
     if(newPaidAmt>=(o.total||0)-0.004){
       upd.paid=true;
@@ -2854,11 +2883,14 @@ function openSplitBill(table){
       if(amt<=0){toast('Podaj kwote wplaty','#f5a623');return;}
       if(amt>remain+0.01){toast('Kwota wieksza niz pozostalo do zaplaty','#f5a623');return;}
       var selSnapshot={};for(var k in sel)selSnapshot[k]=sel[k];
+      // Pozycje oznaczamy jako oplacone TYLKO gdy wplacana kwota faktycznie im odpowiada.
+      // Jesli kelner zmienil kwote recznie albo uzyl "1/N", zaznaczenie przestaje pasowac
+      // do platnosci — wtedy liczymy sama kwote, a sztuki zostaja dostepne dla innych osob.
+      var selAmtNow=selAmount();
+      var itemsMatchAmount=(selAmtNow>0&&Math.abs(selAmtNow-amt)<0.01);
       showChangeModal(amt,currency,rate,function(){
         registerSplitPayment(table,amt,currency,rate);
-        // Jesli przy tej wplacie wybrano konkretne pozycje (np. "1 zestaw"), oznacz je
-        // trwale jako oplacone — nie beda juz dostepne do ponownego wyboru w tym oknie.
-        markItemsPaid(table,selSnapshot);
+        if(itemsMatchAmount)markItemsPaid(table,selSnapshot);
         sel={};
         toast('Wplata zarejestrowana: '+(currency==='CZK'?Math.round(amt*rate)+' CZK':amt.toFixed(2)+' zl'),'#27ae60');
         render();
@@ -2972,6 +3004,13 @@ function cancelOrder(id){
   var cancelled=orders[id];
   // Zwroc pozycje na stan (zamowienie odjelo je przy zlozeniu)
   if(cancelled&&cancelled.items)restoreStock(cancelled.items);
+  // Zamowienie juz WYDANE zostalo policzone w sumach dziennych i trafilo do archiwum
+  // (zrodlo statystyk). Anulowanie musi cofnac oba, inaczej przychod zostaje na zawsze.
+  if(cancelled&&cancelled.status==='done'){
+    bumpDailyStats(cancelled,-1);
+    if(archive[id]){delete archive[id];saveArc();}
+    if(fbReady){markEcho('archive/'+id,null);fbBg(fbDB.ref('archive/'+id).remove());}
+  }
   delete orders[id];clearPending(id);saveOrds();onDataImmediate();
   if(fbReady){
     markEcho('orders/'+id,null);
@@ -3190,20 +3229,25 @@ function renderList(){
     // Przycisk Podziel rachunek
     if(splitBtnEl)footer.appendChild(splitBtnEl);
 
-    // Przycisk Dodaj
+    // Przycisk Dozamow — tworzy NOWY bilet dla kuchni na ten sam stolik
+    // (dolaczy sie do rachunku grupy). Odrozniamy go od "Edytuj", ktore zmienia
+    // pozycje w juz istniejacym zamowieniu.
     var addBtnEl=tb(document.createElement('button'),
       (function(tbl){return function(){openAddToOrder(tbl);};})(mainO.table));
     addBtnEl.className='ba';
     addBtnEl.style.cssText='background:rgba(39,174,96,.15);color:#27ae60;border:1.5px solid rgba(39,174,96,.3);';
-    addBtnEl.innerHTML='&#x2795; Dodaj';
+    addBtnEl.innerHTML='&#x2795; Dozamow';
+    addBtnEl.title='Nowe pozycje dla tego stolika (nowy bilet w kuchni)';
     footer.appendChild(addBtnEl);
 
-    // Przycisk Edytuj
+    // Przycisk Edytuj — poprawia pozycje w konkretnym zamowieniu.
+    // W grupie polaczonej pokazujemy numer, zeby bylo wiadomo ktore jest edytowane.
     var editBtnEl=tb(document.createElement('button'),
       (function(oid){return function(){openEditOrder(oid);};})(mainO.id));
     editBtnEl.className='ba';
     editBtnEl.style.cssText='background:rgba(18,120,168,.15);color:#7ec8e3;border:1.5px solid rgba(18,120,168,.3);';
-    editBtnEl.innerHTML='&#x270F; Edytuj';
+    editBtnEl.innerHTML='&#x270F; Edytuj'+(isMerged?' #'+mainO.seq:'');
+    editBtnEl.title='Popraw pozycje w zamowieniu #'+mainO.seq;
     footer.appendChild(editBtnEl);
 
     // Przycisk Usun
@@ -3678,7 +3722,9 @@ function ensureStock(){
       changed=true;
     } else {
       var init=Math.max(0,Math.round(stock[it.name].init)||0);
-      var current=Math.max(0,Math.round(stock[it.name].current)||0);
+      // current moze byc chwilowo ujemny (sprzedaz ponad stan) — nie obcinamy go tutaj,
+      // bo to psuloby symetrie odejmowania i zwracania na stan. Widoki i tak clampuja do 0.
+      var current=Math.round(stock[it.name].current)||0;
       if(stock[it.name].emoji!==it.emoji||stock[it.name].init!==init||stock[it.name].current!==current)changed=true;
       stock[it.name].emoji=it.emoji;
       stock[it.name].init=init;
@@ -3842,7 +3888,11 @@ function deductStock(items){
   var changed=false;
   items.forEach(function(it){
     if(stock[it.name]){
-      stock[it.name].current=Math.max(0,(stock[it.name].current||0)-it.qty);
+      // NIE obcinamy do zera. Gdyby obciac, sprzedaz ponad stan (czesta, gdy licznik
+      // nie jest na biezaco) gubilaby informacje o nadwyzce — a pozniejsze anulowanie
+      // tego zamowienia dopisywaloby do magazynu sztuki, ktorych nigdy nie bylo.
+      // Wartosc ujemna zyje tylko wewnetrznie; widok Magazynu i tak pokazuje min. 0.
+      stock[it.name].current=(stock[it.name].current||0)-it.qty;
       changed=true;
     }
   });
@@ -3883,7 +3933,9 @@ function openEditOrder(id){
   if(old)old.parentNode.removeChild(old);
 
   // Kopia danych
-  var items=JSON.parse(JSON.stringify(o.items));
+  var items=JSON.parse(JSON.stringify(o.items||[]));
+  var noteVal=o.note||'';           // trzymane w zmiennej, zeby NIE ginelo przy przebudowie modala
+  var wasDone=(o.status==='done');  // edycja wydanego zamowienia musi odswiezyc archiwum i statystyki
 
   function getHTML(){
     var rows=items.map(function(it,i){
@@ -3900,11 +3952,21 @@ function openEditOrder(id){
         '</td>'+
       '</tr>';
     }).join('');
+    // Wyprzedane pozycje pomijamy — tak samo jak w oknie "Dodaj", zeby oba dzialaly identycznie.
     var opts=[];
-    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+(+it.price||0).toFixed(2)+'zl)</option>');});});
+    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){
+      if(it.unavailable)return;
+      opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+(+it.price||0).toFixed(2)+'zl)</option>');
+    });});
+    var liveTotal=items.reduce(function(s,x){return s+(x.price||0)*x.qty;},0);
+    var paidAmt=+o.paidAmt||0;
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
-      '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+tlabel(o.table)+'</div>'+
+      '<div style="font-weight:900;font-size:1rem;margin-bottom:2px;color:#0b1e28;">✏ Edytuj zamowienie #'+o.seq+'</div>'+
+      '<div style="font-size:.75rem;color:#888;margin-bottom:12px;">'+esc(tlabel(o.table))+' &bull; '+esc(o.timeStr||'')+' &bull; '+esc(SL[o.status]||o.status||'')+'</div>'+
+      (wasDone?'<div style="background:#fff3e6;border:1.5px solid #e8821e;border-radius:9px;padding:8px 10px;font-size:.75rem;color:#8a4b00;margin-bottom:10px;">&#x26A0;&#xFE0F; To zamowienie jest juz wydane i policzone w statystykach. Zmiany zostana w nich uwzglednione.</div>':'')+
+      (paidAmt>0?'<div style="background:#e9f7ef;border:1.5px solid #27ae60;border-radius:9px;padding:8px 10px;font-size:.75rem;color:#1a6b3c;margin-bottom:10px;">&#x1F9FE; Na to zamowienie wplacono juz <b>'+paidAmt.toFixed(2)+' zl</b>. Nie zmniejszaj sumy ponizej tej kwoty.</div>':'')+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
+      (items.length?'':'<div style="color:#e85c3a;font-size:.82rem;text-align:center;padding:10px;font-weight:700;">Brak pozycji — dodaj cos ponizej lub anuluj cale zamowienie.</div>')+
       '<div style="font-size:.72rem;color:#999;margin-top:4px;">Dotknij \uD83C\uDF7D\uFE0F / \uD83E\uDD61 przy pozycji, aby przelaczyc na miejscu / na wynos.</div>'+
       '<div style="margin-top:10px;display:flex;gap:8px;">'+
         '<select id="eadd_sel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.82rem;">'+opts.join('')+'</select>'+
@@ -3912,11 +3974,11 @@ function openEditOrder(id){
       '</div>'+
       '<div style="margin-top:8px;">'+
         '<div style="font-size:.78rem;color:#666;margin-bottom:4px;">Uwagi:</div>'+
-        '<input id="enote" value="'+esc(o.note||'')+'" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.85rem;box-sizing:border-box;">'+
+        '<input id="enote" value="'+esc(noteVal)+'" autocomplete="off" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.85rem;box-sizing:border-box;">'+
       '</div>'+
-      '<div style="margin-top:14px;display:flex;gap:8px;">'+
+      '<div style="margin-top:10px;text-align:right;font-weight:900;font-size:1rem;color:#0b1e28;">Razem: '+liveTotal.toFixed(2)+' zl</div>'+
+      '<div style="margin-top:12px;display:flex;gap:8px;">'+
         '<button id="esave" style="flex:1;padding:13px;border:none;border-radius:10px;background:#1278a8;color:#fff;font-size:1rem;font-weight:900;cursor:pointer;">✔ Zapisz zmiany</button>'+
-        '<button id="erefresh" style="padding:13px 14px;border:1.5px solid #ccc;border-radius:10px;background:#fff;color:#555;font-size:1.2rem;cursor:pointer;" title="Odswiez">&#x21BB;</button>'+
         '<button id="ecanc" style="padding:13px 16px;border:1.5px solid #ccc;border-radius:10px;background:#fff;color:#666;font-weight:700;cursor:pointer;">Anuluj</button>'+
       '</div>'+
     '</div>';
@@ -3928,7 +3990,14 @@ function openEditOrder(id){
   m.innerHTML=getHTML();
   document.body.appendChild(m);
 
+  // Zapamietaj wpisana tresc uwag PRZED przebudowa modala, inaczej znika przy kazdej
+  // zmianie pozycji (usuniecie, przelaczenie na wynos, dodanie).
+  function captureNote(){
+    var el=document.getElementById('enote');
+    if(el)noteVal=el.value;
+  }
   function rebuildModal(){
+    captureNote();
     m.innerHTML=getHTML();
     bindEvents();
   }
@@ -3950,13 +4019,13 @@ function openEditOrder(id){
       if(bm)bm.onclick=function(e){
         e.preventDefault();
         it.qty=Math.max(1,it.qty-1);
-        qs.textContent=it.qty;
+        rebuildModal(); // przelicz sume "Razem" na zywo
       };
 
       if(bp)bp.onclick=function(e){
         e.preventDefault();
         it.qty++;
-        qs.textContent=it.qty;
+        rebuildModal();
       };
 
       if(bx)bx.onclick=function(e){
@@ -3981,8 +4050,10 @@ function openEditOrder(id){
 
       if(!found)return;
 
+      // Dokladamy do istniejacego wiersza tylko gdy zgadza sie nazwa ORAZ tryb (na miejscu).
+      // Wczesniej pozycja istniejaca wylacznie "na wynos" tworzyla mylacy duplikat.
       var ex=items.filter(function(x){
-        return x.name===found.name && !x.wynos; // dokladaj tylko do pozycji "na miejscu"
+        return x.name===found.name && !x.wynos;
       })[0];
 
       if(ex){
@@ -4007,13 +4078,6 @@ function openEditOrder(id){
       if(m && m.parentNode)m.parentNode.removeChild(m);
     };
 
-    var brefresh=document.getElementById('erefresh');
-    if(brefresh)brefresh.onclick=function(e){
-      e.preventDefault();
-      if(m&&m.parentNode)m.parentNode.removeChild(m);
-      onData();
-    };
-
     var bsave=document.getElementById('esave');
     if(bsave){
       bsave.disabled=false;
@@ -4024,6 +4088,28 @@ function openEditOrder(id){
 
         var ord=orders[id];
         if(!ord)return;
+        captureNote();
+
+        // Puste zamowienie nie ma sensu — zamiast zapisywac "duch" z suma 0 zl,
+        // zaproponuj anulowanie calego zamowienia (zwroci tez pozycje na magazyn).
+        if(!items.length){
+          if(!confirm('Usunieto wszystkie pozycje.\nAnulowac cale zamowienie #'+ord.seq+'?'))return;
+          if(m&&m.parentNode)m.parentNode.removeChild(m);
+          cancelOrder(id);
+          return;
+        }
+
+        var newTotal=items.reduce(function(s,x){return s+(x.price||0)*x.qty;},0);
+        var paidAmt=+ord.paidAmt||0;
+        if(paidAmt>newTotal+0.004){
+          if(!confirm('Nowa suma ('+newTotal.toFixed(2)+' zl) jest nizsza niz juz wplacona kwota ('+paidAmt.toFixed(2)+' zl).\nZamowienie zostanie oznaczone jako w pelni oplacone. Kontynuowac?'))return;
+        }
+
+        // Cofnij stary wklad tego zamowienia do statystyk, jesli bylo juz wydane —
+        // inaczej edycja wydanego zamowienia rozjechalaby sumy dzienne.
+        if(wasDone)bumpDailyStats(ord,-1);
+
+        saveSnapshot('Edycja #'+ord.seq,id,true);
 
         // Skoryguj magazyn o roznice miedzy starym a nowym zamowieniem
         var oldItems=ord.items||[];
@@ -4041,26 +4127,49 @@ function openEditOrder(id){
         if(toRestore.length)restoreStock(toRestore);
 
         ord.items=JSON.parse(JSON.stringify(items));
-        ord.note=(document.getElementById('enote')||{}).value||'';
-        ord.total=ord.items.reduce(function(s,x){
-          return s+(x.price||0)*x.qty;
-        },0);
+        ord.note=noteVal;
+        ord.total=newTotal;
         ord.wynos=ord.items.some(function(x){return !!x.wynos;}); // przelicz flage zbiorcza (bilet WYNOS)
+        // Czesciowe wplaty nie moga przekroczyc nowej sumy (np. po usunieciu pozycji).
+        if(paidAmt>newTotal-0.004&&paidAmt>0){
+          ord.paidAmt=newTotal;
+          ord.paid=true;
+        }
 
         saveOrds();
 
+        var cloudUpd={
+          items:stripItemsForCloud(ord.items), // strip badge/bc/e i base64 emoji
+          note:ord.note,
+          total:ord.total,
+          wynos:ord.wynos
+        };
+        if(ord.paidAmt!==undefined)cloudUpd.paidAmt=ord.paidAmt;
+        if(ord.paid!==undefined)cloudUpd.paid=ord.paid;
+
         if(fbReady){
           markEcho('orders/'+id,ord);
-          fbBg(fbDB.ref('orders/'+id).update({
-            items:stripItemsForCloud(ord.items), // strip badge/bc/e i base64 emoji
-            note:ord.note,
-            total:ord.total,
-            wynos:ord.wynos
-          }));
+          fbBg(fbDB.ref('orders/'+id).update(cloudUpd));
+        }
+
+        // Wydane zamowienie zyje rowniez w archiwum (zrodlo statystyk) — zaktualizuj je
+        // i doloz nowy wklad do sum dziennych, zeby wszystko sie zgadzalo.
+        if(wasDone){
+          if(archive[id]){
+            Object.assign(archive[id],{items:ord.items,note:ord.note,total:ord.total,wynos:ord.wynos});
+            if(ord.paidAmt!==undefined)archive[id].paidAmt=ord.paidAmt;
+            if(ord.paid!==undefined)archive[id].paid=ord.paid;
+            saveArc();
+          }
+          if(fbReady){
+            markEcho('archive/'+id,archive[id]||ord);
+            fbBg(fbDB.ref('archive/'+id).update(cloudUpd));
+          }
+          bumpDailyStats(ord,1);
         }
 
         onData();
-        toast('Zaktualizowano zamowienie!','#27ae60');
+        toast('Zaktualizowano zamowienie #'+ord.seq,'#27ae60');
         try{if(m&&m.parentNode)m.parentNode.removeChild(m);}catch(err){}
       };
     }
@@ -4198,9 +4307,14 @@ function undoLastAction(){
   // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
   ids.forEach(function(id){
     var prev=snap.ordPrev?snap.ordPrev[id]:null;
-    // Cofamy WYDANIE? Odejmij to, co bumpDailyStats dodal przy wydaniu (statystyki ogolne).
+    // Uzgodnienie sum dziennych: zdejmij wklad stanu OBECNEGO (jesli byl wydany)
+    // i dodaj wklad stanu PRZYWRACANEGO (jesli byl wydany). Obsluguje wszystkie
+    // przypadki jednakowo — cofniecie wydania, cofniecie usuniecia, a takze
+    // cofniecie EDYCJI juz wydanego zamowienia (gdzie oba stany sa 'done',
+    // ale roznia sie kwota — wczesniej statystyki zostawaly z nowa wartoscia).
     var curO=orders[id]||archive[id];
-    if(curO&&curO.status==='done'&&(!prev||prev.status!=='done'))bumpDailyStats(curO,-1);
+    if(curO&&curO.status==='done')bumpDailyStats(curO,-1);
+    if(prev&&prev.status==='done')bumpDailyStats(prev,1);
     if(prev){
       orders[id]=prev;markPending(id);fbPushOrder(id);
     } else {
@@ -4284,15 +4398,20 @@ function openAddToOrder(table){
     if(!keys.length)return '<div style="color:#aaa;font-size:.83rem;text-align:center;padding:10px;">Brak pozycji — wybierz z listy ponizej</div>';
     return keys.map(function(k){
       var it=newItems[k];
-      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;">'+
+      var wy=!!it.wynos;
+      return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #eee;">'+
         '<span style="font-size:1.2rem;">'+emo(it.emoji,'1.2rem')+'</span>'+
-        '<span style="flex:1;font-size:.85rem;font-weight:700;color:#0b1e28;">'+esc(it.name)+'</span>'+
+        '<span style="flex:1;font-size:.85rem;font-weight:700;color:#0b1e28;min-width:0;overflow:hidden;text-overflow:ellipsis;">'+esc(it.name)+'</span>'+
+        '<button id="atow_'+k+'" data-k="'+k+'" class="atow" title="'+(wy?'Na wynos':'Na miejscu')+'" style="width:38px;height:30px;font-size:.95rem;border:1.5px solid '+(wy?'#e8821e':'#ccc')+';border-radius:6px;background:'+(wy?'#fff3e6':'#f4f4f4')+';cursor:pointer;">'+(wy?'\uD83E\uDD61':'\uD83C\uDF7D\uFE0F')+'</button>'+
         '<button id="atom_'+k+'" data-k="'+k+'" class="atobm" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">-</button>'+
         '<span id="atoq_'+k+'" style="min-width:24px;text-align:center;font-weight:900;">'+it.qty+'</span>'+
         '<button id="atobp_'+k+'" data-k="'+k+'" class="atobp" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">+</button>'+
         '<button id="atox_'+k+'" data-k="'+k+'" class="atox" style="width:30px;height:30px;border-radius:6px;border:none;background:#fde8e3;color:#e85c3a;cursor:pointer;">&#x2715;</button>'+
       '</div>';
     }).join('');
+  }
+  function atoTotal(){
+    return Object.keys(newItems).reduce(function(s,k){return s+(newItems[k].price||0)*newItems[k].qty;},0);
   }
 
   // Menu opcje
@@ -4309,15 +4428,18 @@ function openAddToOrder(table){
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;';
   m.innerHTML=
     '<div style="background:#fff;border-radius:14px;padding:18px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;">'+
-      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:12px;">&#x2795; Dodaj do — '+esc(tblLabel)+'</div>'+
-      '<div id="atoRows" style="margin-bottom:10px;min-height:40px;">'+getItemsHTML()+'</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:2px;">&#x2795; Dozamow do — '+esc(tblLabel)+'</div>'+
+      '<div style="font-size:.73rem;color:#888;margin-bottom:12px;">Powstanie nowy bilet dla kuchni, ale na Liscie polaczy sie z rachunkiem tego stolika.</div>'+
+      '<div id="atoRows" style="margin-bottom:6px;min-height:40px;">'+getItemsHTML()+'</div>'+
+      '<div id="atoTot" style="text-align:right;font-weight:900;font-size:.95rem;color:#0b1e28;margin-bottom:10px;">Razem: '+atoTotal().toFixed(2)+' zl</div>'+
       '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
         '<select id="atoSel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.82rem;">'+opts+'</select>'+
         '<button id="atoAddBtn" style="padding:8px 14px;border-radius:8px;border:none;background:#1278a8;color:#fff;font-weight:900;cursor:pointer;">+ Dodaj</button>'+
       '</div>'+
+      '<div style="font-size:.72rem;color:#999;margin-bottom:8px;">Dotknij \uD83C\uDF7D\uFE0F / \uD83E\uDD61 przy pozycji, aby przelaczyc na miejscu / na wynos.</div>'+
       '<div style="margin-bottom:10px;">'+
         '<label style="font-size:.78rem;color:#666;font-weight:700;">Uwagi:</label>'+
-        '<input id="atoNote" placeholder="np. bez lodu..." style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.83rem;margin-top:4px;box-sizing:border-box;">'+
+        '<input id="atoNote" placeholder="np. bez lodu..." autocomplete="off" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.83rem;margin-top:4px;box-sizing:border-box;">'+
       '</div>'+
       '<div style="display:flex;gap:8px;">'+
         '<button id="atoSend" style="flex:1;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a8a45,#27ae60);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.95rem;cursor:pointer;">&#x2705; Wyslij do kuchni</button>'+
@@ -4328,15 +4450,18 @@ function openAddToOrder(table){
 
   function rebuildRows(){
     document.getElementById('atoRows').innerHTML=getItemsHTML();
+    var totEl=document.getElementById('atoTot');
+    if(totEl)totEl.textContent='Razem: '+atoTotal().toFixed(2)+' zl';
     // Podepnij przyciski wierszy
     Object.keys(newItems).forEach(function(k){
       var bm=document.getElementById('atom_'+k);
       var bp=document.getElementById('atobp_'+k);
       var bx=document.getElementById('atox_'+k);
-      var qs=document.getElementById('atoq_'+k);
-      if(bm)bm.onclick=function(){newItems[k].qty=Math.max(1,newItems[k].qty-1);qs.textContent=newItems[k].qty;};
-      if(bp)bp.onclick=function(){newItems[k].qty++;qs.textContent=newItems[k].qty;};
+      var bw=document.getElementById('atow_'+k);
+      if(bm)bm.onclick=function(){newItems[k].qty=Math.max(1,newItems[k].qty-1);rebuildRows();};
+      if(bp)bp.onclick=function(){newItems[k].qty++;rebuildRows();};
       if(bx)bx.onclick=function(){delete newItems[k];rebuildRows();};
+      if(bw)bw.onclick=function(){newItems[k].wynos=!newItems[k].wynos;rebuildRows();};
     });
   }
 
@@ -4347,7 +4472,7 @@ function openAddToOrder(table){
     allItems.forEach(function(it){if(it.id===sel.value)found=it;});
     if(!found)return;
     if(newItems[found.id]){newItems[found.id].qty++;}
-    else{newItems[found.id]={id:found.id,name:found.name,emoji:found.emoji,price:found.price,qty:1};}
+    else{newItems[found.id]={id:found.id,name:found.name,emoji:found.emoji,price:found.price,qty:1,wynos:false};}
     rebuildRows();
   };
 
@@ -4365,7 +4490,7 @@ function openAddToOrder(table){
     var order={
       id:id,seq:ordSeq++,table:(!isNaN(+table)&&typeof table!=='boolean')?+table:table,
       items:items,total:tot,note:note,
-      status:'pending',paid:false,wynos:false,barDone:false,
+      status:'pending',paid:false,wynos:items.some(function(it){return !!it.wynos;}),barDone:false,
       currency:'PLN',czkAmount:0,czkRate:getCZK(),
       did:DID,
       timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
@@ -5911,7 +6036,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.44',
+    v:'v3.46',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -6592,7 +6717,12 @@ function autoClearOldOrders(){
     var id=ks[i],o=orders[id];
     if(!o||typeof o.ts!=='number'||o.ts>=cutoff)continue;
     if(!o.doneTs)o.doneTs=Date.now();
-    archive[id]=o; // zachowaj lokalnie zawsze
+    // Zamowienie zlozone PO nocnym domknieciu (23:00) dozywa tu z statusem innym niz
+    // 'done'. Trafialo do archiwum, ale nie bylo NIGDY policzone w sumach dziennych
+    // ani widoczne w szczegolach dnia (te filtruja po status==='done'). Domykamy je
+    // teraz formalnie i doliczamy — inaczej nocna sprzedaz znikala ze statystyk.
+    var wasCounted=(o.status==='done');
+    if(!wasCounted)o.status='done';
     // Do Firebase zapisuje TYLKO urządzenie które jest właścicielem zamówienia
     // (stworzyło je lub wysłało offline). Pozostałe tablety tylko czyszczą lokalny stan.
     // Zapobiega to 3× zapisowi tego samego wpisu do archive przez 3 tablety.
@@ -6600,6 +6730,10 @@ function autoClearOldOrders(){
     // Fallback: jeśli brak did (stara wersja <v3.37) → KAŻDY zapisuje do archive,
     // bo lepiej 3× ten sam wpis niż utrata danych.
     var isOwner=!o.did||!!_pendingOrders[id]||(o.did===DID);
+    // Sumy dzienne podbija wylacznie wlasciciel — inaczej kazdy tablet doliczylby
+    // ten sam przychod osobno (ServerValue.increment nie jest idempotentny).
+    if(!wasCounted&&isOwner)bumpDailyStats(o);
+    archive[id]=o; // zachowaj lokalnie zawsze
     if(fbReady){
       if(isOwner){
         var _co={}; for(var _k in o)_co[_k]=o[_k];
@@ -6897,6 +7031,12 @@ applyProfileUI();
   function makeIcon(size){return drawIcon(size);}
 
   function buildIconsAndManifest(){
+    // Cala ta sekcja jest KOSMETYCZNA (ikona PWA + manifest). Gdyby canvas byl
+    // niedostepny albo toDataURL zablokowane (tryb prywatny, starszy WebView),
+    // wyjatek przerwalby dalsze wykonanie tego bloku — a zaraz za nim rejestruje sie
+    // Service Worker odpowiedzialny za prace OFFLINE. Dlatego lapiemy blad tutaj:
+    // brak ladnej ikony jest akceptowalny, brak trybu offline w restauracji nie jest.
+    try{
     var icon192=makeIcon(192);
     var icon512=makeIcon(512);
     var appleIcon=document.getElementById('pwa-icon');
@@ -6926,6 +7066,7 @@ applyProfileUI();
     var mUrl=URL.createObjectURL(mBlob);
     var mLink=document.getElementById('pwa-manifest');
     if(mLink)mLink.href=mUrl;
+    }catch(e){console.warn('PWA ikona/manifest pominiete:',e);}
   }
 
   if(logoIsImg){
