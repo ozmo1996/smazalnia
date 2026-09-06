@@ -1003,6 +1003,10 @@ var archive={};
 var _statsCloud={};                       // dane pobrane na zadanie do statystyk — TYLKO w pamieci, nie zapisywane
 var _dayRankCache=null;                   // bufor rankingu dni (dayAgg/dayKeys) do okienka showDayRankingModal
 var _wkdayCache=null;                     // bufor sredniej sprzedazy wg dnia tygodnia (cala historia)
+var _statSubTab='overview';               // podzakladka Statystyk: 'overview' | 'calendar'
+var _calMonth=null;                       // wybrany miesiac kalendarza, format 'RRRR-MM' (domyslnie biezacy)
+var _calMetric='rev';                     // metryka kalendarza: 'rev' (przychod), 'cnt' (zamowienia), lub klucz pozycji z menu
+var _calCache=null;                       // {month, days} — bufor pobranych statsDaily dla wyswietlanego miesiaca
 var ARC_WINDOW_MS=8*3600*1000;            // szerokosc automatycznego okna archiwum (8h = czas pracy restauracji)
 var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
 var _arcQuery=null;                       // aktywne zapytanie nasluchu archiwum (do odpinania)
@@ -5180,6 +5184,155 @@ function weekdayStatsHtml(wk){
   return '<table class="stbl"><tr><th>Dzien</th><th>Sr. przychod</th><th>Sr. zamowien</th><th>Probka</th><th></th></tr>'+rows+'</table>';
 }
 
+// ── KALENDARZ (podzakladka Statystyk) ──
+// Widok miesieczny z siatka dni, do latwego porownywania np. weekendow z calego
+// miesiaca. Dane z tych samych lekkich sum statsDaily co reszta statystyk.
+// Metryka jest personalizowana: przychod, liczba zamowien, albo dowolna pozycja z menu
+// (np. "ile sprzedano ryb danego dnia").
+function calMonthKey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+
+function setStatSubTab(t){
+  _statSubTab=t;
+  renderStats();
+}
+
+function calNavMonth(delta){
+  var cur=_calMonth?new Date(_calMonth+'-01T12:00'):new Date();
+  cur.setMonth(cur.getMonth()+delta);
+  _calMonth=calMonthKey(cur);
+  _calCache=null;
+  renderCalendarView();
+}
+
+function setCalMetric(m){
+  if(!m)return; // placeholder opcja selecta pozycji — ignoruj
+  _calMetric=m;
+  renderCalendarView(); // dane juz w _calCache — samo przerysowanie, bez ponownego pobierania
+}
+
+function calItemOptions(days){
+  var m={};
+  Object.keys(days||{}).forEach(function(dk){
+    var its=(days[dk]||{}).items||{};
+    Object.keys(its).forEach(function(k){
+      var it=its[k];
+      if(!m[k])m[k]={key:k,name:it.n||k,emoji:it.e,qty:0};
+      m[k].qty+=(+it.q||0);
+    });
+  });
+  return Object.values(m).sort(function(a,b){return b.qty-a.qty;});
+}
+
+function renderCalendarView(){
+  var box=document.getElementById('calBox');if(!box)return;
+  if(!_calMonth)_calMonth=calMonthKey(new Date());
+  var monthDate=new Date(_calMonth+'-01T12:00');
+  var monthLabel=monthDate.toLocaleDateString('pl-PL',{month:'long',year:'numeric'});
+
+  if(_calCache&&_calCache.month===_calMonth){
+    box.innerHTML=calGridHtml(_calCache.days,monthLabel);
+    return;
+  }
+  box.innerHTML='<div class="ni">Ladowanie...</div>';
+  if(!(fbReady&&fbAuthReady)){box.innerHTML='<div class="ni">Brak polaczenia z chmura</div>';return;}
+  var first=new Date(monthDate.getFullYear(),monthDate.getMonth(),1);
+  var last=new Date(monthDate.getFullYear(),monthDate.getMonth()+1,0,23,59,59);
+  fetchDailyStats(first.getTime(),last.getTime(),function(err,days){
+    var box2=document.getElementById('calBox');if(!box2)return;
+    if(err){box2.innerHTML='<div class="ni">Blad pobierania danych</div>';return;}
+    _calCache={month:_calMonth,days:days||{}};
+    box2.innerHTML=calGridHtml(days||{},monthLabel);
+  });
+}
+
+function calGridHtml(days,monthLabel){
+  var itemOpts=calItemOptions(days);
+
+  function valOf(dk){
+    var v=days[dk];if(!v)return null;
+    if(_calMetric==='rev')return +v.rev||0;
+    if(_calMetric==='cnt')return +v.cnt||0;
+    var it=(v.items||{})[_calMetric];
+    return it?(+it.q||0):0;
+  }
+
+  var monthDate=new Date(_calMonth+'-01T12:00');
+  var y=monthDate.getFullYear(),mo=monthDate.getMonth();
+  var daysInMonth=new Date(y,mo+1,0).getDate();
+  var firstWeekday=(new Date(y,mo,1).getDay()+6)%7; // 0=Pon..6=Nd
+
+  var maxV=0,vals=[];
+  for(var d=1;d<=daysInMonth;d++){
+    var dk=y+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var v=valOf(dk);
+    vals.push({d:d,dk:dk,v:v});
+    if(v!=null&&v>maxV)maxV=v;
+  }
+
+  // Porownanie weekendy vs dni robocze dla wybranej metryki — sedno tego widoku.
+  var wkEndSum=0,wkEndCnt=0,wkDaySum=0,wkDayCnt=0;
+  vals.forEach(function(item){
+    if(item.v==null)return;
+    var wd=new Date(item.dk+'T12:00').getDay();
+    if(wd===0||wd===6){wkEndSum+=item.v;wkEndCnt++;}
+    else{wkDaySum+=item.v;wkDayCnt++;}
+  });
+  var wkEndAvg=wkEndCnt?wkEndSum/wkEndCnt:0;
+  var wkDayAvg=wkDayCnt?wkDaySum/wkDayCnt:0;
+
+  var dayNames=['Pon','Wt','Sr','Czw','Pt','Sob','Nd'];
+  var headerCells=dayNames.map(function(n,i){
+    var isWknd=i>=5;
+    return '<div style="text-align:center;font-size:.65rem;font-weight:900;color:'+(isWknd?'var(--a)':'rgba(255,255,255,.5)')+';padding:4px 0;">'+n+'</div>';
+  }).join('');
+
+  var todayKey=_dateKey(Date.now());
+  var cells='';
+  for(var i=0;i<firstWeekday;i++)cells+='<div></div>';
+  vals.forEach(function(item){
+    var wd=new Date(item.dk+'T12:00').getDay();
+    var isWknd=(wd===0||wd===6);
+    var v=item.v;
+    var hasData=v!=null;
+    var intensity=hasData&&maxV>0?Math.min(1,v/maxV):0;
+    var bg=hasData?('rgba(231,192,107,'+(0.08+intensity*0.55).toFixed(2)+')'):'rgba(255,255,255,.03)';
+    var border=isWknd?'1.5px solid rgba(231,192,107,.35)':'1px solid rgba(255,255,255,.06)';
+    var valStr=(hasData&&v>0)?(_calMetric==='rev'?v.toFixed(0):v):'';
+    var isToday=item.dk===todayKey;
+    cells+='<div'+(hasData?' onclick="showDayDetail(\''+item.dk+'\')"':'')+' style="cursor:'+(hasData?'pointer':'default')+';background:'+bg+';border:'+border+';border-radius:8px;padding:5px 3px;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;'+(isToday?'box-shadow:inset 0 0 0 2px var(--gr);':'')+'">'+
+      '<span style="font-size:.68rem;font-weight:800;color:'+(isWknd?'var(--a)':'rgba(255,255,255,.55)')+';">'+item.d+'</span>'+
+      (valStr?'<span style="font-size:.66rem;font-weight:900;color:#fff;margin-top:2px;">'+valStr+'</span>':'')+
+    '</div>';
+  });
+
+  var itemSelectOptions=itemOpts.slice(0,40).map(function(o){
+    return '<option value="'+esc(o.key)+'"'+(_calMetric===o.key?' selected':'')+'>'+emoText(o.emoji)+' '+esc(o.name)+'</option>';
+  }).join('');
+
+  return (
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'+
+      '<button onclick="calNavMonth(-1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:34px;height:34px;font-size:1.1rem;cursor:pointer;">&#8249;</button>'+
+      '<span style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;text-transform:capitalize;">'+esc(monthLabel)+'</span>'+
+      '<button onclick="calNavMonth(1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:34px;height:34px;font-size:1.1rem;cursor:pointer;">&#8250;</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">'+
+      '<button class="sf'+(_calMetric==='rev'?' on':'')+'" onclick="setCalMetric(\'rev\')">&#x1F4B0; Przychod</button>'+
+      '<button class="sf'+(_calMetric==='cnt'?' on':'')+'" onclick="setCalMetric(\'cnt\')">&#x1F4CB; Zamowienia</button>'+
+      '<select id="calItemSel" onchange="setCalMetric(this.value)" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 8px;font-size:.75rem;font-family:Nunito,sans-serif;max-width:160px;">'+
+        '<option value="">&#x1F37D;&#xFE0F; Pozycja z menu&#8230;</option>'+itemSelectOptions+
+      '</select>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;">'+headerCells+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">'+cells+'</div>'+
+    '<div style="margin-top:12px;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:10px;display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:8px;">'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. WEEKEND (Sob-Nd)</div><div style="color:var(--a);font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkEndAvg.toFixed(0)+' zl':wkEndAvg.toFixed(1))+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. DZIEN ROBOCZY</div><div style="color:#fff;font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkDayAvg.toFixed(0)+' zl':wkDayAvg.toFixed(1))+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">ROZNICA</div><div style="color:'+(wkEndAvg>=wkDayAvg?'var(--gr)':'var(--e)')+';font-weight:900;font-size:1rem;margin-top:2px;">'+(wkDayAvg>0?((wkEndAvg/wkDayAvg-1)*100).toFixed(0)+'%':'\u2014')+'</div></div>'+
+    '</div>'+
+    '<div class="set-hint" style="margin-top:8px;">Kliknij dzien z danymi, by zobaczyc szczegoly. Intensywnosc koloru komorki = wartosc wzgledem najlepszego dnia w miesiacu. Sobota i niedziela sa wyrozniane ramka.</div>'
+  );
+}
+
 // Ladna etykieta stolika/typu zamowienia (obsluguje tez zamowienie "przy okienku").
 function tlabel(t){
   if(t==='my')return '\uD83D\uDC6A MY';
@@ -5217,8 +5370,17 @@ function statControlsHtml(){
 }
 function renderStats(){
   var wrap=document.getElementById('sw');if(!wrap)return;
+  var tabsHtml='<div class="sfr" style="margin-bottom:8px;">'+
+    '<button class="sf'+(_statSubTab==='overview'?' on':'')+'" onclick="setStatSubTab(\'overview\')">\uD83D\uDCCA Przeglad</button>'+
+    '<button class="sf'+(_statSubTab==='calendar'?' on':'')+'" onclick="setStatSubTab(\'calendar\')">\uD83D\uDCC5 Kalendarz</button>'+
+  '</div>';
+  if(_statSubTab==='calendar'){
+    wrap.innerHTML=tabsHtml+'<div id="calBox"></div>';
+    renderCalendarView();
+    return;
+  }
   if(!_statShown){
-    wrap.innerHTML=statControlsHtml()+'<div class="ni" style="margin-top:16px;text-align:center;line-height:1.5;">Wybierz okres powyzej i kliknij<br>&#x201E;Pokaz statystyki&#x201D;.</div>';
+    wrap.innerHTML=tabsHtml+statControlsHtml()+'<div class="ni" style="margin-top:16px;text-align:center;line-height:1.5;">Wybierz okres powyzej i kliknij<br>&#x201E;Pokaz statystyki&#x201D;.</div>';
     return;
   }
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
@@ -5346,6 +5508,7 @@ function renderStats(){
     hourRows+='<tr><td>'+String(hh2).padStart(2,'0')+':00</td><td><b>'+avg2+' min</b></td><td>'+cnt2+' zam.</td><td><div class="sbw"><div class="sbar" style="width:'+bw+'px;background:'+col2+'"></div></div></td></tr>';
   }
   wrap.innerHTML=
+    tabsHtml+
     statControlsHtml()+
     '<div id="weatherPanel"></div>'+
     '<div class="sbs">'+
