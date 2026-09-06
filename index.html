@@ -1008,7 +1008,8 @@ var _dayRankCache=null;                   // bufor rankingu dni (dayAgg/dayKeys)
 var _wkdayCache=null;                     // bufor sredniej sprzedazy wg dnia tygodnia (cala historia)
 var _statSubTab='overview';               // podzakladka Statystyk: 'overview' | 'calendar'
 var _calMonth=null;                       // wybrany miesiac kalendarza, format 'RRRR-MM' (domyslnie biezacy)
-var _calMetric='rev';                     // metryka kalendarza: 'rev' (przychod), 'cnt' (zamowienia), lub klucz pozycji z menu
+var _calMetric='rev';                     // metryka kalendarza: 'rev' (przychod), 'cnt' (zamowienia), 'items' (suma wybranych pozycji)
+var _calItemKeys=[];                      // klucze pozycji zliczanych razem, gdy _calMetric==='items'
 var _calCache=null;                       // {month, days} — bufor pobranych statsDaily dla wyswietlanego miesiaca
 var ARC_WINDOW_MS=8*3600*1000;            // szerokosc automatycznego okna archiwum (8h = czas pracy restauracji)
 var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
@@ -1038,7 +1039,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null,vacationCountdown:true,vacationEndDate:null};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null,vacationCountdown:true,vacationEndDate:null,calGroups:[]};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -5225,9 +5226,143 @@ function calNavMonth(delta){
 }
 
 function setCalMetric(m){
-  if(!m)return; // placeholder opcja selecta pozycji — ignoruj
+  if(!m)return;
   _calMetric=m;
   renderCalendarView(); // dane juz w _calCache — samo przerysowanie, bez ponownego pobierania
+}
+
+// Nazwa opisujaca aktualnie wybrana grupe pozycji (do przycisku i podsumowan).
+function calItemsLabel(){
+  if(!_calItemKeys.length)return 'Pozycje\u2026';
+  var days=(_calCache&&_calCache.days)||{};
+  var names=calItemOptions(days);
+  var byKey={};names.forEach(function(o){byKey[o.key]=o;});
+  if(_calItemKeys.length===1){
+    var o=byKey[_calItemKeys[0]];
+    return o?o.name:_calItemKeys[0];
+  }
+  // Sprawdz czy wybor odpowiada zapisanej grupie — wtedy pokaz jej nazwe
+  var saved=(appSettings.calGroups||[]);
+  for(var i=0;i<saved.length;i++){
+    var g=saved[i];
+    if(g.keys&&g.keys.length===_calItemKeys.length&&g.keys.every(function(k){return _calItemKeys.indexOf(k)>=0;}))return g.name;
+  }
+  return _calItemKeys.length+' pozycji razem';
+}
+
+// Modal wyboru pozycji do zsumowania (np. frytki + surowki jako jedna wartosc).
+// Pozwala tez zapisac wybor jako nazwana grupe, zeby nastepnym razem wybrac ja jednym kliknieciem.
+function openCalItemPicker(){
+  var days=(_calCache&&_calCache.days)||{};
+  var opts=calItemOptions(days);
+  if(!opts.length){toast('Brak pozycji w tym miesiacu','#f5a623');return;}
+  var sel={};_calItemKeys.forEach(function(k){sel[k]=true;});
+
+  var m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;z-index:9700;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  document.body.appendChild(m);
+
+  function render(){
+    var saved=(appSettings.calGroups||[]);
+    var savedHtml=saved.length?(
+      '<div style="color:rgba(255,255,255,.5);font-size:.68rem;font-weight:900;letter-spacing:.5px;margin:2px 0 6px;">ZAPISANE GRUPY</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'+
+        saved.map(function(g,i){
+          return '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(231,192,107,.14);border:1.5px solid rgba(231,192,107,.4);border-radius:16px;padding:4px 6px 4px 10px;">'+
+            '<button class="cgUse" data-i="'+i+'" style="background:none;border:none;color:var(--a);font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;padding:0;">'+esc(g.name)+' <span style="opacity:.6;">('+(g.keys||[]).length+')</span></button>'+
+            '<button class="cgDel" data-i="'+i+'" title="Usun grupe" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.85rem;cursor:pointer;padding:0 2px;line-height:1;">&#x2715;</button>'+
+          '</span>';
+        }).join('')+
+      '</div>'
+    ):'';
+
+    var rows=opts.map(function(o){
+      var on=!!sel[o.key];
+      return '<label style="display:flex;align-items:center;gap:9px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer;">'+
+        '<input type="checkbox" class="cgChk" data-k="'+esc(o.key)+'"'+(on?' checked':'')+' style="width:19px;height:19px;flex-shrink:0;accent-color:#e7c06b;">'+
+        '<span style="font-size:1.05rem;flex-shrink:0;">'+emoText(o.emoji)+'</span>'+
+        '<span style="flex:1;color:#fff;font-size:.84rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(o.name)+'</span>'+
+        '<span style="color:rgba(255,255,255,.45);font-size:.72rem;flex-shrink:0;">'+o.qty+' szt.</span>'+
+      '</label>';
+    }).join('');
+
+    var selCount=Object.keys(sel).filter(function(k){return sel[k];}).length;
+
+    m.innerHTML=
+      '<div style="background:#1a1d24;width:100%;max-width:480px;max-height:86vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+        '<div style="padding:16px 18px 10px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+          '<div>'+
+            '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;">&#x1F37D;&#xFE0F; Wybierz pozycje</div>'+
+            '<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;">Zaznacz kilka, by liczyc je razem jako jedna suma</div>'+
+          '</div>'+
+          '<button id="cgClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">&#x2715;</button>'+
+        '</div>'+
+        '<div style="overflow-y:auto;padding:12px 16px;flex:1;">'+savedHtml+
+          '<div style="display:flex;gap:6px;margin-bottom:8px;">'+
+            '<button id="cgAll" class="sf" style="flex:1;">Zaznacz wszystko</button>'+
+            '<button id="cgNone" class="sf" style="flex:1;">Odznacz wszystko</button>'+
+          '</div>'+
+          rows+
+        '</div>'+
+        '<div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);">'+
+          (selCount>1?'<div style="display:flex;gap:6px;margin-bottom:8px;">'+
+            '<input id="cgName" placeholder="Nazwa grupy (np. Dodatki)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.78rem;font-family:Nunito,sans-serif;">'+
+            '<button id="cgSave" style="padding:8px 12px;border-radius:8px;border:none;background:rgba(231,192,107,.2);color:var(--a);font-weight:800;font-size:.75rem;white-space:nowrap;cursor:pointer;">&#x1F4BE; Zapisz</button>'+
+          '</div>':'')+
+          '<button id="cgApply" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--a);color:#1a1205;font-family:Nunito,sans-serif;font-weight:900;font-size:.88rem;cursor:pointer;">Pokaz w kalendarzu ('+selCount+')</button>'+
+        '</div>'+
+      '</div>';
+
+    Array.prototype.forEach.call(m.querySelectorAll('.cgChk'),function(chk){
+      chk.onchange=function(){
+        var k=chk.getAttribute('data-k');
+        if(chk.checked)sel[k]=true;else delete sel[k];
+        render();
+      };
+    });
+    Array.prototype.forEach.call(m.querySelectorAll('.cgUse'),function(btn){
+      btn.onclick=function(){
+        var g=(appSettings.calGroups||[])[+btn.getAttribute('data-i')];
+        if(!g)return;
+        sel={};(g.keys||[]).forEach(function(k){sel[k]=true;});
+        render();
+      };
+    });
+    Array.prototype.forEach.call(m.querySelectorAll('.cgDel'),function(btn){
+      btn.onclick=function(){
+        var i=+btn.getAttribute('data-i');
+        var arr=(appSettings.calGroups||[]).slice();
+        arr.splice(i,1);
+        appSettings.calGroups=arr;saveSettings();
+        render();
+      };
+    });
+    var aBtn=document.getElementById('cgAll');if(aBtn)aBtn.onclick=function(){opts.forEach(function(o){sel[o.key]=true;});render();};
+    var nBtn=document.getElementById('cgNone');if(nBtn)nBtn.onclick=function(){sel={};render();};
+    var sBtn=document.getElementById('cgSave');
+    if(sBtn)sBtn.onclick=function(){
+      var nm=(document.getElementById('cgName')||{}).value;
+      nm=(nm||'').trim();
+      if(!nm){toast('Podaj nazwe grupy','#f5a623');return;}
+      var keys=Object.keys(sel).filter(function(k){return sel[k];});
+      var arr=(appSettings.calGroups||[]).slice();
+      arr.push({name:nm.slice(0,28),keys:keys});
+      appSettings.calGroups=arr;saveSettings();
+      toast('Grupa zapisana: '+nm,'#27ae60');
+      render();
+    };
+    document.getElementById('cgClose').onclick=function(){m.remove();};
+    document.getElementById('cgApply').onclick=function(){
+      var keys=Object.keys(sel).filter(function(k){return sel[k];});
+      if(!keys.length){toast('Zaznacz przynajmniej jedna pozycje','#f5a623');return;}
+      _calItemKeys=keys;
+      _calMetric='items';
+      m.remove();
+      renderCalendarView();
+    };
+  }
+  render();
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
 }
 
 function calItemOptions(days){
@@ -5265,15 +5400,26 @@ function renderCalendarView(){
   });
 }
 
+// Lista nazw aktualnie zsumowanych pozycji (podpis pod paskiem metryk).
+function calItemNamesList(){
+  var days=(_calCache&&_calCache.days)||{};
+  var byKey={};calItemOptions(days).forEach(function(o){byKey[o.key]=o;});
+  return _calItemKeys.map(function(k){return (byKey[k]&&byKey[k].name)||k;}).join(' + ');
+}
+
 function calGridHtml(days,monthLabel){
-  var itemOpts=calItemOptions(days);
 
   function valOf(dk){
     var v=days[dk];if(!v)return null;
     if(_calMetric==='rev')return +v.rev||0;
     if(_calMetric==='cnt')return +v.cnt||0;
-    var it=(v.items||{})[_calMetric];
-    return it?(+it.q||0):0;
+    // 'items' — suma sztuk wszystkich wybranych pozycji (np. frytki + surowki razem)
+    var its=v.items||{},s=0;
+    for(var i=0;i<_calItemKeys.length;i++){
+      var it=its[_calItemKeys[i]];
+      if(it)s+=(+it.q||0);
+    }
+    return s;
   }
 
   var monthDate=new Date(_calMonth+'-01T12:00');
@@ -5325,9 +5471,8 @@ function calGridHtml(days,monthLabel){
     '</div>';
   });
 
-  var itemSelectOptions=itemOpts.slice(0,40).map(function(o){
-    return '<option value="'+esc(o.key)+'" style="color:#000;background:#fff;"'+(_calMetric===o.key?' selected':'')+'>'+emoText(o.emoji)+' '+esc(o.name)+'</option>';
-  }).join('');
+  var itemsOn=(_calMetric==='items');
+  var itemsBtnLabel=itemsOn?calItemsLabel():'Pozycje\u2026';
 
   return (
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'+
@@ -5338,16 +5483,16 @@ function calGridHtml(days,monthLabel){
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">'+
       '<button class="sf'+(_calMetric==='rev'?' on':'')+'" onclick="setCalMetric(\'rev\')">&#x1F4B0; Przychod</button>'+
       '<button class="sf'+(_calMetric==='cnt'?' on':'')+'" onclick="setCalMetric(\'cnt\')">&#x1F4CB; Zamowienia</button>'+
-      '<select id="calItemSel" onchange="setCalMetric(this.value)" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 8px;font-size:.75rem;font-family:Nunito,sans-serif;max-width:160px;">'+
-        '<option value="" style="color:#000;background:#fff;">&#x1F37D;&#xFE0F; Pozycja z menu&#8230;</option>'+itemSelectOptions+
-      '</select>'+
+      '<button class="sf'+(itemsOn?' on':'')+'" onclick="openCalItemPicker()" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">&#x1F37D;&#xFE0F; '+esc(itemsBtnLabel)+' &#9662;</button>'+
     '</div>'+
+    (itemsOn&&_calItemKeys.length>1?'<div style="margin:-4px 0 10px;color:rgba(255,255,255,.5);font-size:.7rem;">Sumowane razem: '+esc(calItemNamesList())+'</div>':'')+
     '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;">'+headerCells+'</div>'+
     '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">'+cells+'</div>'+
     '<div style="margin-top:12px;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:10px;display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:8px;">'+
-      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. WEEKEND (Sob-Nd)</div><div style="color:var(--a);font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkEndAvg.toFixed(0)+' zl':wkEndAvg.toFixed(1))+'</div></div>'+
-      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. DZIEN ROBOCZY</div><div style="color:#fff;font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkDayAvg.toFixed(0)+' zl':wkDayAvg.toFixed(1))+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. WEEKEND (Sob-Nd)</div><div style="color:var(--a);font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkEndAvg.toFixed(0)+' zl':wkEndAvg.toFixed(1)+(_calMetric==='items'?' szt.':''))+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. DZIEN ROBOCZY</div><div style="color:#fff;font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkDayAvg.toFixed(0)+' zl':wkDayAvg.toFixed(1)+(_calMetric==='items'?' szt.':''))+'</div></div>'+
       '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">ROZNICA</div><div style="color:'+(wkEndAvg>=wkDayAvg?'var(--gr)':'var(--e)')+';font-weight:900;font-size:1rem;margin-top:2px;">'+(wkDayAvg>0?((wkEndAvg/wkDayAvg-1)*100).toFixed(0)+'%':'\u2014')+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SUMA MIESIACA</div><div style="color:var(--gr);font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?(wkEndSum+wkDaySum).toFixed(0)+' zl':(wkEndSum+wkDaySum)+(_calMetric==='items'?' szt.':''))+'</div></div>'+
     '</div>'+
     '<div class="set-hint" style="margin-top:8px;">Kliknij dzien z danymi, by zobaczyc szczegoly. Intensywnosc koloru komorki = wartosc wzgledem najlepszego dnia w miesiacu. Sobota i niedziela sa wyrozniane ramka.</div>'
   );
