@@ -187,7 +187,10 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tkt.tw.tr{background:#0d6b2a!important;}
 .tkt.tw .tktbl{color:#4ade80!important;}
 .tkh{padding:6px 9px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:2px 8px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06)}
-.tktbl{font-family:'Playfair Display',serif;color:#fff;font-size:1.1rem;font-weight:700;flex:1 1 auto;min-width:0}.tkm{text-align:right;margin-left:auto;flex-shrink:0}
+/* v3.45: numer stolika na bilecie kuchni/baru — Nunito zamiast Playfair Display.
+   W kroju szeryfowym cyfry 3 i 5 mialy bardzo podobny ksztalt i myliy sie na
+   dystans; bezszeryfowy Nunito 900 + lekkie rozstrzelenie sa czytelne z daleka. */
+.tktbl{font-family:'Nunito',sans-serif;color:#fff;font-size:1.22rem;font-weight:900;letter-spacing:.03em;font-variant-numeric:lining-nums tabular-nums;flex:1 1 auto;min-width:0}.tkm{text-align:right;margin-left:auto;flex-shrink:0}
 .tktmr{font-size:.97rem;font-weight:900}.tktmr.warm{color:var(--gr)}.tktmr.hot{color:var(--a)}.tktmr.over{color:var(--e)}
 .tkct{font-size:.75rem;font-weight:900;margin-top:1px;color:rgba(255,255,255,.7)}
 .tksc{color:rgba(255,255,255,.35);font-size:.71rem}
@@ -564,7 +567,7 @@ button:disabled{cursor:not-allowed}
   <div class="op">
     <div class="oph"><span class="opht">Zamowienie</span><span class="ophs" id="ophs">wybierz stolik</span></div>
     <div class="onr" style="display:flex;gap:8px;align-items:center;">
-      <input class="on2" id="onote" placeholder="Uwagi (np. bez osci...)" style="flex:1">
+      <input class="on2" id="onote" placeholder="Uwagi (np. bez osci...)" autocomplete="off" name="order-note" style="flex:1">
       <label id="wynos-lbl" style="display:flex;align-items:center;gap:5px;cursor:pointer;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;white-space:nowrap;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;" onclick="toggleWynos()">
         <span id="wynos-icon" style="font-size:1.1rem;">&#x1F6CD;</span>
         <span style="color:rgba(255,255,255,.7);font-size:.78rem;font-weight:800;" id="wynos-txt">Na wynos</span>
@@ -4435,7 +4438,7 @@ function openStats(){
       '<div style="font-size:2rem;margin-bottom:6px;">&#x1F4CA;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:4px;">Statystyki</div>'+
       '<div style="color:#888;font-size:.8rem;margin-bottom:12px;">Wpisz haslo aplikacji</div>'+
-      '<input id="statsPwInp" type="password" placeholder="Haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.95rem;outline:none;margin-bottom:6px;text-align:center;">'+
+      '<input id="statsPwInp" type="password" placeholder="Haslo" autocomplete="off" name="stats-pw-'+Date.now()+'" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.95rem;outline:none;margin-bottom:6px;text-align:center;">'+
       '<div id="statsPwErr" style="color:#e85c3a;font-size:.78rem;font-weight:800;min-height:16px;margin-bottom:8px;"></div>'+
       '<button id="statsPwOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:linear-gradient(135deg,#0d4a6a,#1278a8);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Wejdz</button>'+
       '<button id="statsPwCancel" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
@@ -4979,6 +4982,23 @@ function showDayRankingModal(){
 // Pokazuje: sume/liczbe zamowien/dan, top pozycje dnia, rozklad godzinowy (klikalny
 // do showHourOrders) i pelna liste zamowien z tego dnia.
 function showDayDetail(dayKey){
+  var all0=Object.values(Object.assign({},_statsCloud,archive,orders));
+  var has=all0.some(function(o){return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey;});
+  if(has||!(fbReady&&fbAuthReady)){renderDayDetailModal(dayKey);return;}
+  // Dane w kalendarzu/rankingu licza sie z lekkich sum statsDaily, wiec surowe zamowienia
+  // z tego konkretnego dnia moga jeszcze nie byc zaladowane lokalnie — dociagnij je z
+  // archiwum w chmurze (tylko za ten dzien, wiec szybko), zanim pokazesz szczegoly.
+  toast('Ladowanie danych dnia...','#1278a8');
+  var from=new Date(dayKey+'T00:00:00').getTime();
+  var to=new Date(dayKey+'T23:59:59').getTime();
+  fetchArchiveRange(from,to,function(err,data){
+    if(!err&&data){
+      Object.keys(data).forEach(function(k){_statsCloud[k]=data[k];});
+    }
+    renderDayDetailModal(dayKey);
+  });
+}
+function renderDayDetailModal(dayKey){
   var all=Object.values(Object.assign({},_statsCloud,archive,orders));
   var list=all.filter(function(o){return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey;}).sort(function(a,b){return a.ts-b.ts;});
 
@@ -5306,7 +5326,7 @@ function calGridHtml(days,monthLabel){
   });
 
   var itemSelectOptions=itemOpts.slice(0,40).map(function(o){
-    return '<option value="'+esc(o.key)+'"'+(_calMetric===o.key?' selected':'')+'>'+emoText(o.emoji)+' '+esc(o.name)+'</option>';
+    return '<option value="'+esc(o.key)+'" style="color:#000;background:#fff;"'+(_calMetric===o.key?' selected':'')+'>'+emoText(o.emoji)+' '+esc(o.name)+'</option>';
   }).join('');
 
   return (
@@ -5319,7 +5339,7 @@ function calGridHtml(days,monthLabel){
       '<button class="sf'+(_calMetric==='rev'?' on':'')+'" onclick="setCalMetric(\'rev\')">&#x1F4B0; Przychod</button>'+
       '<button class="sf'+(_calMetric==='cnt'?' on':'')+'" onclick="setCalMetric(\'cnt\')">&#x1F4CB; Zamowienia</button>'+
       '<select id="calItemSel" onchange="setCalMetric(this.value)" style="background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 8px;font-size:.75rem;font-family:Nunito,sans-serif;max-width:160px;">'+
-        '<option value="">&#x1F37D;&#xFE0F; Pozycja z menu&#8230;</option>'+itemSelectOptions+
+        '<option value="" style="color:#000;background:#fff;">&#x1F37D;&#xFE0F; Pozycja z menu&#8230;</option>'+itemSelectOptions+
       '</select>'+
     '</div>'+
     '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;">'+headerCells+'</div>'+
@@ -6477,7 +6497,7 @@ function confirmClearStats(){
       '</div>'+
       '<div id="clrRangeInfo" style="color:#1278a8;font-size:.78rem;font-weight:800;min-height:16px;margin-bottom:10px;"></div>'+
       '<div style="color:#666;font-size:.83rem;margin-bottom:6px;">Wpisz haslo do aplikacji aby potwierdzic.</div>'+
-      '<input id="clearStatsPw" type="password" placeholder="Haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
+      '<input id="clearStatsPw" type="password" placeholder="Haslo" autocomplete="off" name="clear-pw-'+Date.now()+'" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
       '<div id="clearStatsErr" style="color:#e85c3a;font-size:.8rem;font-weight:800;min-height:18px;margin-bottom:8px;"></div>'+
       '<button id="clrStOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Dalej</button>'+
       '<button id="clrStNo" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
