@@ -589,7 +589,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v4.3</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v4.4</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -6081,7 +6081,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v4.3',
+    v:'v4.4',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -7501,24 +7501,11 @@ function queuePanel(){
  q.forEach(function(op){var box=el('article','v4-box');box.append(el('strong','',op.label),el('p','',new Date(op.ts).toLocaleString('pl-PL')+' · '+op.actor));if(op.error){box.append(el('p','v4-error',op.error),button('Pobierz kopię i przyjmij dane z chmury',async function(){if(!confirm('Ta operacja odrzuci CAŁĄ lokalną kolejkę ('+q.length+' operacji), także zależne zmiany. Kopia zostanie pobrana przed odrzuceniem. Przyjąć dane z chmury?'))return;download('konflikt-kopia-'+Date.now()+'.json',JSON.stringify(V4.exportData(),null,2));try{await V4.resolve(op.id);m.dialog.close();queuePanel();}catch(e){alert(e.message);}}));var details=el('details'),summary=el('summary','','Dane lokalnej operacji'),pre=el('pre','',JSON.stringify(op.changes,null,2));details.append(summary,pre);box.append(details);}m.body.append(box);});
  m.body.append(button('Ponów wysyłanie',function(){V4.retry();m.dialog.close();}),button('Pobierz kopię danych i kolejki',function(){download('smazalnia-kopia-'+Date.now()+'.json',JSON.stringify(V4.exportData(),null,2));}));
 }
-function itemDetails(item,editing){
- var m=modal((editing?'Edytuj kartę: ':'')+item.name);
- var defs=[['description','Opis dania'],['ingredients','Skład'],['portion','Wielkość porcji / gramatura'],['allergens','Alergeny — informacje potwierdzone przez lokal'],['extras','Dostępne dodatki i warianty']];
- if(editing){
-  var fields={};defs.forEach(function(d){fields[d[0]]=field(d[1],item[d[0]],'textarea');m.body.append(fields[d[0]].wrap);});
-  var low=field('Próg niskiego stanu (liczba sztuk)',item.lowStock===undefined?5:item.lowStock,'number');low.input.min='0';m.body.append(low.wrap);
-  m.body.append(button('Zapisz kartę dania',function(){defs.forEach(function(d){item[d[0]]=fields[d[0]].input.value.trim();});item.lowStock=Math.max(0,Number(low.input.value)||0);saveMenu();m.dialog.close();}));
- }else{
-  defs.forEach(function(d){var section=el('section','v4-box');section.append(el('strong','',d[1]),el('p','',item[d[0]]||'Brak uzupełnionych informacji.'));m.body.append(section);});
-  m.body.append(el('p','','Cena: '+V4.money(item.price).toFixed(2)+' zł. Dodatki wymagające dopłaty dodaj jako osobne pozycje z menu.'));
-  m.body.append(button(item.unavailable?'Produkt niedostępny':'Dodaj do koszyka',function(){if(item.unavailable)return;addCart(item);m.dialog.close();}));
- }
-}
 function help(){
  var m=modal('Pomoc dla personelu');
  [
  ['Przyjmowanie zamówienia','Wybierz stolik lub odbiór, dodaj dania i sprawdź koszyk. „Opłacone w PLN/CZK” rejestruje otrzymaną wpłatę. „Płatność później” pozostawia otwarty rachunek.'],
- ['Uwagi i alergeny','Wpisz uwagi w jednym polu dotyczącym całego zamówienia. Jeżeli uwaga dotyczy konkretnego dania, podaj jego nazwę, np. „Pstrąg: bez soli”. Informacje o alergenach uzupełnia lokal w karcie dania.'],
+ ['Uwagi do zamówienia','Wpisz uwagi w jednym polu dotyczącym całego zamówienia. Jeżeli uwaga dotyczy konkretnego dania, podaj jego nazwę, np. „Pstrąg: bez soli”.'],
  ['Zestawy','W widoku Menu wybierz „Zarządzaj zestawami”. Dodaj składniki i ich ilości, a następnie wybierz sumę aktualnych cen składników albo własną cenę zestawu.'],
  ['Dołożenie pozycji','Na liście zamówień wybierz „Dozamów”. Powstanie nowy bilet kuchenny przypisany do tego samego stolika.'],
  ['Podział rachunku','Wybierz „Podziel” przy stoliku. Możesz wskazać kwotę albo pozycje. Aplikacja zachowuje historię wpłat i dokładne saldo w groszach.'],
@@ -7559,21 +7546,19 @@ function configure(){
  var label=el('label','v4-field','Stanowisko'),select=el('select');
  [['all','Wszystkie widoki'],['cashier','Kasa'],['kitchen','Kuchnia'],['bar','Bar'],['manager','Kierownik']].forEach(function(x){var o=el('option','',x[1]);o.value=x[0];select.append(o);});select.value=lsGet('sp_station')||'all';label.append(select);m.body.append(label,el('p','','Stanowisko upraszcza nawigację. Obecne hasło i logowanie pozostają bez zmian.'),button('Zapisz',function(){lsSet('sp_operator',who.input.value.trim());setRole(select.value);m.dialog.close();}));
 }
-var search='',category='';
+var category='';
 function filterMenu(){
- var cards=document.querySelectorAll('#menuSections .mc');cards.forEach(function(c){var id=c.dataset.itemId;var match=norm(c.textContent).includes(norm(search));var sec=c.closest('.mg');var categoryMatch=!category||(sec&&sec.id==='mg_'+category);c.hidden=!(match&&categoryMatch);});
+ var cards=document.querySelectorAll('#menuSections .mc');cards.forEach(function(c){var sec=c.closest('.mg');var categoryMatch=!category||(sec&&sec.id==='mg_'+category);c.hidden=!categoryMatch;});
  document.querySelectorAll('#menuSections .mg').forEach(function(g){var show=Array.from(g.children).some(function(c){return !c.hidden;});g.hidden=!show;if(g.previousElementSibling&&g.previousElementSibling.classList.contains('sh'))g.previousElementSibling.hidden=!show;});
  var empty=document.getElementById('v4-empty-menu');if(empty)empty.hidden=Array.from(cards).some(function(c){return !c.hidden;});
 }
 var originalMG=renderMG;
-renderMG=function(id,items){originalMG(id,items);var container=document.getElementById(id);if(!container)return;Array.from(container.children).forEach(function(c,index){var item=items[index];c.tabIndex=0;c.setAttribute('role','button');c.setAttribute('aria-label','Dodaj '+item.name);c.onkeydown=function(e){if(e.target===c&&(e.key==='Enter'||e.key===' ')){e.preventDefault();c.click();}};var b=button('Skład i szczegóły',function(e){e.stopPropagation();itemDetails(item,false);},'v4-details');c.append(b);});};
+renderMG=function(id,items){originalMG(id,items);var container=document.getElementById(id);if(!container)return;Array.from(container.children).forEach(function(c,index){var item=items[index];c.tabIndex=0;c.setAttribute('role','button');c.setAttribute('aria-label','Dodaj '+item.name);c.onkeydown=function(e){if(e.target===c&&(e.key==='Enter'||e.key===' ')){e.preventDefault();c.click();}};});};
 var originalMGs=renderMGs;
 renderMGs=function(){originalMGs();var wrap=document.getElementById('menuSections');if(!wrap)return;
- var tools=el('div','v4-menu-tools');var input=el('input');input.type='search';input.placeholder='Szukaj dania…';input.setAttribute('aria-label','Szukaj w menu');input.value=search;input.oninput=function(){search=input.value;filterMenu();};tools.append(input);
+ var tools=el('div','v4-menu-tools');
  var cats=el('div','v4-categories');cats.append(button('Wszystko',function(){category='';filterMenu();}));getCats().forEach(function(c){cats.append(button(c.label,function(){category=c.key;filterMenu();}));});tools.append(cats);wrap.prepend(tools);
- var empty=el('p','','Brak dań pasujących do wyszukiwania.');empty.id='v4-empty-menu';wrap.append(empty);filterMenu();};
-var originalEditor=buildEdRow;
-buildEdRow=function(sec,idx,item){var row=originalEditor(sec,idx,item);row.append(button('Karta dania',function(){collectEd();itemDetails(item,true);}));return row;};
+ var empty=el('p','','Brak pozycji w tej kategorii.');empty.id='v4-empty-menu';wrap.append(empty);filterMenu();};
 var originalCart=renderCart;
 renderCart=function(){originalCart();
  var dock=document.getElementById('v4-cart-dock');if(dock){var items=Object.values(cart),qty=items.reduce(function(s,i){return s+i.qty;},0),total=items.reduce(function(s,i){return s+i.qty*i.price;},0);dock.textContent='Koszyk · '+qty+' szt. · '+V4.money(total).toFixed(2)+' zł';}
