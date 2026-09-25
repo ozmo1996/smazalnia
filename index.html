@@ -7210,17 +7210,20 @@ function persist(){
 }
 function finish(){batch=null;V4.label='';flush();}
 function baseOrder(o){if(!o)return null;var c=clone(o);delete c._v4rev;if(c.items)c.items=stripItemsForCloud(c.items);return c;}
-function mergeRecord(current,change){
+// CHMURA JEST NADRZEDNA. Lokalna zmiana nakladana jest tylko na pola, ktorych w miedzyczasie
+// nikt inny nie zmienil w chmurze. Przy konflikcie wygrywa wartosc z chmury (pole trafia do `lost`),
+// a kolejka NIGDY sie nie blokuje — wczesniej jeden konflikt zatrzymywal synchronizacje tabletu na stale.
+function mergeRecord(current,change,lost){
  var before=baseOrder(change.before),after=baseOrder(change.after);current=baseOrder(current);
- if(eq(baseOrder(current),baseOrder(after)))return current;
- if(!after){if(!eq(baseOrder(current),baseOrder(before)))throw Error('Zmieniono rekord przed usunięciem: '+change.id);return null;}
- if(!before){if(current)throw Error('Rekord już istnieje: '+change.id);return clone(after);}
- if(!current)throw Error('Rekord został usunięty: '+change.id);
+ if(!after)return null;                                  // usuniecie
+ if(!before)return current?current:clone(after);         // utworzenie; jesli juz jest w chmurze — chmura wygrywa
+ if(!current)return null;                                // usunieto w chmurze — zostaje usuniete
+ if(eq(current,after))return current;
  var next=clone(current);
  Array.from(new Set(Object.keys(before).concat(Object.keys(after)))).forEach(function(field){
   if(field==='_v4rev'||eq(before[field],after[field]))return;
   if((field==='doneTs'||field==='cookingTs')&&current.status===after.status&&before.status!==after.status&&current[field])return;
-  if(!eq(current[field],before[field])&&!eq(current[field],after[field]))throw Error('Konflikt '+change.id+' / '+field);
+  if(!eq(current[field],before[field])&&!eq(current[field],after[field])){if(lost)lost.push(change.id+'/'+field);return;}
   if(after[field]===undefined)delete next[field];else next[field]=clone(after[field]);
  });
  return next;
@@ -7234,15 +7237,15 @@ function statsContribution(root,order,sign){
  Object.keys(a.items).forEach(function(k){var item=a.items[k],r=d.items[k]||(d.items[k]={q:0,r:0});r.n=item.n;r.e=emoText(item.e);r.q=(+r.q||0)+sign*item.q;r.r=money((+r.r||0)+sign*item.r);});
 }
 function stockKey(name){return encodeURIComponent(name).replace(/[.#$\[\]]/g,function(c){return '%'+c.charCodeAt(0).toString(16).toUpperCase();});}
-function mergeInventory(current,ch){
+function mergeInventory(current,ch,lost){
  var before=ch.before||null,after=ch.after||null;
- if(!after){if(current&&!eq(current,before))throw Error('Zasób magazynowy został zmieniony przed usunięciem: '+ch.id);return null;}
- if(!before){if(current&&!eq(current,after))throw Error('Zasób magazynowy już istnieje: '+ch.id);return clone(current||after);}
- if(!current)throw Error('Zasób magazynowy został usunięty: '+ch.id);
+ if(!after)return null;
+ if(!before)return clone(current||after);
+ if(!current)return null;                                // usuniety w chmurze — chmura wygrywa
  var next=clone(current);
  ['name','unit','links','low'].forEach(function(field){
   if(eq(before[field],after[field]))return;
-  if(!eq(current[field],before[field])&&!eq(current[field],after[field]))throw Error('Konflikt zasobu '+after.name+' / '+field);
+  if(!eq(current[field],before[field])&&!eq(current[field],after[field])){if(lost)lost.push(after.name+'/'+field);return;}
   next[field]=clone(after[field]);
  });
  ['current','seasonAdded','seasonUsed'].forEach(function(field){next[field]=money((+current[field]||0)+((+after[field]||0)-(+before[field]||0)));});
@@ -7250,33 +7253,70 @@ function mergeInventory(current,ch){
  Object.keys(after.history||{}).forEach(function(id){if(!(before.history||{})[id])next.history[id]=clone(after.history[id]);});
  return next;
 }
-function applyOperation(data,op){
- var root=clone(data||{});root.v4Receipts=root.v4Receipts||{};
- if(root.v4Receipts[op.id])return root;
- (op.changes||[]).forEach(function(ch){
-  var branch=ch.branch;root[branch]=root[branch]||{};
-  var id=branch==='stock'?stockKey(ch.id):ch.id;
-  // Existing installations used sanitized product names as keys.
-  if(branch==='stock'&&!root.stock[id]){var old=String(ch.id).replace(/[.#$\[\]]/g,'_').slice(0,60);if(root.stock[old])id=old;}
-  var current=root[branch][id]||null,next;
-  if(branch==='inventory')next=mergeInventory(current,ch);
-  else if(branch==='stock'&&ch.before&&ch.after&&op.stockMode!=='absolute'){
-   next=clone(current||ch.before);
-   var delta=(+ch.after.current||0)-(+ch.before.current||0);
-   next.current=(+next.current||0)+delta;
-   Object.keys(ch.after).forEach(function(k){if(k==='current')return;if(!eq(ch.before[k],ch.after[k])){if(current&&!eq(current[k],ch.before[k])&&!eq(current[k],ch.after[k]))throw Error('Konflikt magazynu: '+ch.id);next[k]=ch.after[k];}});
-  }else if(branch==='archive'&&ch.after&&ch.after.status==='done'&&root.orders&&root.orders[ch.id]&&root.orders[ch.id].status==='done')next=clone(root.orders[ch.id]);
-  else next=mergeRecord(current,ch);
-  if(branch==='archive'){statsContribution(root,current,-1);statsContribution(root,next,1);}
-  if(next){
-   if(branch!=='stock'&&branch!=='inventory'){next.items=stripItemsForCloud(next.items||[]);next._v4rev=(current&&current._v4rev||0)+1;}
-   root[branch][id]=next;
-  }else delete root[branch][id];
+// ── Zapis do chmury: male transakcje na POJEDYNCZYCH rekordach ──
+// Wczesniej kazda operacja byla transakcja na KORZENIU bazy: pobierala i zapisywala cala baze
+// (archiwum, historie, statystyki). Przy rosnacym archiwum i kilku tabletach transakcje
+// konczyly sie niepowodzeniem lub w nieskonczonosc sie ponawialy — tablety przestawaly sie widziec.
+// Uwaga: funkcja transakcji nie moze zwracac undefined (to przerywa transakcje, rowniez przy
+// pierwszym, spekulatywnym wywolaniu z pustym cache) — zawsze zwracamy wartosc albo null.
+function txn(path,fn){
+ return realDB.ref(path).transaction(fn,undefined,false).then(function(r){if(!r.committed)throw Error('Chmura nie zatwierdzila zapisu: '+path);return r.snapshot.val();});
+}
+function legacyStockKey(id){return String(id).replace(/[.#$\[\]]/g,'_').slice(0,60);}
+function recordPath(c){return c.branch+'/'+(c.branch==='stock'?stockKey(c.id):c.id);}
+function stockPath(c){
+ var p='stock/'+stockKey(c.id),old='stock/'+legacyStockKey(c.id);
+ if(p===old)return Promise.resolve(p);
+ return realDB.ref(p).once('value').then(function(s){if(s.exists())return p;return realDB.ref(old).once('value').then(function(o){return o.exists()?old:p;});});
+}
+function finishRec(cur,next){
+ if(!next)return null;
+ if(eq(baseOrder(cur),baseOrder(next)))return cur;       // bez zmian — nie podbijaj rewizji
+ next.items=stripItemsForCloud(next.items||[]);next._v4rev=(cur&&cur._v4rev||0)+1;
+ return next;
+}
+function stockNext(cur,c,op,lost){
+ if(!(c.before&&c.after&&op.stockMode!=='absolute'))return mergeRecord(cur,c,lost);
+ var next=clone(cur||c.before);
+ next.current=(+next.current||0)+((+c.after.current||0)-(+c.before.current||0));
+ Object.keys(c.after).forEach(function(k){
+  if(k==='current'||eq(c.before[k],c.after[k]))return;
+  if(cur&&!eq(cur[k],c.before[k])&&!eq(cur[k],c.after[k])){lost.push(c.id+'/'+k);return;}
+  next[k]=c.after[k];
  });
- (op.settings||[]).forEach(function(s){var parts=s.path.split('/'),p=root;for(var i=0;i<parts.length-1;i++)p=p[parts[i]]||(p[parts[i]]={});var key=parts[parts.length-1];if(s.value===null)delete p[key];else p[key]=p[key]?mergeRecord(p[key],{id:s.path,before:s.before,after:s.value}):clone(s.value);});
- root.v4Receipts[op.id]={ts:op.ts};root.v4History=root.v4History||{};
- root.v4History[op.id]={ts:op.ts||Date.now(),actor:op.actor||'',device:op.device||'',label:op.label||'Zmiana',changes:(op.changes||[]).map(function(c){return {branch:c.branch,id:c.id,before:baseOrder(c.before),after:baseOrder(c.after),fields:Array.from(new Set(Object.keys(c.before||{}).concat(Object.keys(c.after||{})))).filter(function(k){return !eq((c.before||{})[k],(c.after||{})[k]);})};}),settings:(op.settings||[]).map(function(s){return s.path;})};
- return root;
+ return next;
+}
+function statsDelta(order,sign){
+ if(!order||order.status!=='done')return Promise.resolve();
+ var day=_dateKey(order.ts);
+ return txn('statsDaily/'+day,function(cur){var root={statsDaily:{}};if(cur)root.statsDaily[day]=cur;statsContribution(root,order,sign);return root.statsDaily[day]||null;});
+}
+// Zwraca wartosc rekordu w chmurze po zatwierdzeniu.
+function applyChange(op,c,lost){
+ if(c.branch==='stock')return stockPath(c).then(function(path){return txn(path,function(cur){lost.length=0;return stockNext(cur,c,op,lost);});});
+ if(c.branch==='inventory')return txn(recordPath(c),function(cur){lost.length=0;return mergeInventory(cur,c,lost);});
+ if(c.branch==='archive'){
+  // Archiwizowane zamowienie bierzemy w wersji z chmury (moglo byc zmienione na innym tablecie).
+  var pre=c.after?realDB.ref('orders/'+c.id).once('value').then(function(s){return s.val();}):Promise.resolve(null);
+  return pre.then(function(cloudOrder){
+   var prev=null;
+   return txn(recordPath(c),function(cur){
+    lost.length=0;prev=cur;
+    var next=(cloudOrder&&c.after.status==='done'&&cloudOrder.status==='done')?clone(cloudOrder):mergeRecord(cur,c,lost);
+    return finishRec(cur,next);
+   }).then(function(val){
+    if(eq(baseOrder(prev),baseOrder(val)))return val;     // nic sie nie zmienilo — statystyki bez zmian
+    return statsDelta(prev,-1).then(function(){return statsDelta(val,1);}).then(function(){return val;});
+   });
+  });
+ }
+ return txn(recordPath(c),function(cur){lost.length=0;return finishRec(cur,mergeRecord(cur,c,lost));});
+}
+function applySetting(s,lost){
+ return txn(s.path,function(cur){lost.length=0;if(s.value===null)return null;return cur?mergeRecord(cur,{id:s.path,before:s.before,after:s.value},lost):clone(s.value);});
+}
+function historyEntry(op){
+ return {ts:op.ts||Date.now(),actor:op.actor||'',device:op.device||'',label:op.label||'Zmiana',changes:(op.changes||[]).map(function(c){return {branch:c.branch,id:c.id,before:baseOrder(c.before),after:baseOrder(c.after),fields:Array.from(new Set(Object.keys(c.before||{}).concat(Object.keys(c.after||{})))).filter(function(k){return !eq((c.before||{})[k],(c.after||{})[k]);})};}),settings:(op.settings||[]).map(function(s){return s.path;})};
 }
 function pending(branch,id){return state&&state.queue.some(function(op){return (op.changes||[]).some(function(c){return c.branch===branch&&c.id===id;});});}
 function pendingSetting(path){return state&&state.queue.some(function(op){return (op.settings||[]).some(function(s){return s.path===path;});});}
@@ -7291,31 +7331,73 @@ function setting(path,value,label){
 function cacheLegacy(){
  [['sp_orders',orders],['sp_archive',archive],['sp_stock',stock],['sp_inventory',inventory]].forEach(function(p){try{localStorage.setItem(p[0],JSON.stringify(p[1]));}catch(_) {}});
 }
+var _flushDelay=4000,_lastHistPrune=0;
+// Historia zmian w chmurze rosla bez konca — usuwamy wpisy starsze niz 30 dni (partiami, rzadko).
+function pruneHistory(){
+ if(Date.now()-_lastHistPrune<3600000)return;_lastHistPrune=Date.now();
+ realDB.ref('v4History').orderByChild('ts').endAt(Date.now()-30*86400000).limitToFirst(200).once('value').then(function(s){
+  var upd={};s.forEach(function(ch){upd[ch.key]=null;});
+  if(Object.keys(upd).length)return realDB.ref('v4History').update(upd);
+ }).catch(function(){});
+}
 function flush(){
  if(!state||batch||sending||!realDB||!fbReady||!fbAuthReady||!navigator.onLine||!state.queue.length)return;
- var op=state.queue[0];if(op.error){V4.refreshSync();return;}
- sending=true;var conflict='';
- realDB.ref().transaction(function(data){
-  try{return applyOperation(data,op);}catch(e){conflict=e.message;return;}
- },undefined,false).then(function(result){
-  if(!result.committed){op.error=conflict||'Nie można zatwierdzić operacji';write();return;}
-  if(!result.snapshot.val()||!result.snapshot.val().v4Receipts||!result.snapshot.val().v4Receipts[op.id])throw Error('Brak potwierdzenia transakcji');
-  state.queue=state.queue.filter(function(x){return x.id!==op.id;});
-  var root=result.snapshot.val();
-  V4.lastError='';
-  (op.changes||[]).forEach(function(c){
-   if(pending(c.branch,c.id))return;
-   var target=c.branch==='orders'?orders:c.branch==='archive'?archive:c.branch==='inventory'?inventory:stock;
-   var k=c.branch==='stock'?stockKey(c.id):c.id;
-   var val=(root[c.branch]||{})[k];
-   if(c.branch==='stock'&&!val)val=(root.stock||{})[String(c.id).replace(/[.#$\[\]]/g,'_').slice(0,60)];
-   if(val){target[c.id]=clone(val);if(val.items)target[c.id].items=restoreItemsEmoji(val.items);}else delete target[c.id];
-   if(c.branch==='orders')clearPending(c.id);
+ var op=state.queue[0];
+ sending=true;
+ op.done=op.done||{};
+ var lost=[],results=[];
+ // Najpierw archiwum (potrzebuje wersji zamowienia z chmury), potem reszta — m.in. usuniecie z orders.
+ var order=(op.changes||[]).map(function(c,i){return i;}).sort(function(a,b){return (op.changes[b].branch==='archive')-(op.changes[a].branch==='archive')||a-b;});
+ var chain=Promise.resolve();
+ order.forEach(function(i){
+  var c=op.changes[i];
+  chain=chain.then(function(){
+   if(op.done['c'+i]){ // juz zatwierdzone przed przerwaniem — tylko odczytaj stan z chmury
+    var p=c.branch==='stock'?stockPath(c):Promise.resolve(recordPath(c));
+    return p.then(function(path){return realDB.ref(path).once('value');}).then(function(s){results.push({c:c,val:s.val()});});
+   }
+   var l=[];
+   return applyChange(op,c,l).then(function(val){lost=lost.concat(l);results.push({c:c,val:val});op.done['c'+i]=1;write();});
   });
-  (op.settings||[]).forEach(function(s){if(pendingSetting(s.path))return;var val=s.path.split('/').reduce(function(p,k){return p&&p[k];},root);if(!val)return;state.metadata[s.path]=clone(val);if(s.path==='menu'){menu=clone(val);lsSet('sp_menu',JSON.stringify(menu));renderMGs();renderEditor();}else if(s.path==='settings/app'){Object.assign(appSettings,val);lsSet('sp_settings',JSON.stringify(appSettings));applyProfileUI();}else if(s.path==='config'){numT=val.numT;renderTbls();}});
+ });
+ (op.settings||[]).forEach(function(s,i){
+  chain=chain.then(function(){
+   if(op.done['s'+i])return realDB.ref(s.path).once('value').then(function(v){results.push({s:s,val:v.val()});});
+   var l=[];
+   return applySetting(s,l).then(function(val){lost=lost.concat(l);results.push({s:s,val:val});op.done['s'+i]=1;write();});
+  });
+ });
+ chain.then(function(){
+  fbBg(realDB.ref('v4History/'+op.id).set(historyEntry(op)));
+  state.queue=state.queue.filter(function(x){return x.id!==op.id;});
+  V4.lastError='';_flushDelay=4000;
+  results.forEach(function(r){
+   var val=r.val;
+   if(r.c){
+    var c=r.c;if(pending(c.branch,c.id))return;
+    var target=c.branch==='orders'?orders:c.branch==='archive'?archive:c.branch==='inventory'?inventory:stock;
+    if(val){target[c.id]=clone(val);if(val.items)target[c.id].items=restoreItemsEmoji(val.items);}else delete target[c.id];
+    if(c.branch==='orders')clearPending(c.id);
+    return;
+   }
+   var s=r.s;if(pendingSetting(s.path)||!val)return;
+   state.metadata[s.path]=clone(val);
+   if(s.path==='menu'){menu=clone(val);ensureCatArrays();lsSet('sp_menu',JSON.stringify(menu));dSetInvalidate();countSetInvalidate();renderMGs();renderEditor();}
+   else if(s.path==='settings/app'){Object.keys(SETTINGS_DEF).forEach(function(k){if(val[k]!==undefined&&k!=='brandLogo'&&k!=='customEmojis')appSettings[k]=val[k];});sanitizeSettings(appSettings);lsSet('sp_settings',JSON.stringify(appSettings));applyProfileUI();}
+   else if(s.path==='config'&&val.numT){numT=val.numT;lsSet('sp_tbls',numT);renderTbls();}
+  });
   state.model=localModel();write();cacheLegacy();
-  V4.history=Object.values(root.v4History||{});onData();
- }).catch(function(e){V4.lastError=e.message||'Błąd synchronizacji';}).finally(function(){sending=false;V4.refreshSync();if(state.queue.length&&!state.queue[0].error)setTimeout(flush,4000);});
+  if(lost.length)toast('Część zmian („'+esc(op.label||'Zmiana')+'”) pominięto — w chmurze były nowsze dane z innego urządzenia.','#b8741a');
+  onData();pruneHistory();
+ }).catch(function(e){
+  // Brak blokady kolejki: ponawiamy z rosnacym odstepem (np. brak uprawnien, zerwane polaczenie).
+  V4.lastError=(e&&e.message)||'Błąd synchronizacji';
+  try{write();}catch(_){}
+  _flushDelay=Math.min(_flushDelay*2,60000);
+ }).finally(function(){
+  sending=false;V4.refreshSync();
+  if(state.queue.length)setTimeout(flush,V4.lastError?_flushDelay:0);
+ });
 }
 function boot(){
  var saved=localStorage.getItem(KEY);
@@ -7327,6 +7409,8 @@ function boot(){
  if(pendingSetting('menu'))menu=clone(state.metadata.menu);
  if(pendingSetting('settings/app'))Object.assign(appSettings,state.metadata['settings/app']);
  if(pendingSetting('config'))numT=state.metadata.config.numT;
+ // Kolejki zablokowane przez dawne "konflikty" ponawiamy — chmura rozstrzyga je teraz sama.
+ state.queue.forEach(function(op){delete op.error;});
  V4.history=state.history||[];
  ready=true;cacheLegacy();
  // Carry over previously unsent orders from the old app.
@@ -7364,7 +7448,7 @@ function subscribe(){
  realDB.ref('.info/connected').on('value',function(s){_fbConnected=s.val()===true;dot(_fbConnected?'ok':'er');V4.refreshSync();if(_fbConnected)flush();});
  sendHeartbeat();_fbHeartbeatTimer=setInterval(sendHeartbeat,600000);flush();
 }
-global.V4={money:money,persist:persist,applyOperation:applyOperation,mergeRecord:mergeRecord,stockKey:stockKey,history:[],lastError:'',label:'',flush:flush,
+global.V4={money:money,persist:persist,mergeRecord:mergeRecord,stockKey:stockKey,history:[],lastError:'',label:'',flush:flush,
  paidAmount:function(o){return o.paidAmt===undefined?(o.paid===true?money(o.total):0):money(o.paidAmt);},
  queue:function(){return state?state.queue:[];},
  refreshSync:function(){if(global.v4UpdateSync)global.v4UpdateSync();},
@@ -7394,8 +7478,11 @@ global.V4={money:money,persist:persist,applyOperation:applyOperation,mergeRecord
   if(!realDB||!navigator.onLine)throw Error('Połącz z chmurą, aby pobrać aktualne dane.');
   var op=state.queue.find(function(x){return x.id===id;});if(!op)return;
   // Discard the full dependent queue only after the UI's explicit confirmation/export.
-  var snap=await realDB.ref().once('value'),root=snap.val()||{};
-  state.queue.forEach(function(queued){(queued.changes||[]).forEach(function(c){var t=c.branch==='orders'?orders:c.branch==='archive'?archive:c.branch==='inventory'?inventory:stock;var key=c.branch==='stock'?stockKey(c.id):c.id;var val=(root[c.branch]||{})[key];if(c.branch==='stock'&&!val)val=(root.stock||{})[String(c.id).replace(/[.#$\[\]]/g,'_').slice(0,60)];if(val){t[c.id]=clone(val);if(val.items)t[c.id].items=restoreItemsEmoji(val.items);}else delete t[c.id];});});
+  // Tylko rekordy z kolejki + menu/ustawienia — bez pobierania calej bazy.
+  var root={},paths={menu:1,'settings/app':1};
+  state.queue.forEach(function(q){(q.changes||[]).forEach(function(c){paths[recordPath(c)]=1;if(c.branch==='stock')paths['stock/'+legacyStockKey(c.id)]=1;});});
+  await Promise.all(Object.keys(paths).map(function(p){return realDB.ref(p).once('value').then(function(s){var parts=p.split('/'),o=root;for(var i=0;i<parts.length-1;i++)o=o[parts[i]]||(o[parts[i]]={});if(s.exists())o[parts[parts.length-1]]=s.val();});}));
+  state.queue.forEach(function(queued){(queued.changes||[]).forEach(function(c){var t=c.branch==='orders'?orders:c.branch==='archive'?archive:c.branch==='inventory'?inventory:stock;var key=c.branch==='stock'?stockKey(c.id):c.id;var val=(root[c.branch]||{})[key];if(c.branch==='stock'&&!val)val=(root.stock||{})[legacyStockKey(c.id)];if(val){t[c.id]=clone(val);if(val.items)t[c.id].items=restoreItemsEmoji(val.items);}else delete t[c.id];});});
   if(root.menu){menu=clone(root.menu);state.metadata.menu=clone(menu);lsSet('sp_menu',JSON.stringify(menu));}
   if(root.settings&&root.settings.app){Object.assign(appSettings,root.settings.app);state.metadata['settings/app']=clone(root.settings.app);lsSet('sp_settings',JSON.stringify(appSettings));}
   state.queue=[];_pendingOrders={};savePending();state.model=localModel();write();cacheLegacy();renderMGs();renderEditor();onData();V4.refreshSync();
@@ -7451,7 +7538,7 @@ delOrder=function(id){var o=orders[id];if(!o)return;if(o.paid===false||o.status!
 doClrOrders=function(){Object.keys(orders).forEach(delOrder);var m=document.getElementById('clearOrdModal2');if(m)m.remove();};
 clearAllOrders=function(){if(global.v4OpenShift)global.v4OpenShift();};
 // A full rebuild must be a confirmed atomic replacement, never a fire-and-forget write.
-rebuildDailyStats=function(){if(!realDB||!fbReady||state.queue.length){toast('Połącz z chmurą i wyślij kolejkę przed przeliczeniem.','#b83224');return;}if(!confirm('Przeliczyć dzienne statystyki na podstawie całego archiwum?'))return;realDB.ref().transaction(function(root){if(!root)return root;root.statsDaily={};Object.values(root.archive||{}).forEach(function(o){statsContribution(root,o,1);});return root;},undefined,false).then(function(r){if(!r.committed)throw Error('Brak potwierdzenia');toast('Statystyki przeliczone.');_genCache=null;loadGeneralStats();}).catch(function(e){notifyError(e.message);});};
+rebuildDailyStats=function(){if(!realDB||!fbReady||state.queue.length){toast('Połącz z chmurą i wyślij kolejkę przed przeliczeniem.','#b83224');return;}if(!confirm('Przeliczyć dzienne statystyki na podstawie całego archiwum?'))return;realDB.ref('archive').once('value').then(function(snap){var root={statsDaily:{}};Object.values(snap.val()||{}).forEach(function(o){statsContribution(root,o,1);});return realDB.ref('statsDaily').set(root.statsDaily);}).then(function(){toast('Statystyki przeliczone.');_genCache=null;loadGeneralStats();}).catch(function(e){notifyError(e.message);});};
 doClrStats=async function(){
  var pw=document.getElementById('clearStatsPw'),error=document.getElementById('clearStatsErr');if(!pw||!error)return;
  if(await sha256(pw.value)!==window.getStoredPw()){error.textContent='Nieprawidłowe hasło';return;}
@@ -7459,7 +7546,8 @@ doClrStats=async function(){
  var range=_clrStatsRange||'all',cut=range==='all'?0:statsRangeCutoff(range);
  if(!confirm('Trwale usunąć archiwum z wybranego zakresu: '+range+'? Statystyki zostaną przeliczone. Tej operacji nie można cofnąć.'))return;
  var eventId=uid();
- try{var result=await realDB.ref().transaction(function(root){if(!root)return root;var count=0;Object.keys(root.archive||{}).forEach(function(id){if(root.archive[id].ts>=cut){delete root.archive[id];count++;}});root.statsDaily={};Object.values(root.archive||{}).forEach(function(o){statsContribution(root,o,1);});root.v4History=root.v4History||{};root.v4History[eventId]={ts:Date.now(),actor:actor(),device:DID,label:'Usunięcie archiwum: '+count+' rekordów ('+range+')',changes:[]};return root;},undefined,false);if(!result.committed)throw Error('Nie zatwierdzono usunięcia');remoteApply(function(){Object.keys(archive).forEach(function(id){if(archive[id].ts>=cut)delete archive[id];});});_statsCloud={};_genCache=null;var modal=document.getElementById('clearStatsModal');if(modal)modal.remove();renderStats();toast('Archiwum usunięte, statystyki przeliczone.');}catch(e){error.textContent=e.message;}
+ try{var arc=(await realDB.ref('archive').once('value')).val()||{},root={statsDaily:{}},upd={},count=0;Object.keys(arc).forEach(function(id){if(arc[id].ts>=cut){upd['archive/'+id]=null;count++;}else statsContribution(root,arc[id],1);});upd.statsDaily=root.statsDaily;upd['v4History/'+eventId]={ts:Date.now(),actor:actor(),device:DID,label:'Usunięcie archiwum: '+count+' rekordów ('+range+')',changes:[]};await realDB.ref().update(upd); // jedna atomowa aktualizacja wielu sciezek, bez pobierania calej bazy
+ remoteApply(function(){Object.keys(archive).forEach(function(id){if(archive[id].ts>=cut)delete archive[id];});});_statsCloud={};_genCache=null;var modal=document.getElementById('clearStatsModal');if(modal)modal.remove();renderStats();toast('Archiwum usunięte, statystyki przeliczone.');}catch(e){error.textContent=e.message;}
 };
 window.addEventListener('online',function(){if(!fbReady&&!_fbAuthInProgress&&getCfg())initFb(getCfg());else flush();});setInterval(flush,15000);
 window.addEventListener('error',function(e){if(e.error&&/quota|storage/i.test(e.error.name+' '+e.error.message)){_send=false;updSend();}});
