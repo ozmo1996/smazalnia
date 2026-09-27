@@ -1857,8 +1857,10 @@ function subAll(){
   // przez fbUpdateStock (echo suppression juz dziala per-sciezka przez _localEcho).
   fbDB.ref('stock').once('value').then(function(snap){
     var v=snap.val();
-    if(v){stock=v;ensureStock();saveStock();}
-    else{ensureStock();fbBg(fbDB.ref('stock').set(stock));} // inicjalizacja pustego stock
+    // Klucze w chmurze sa zakodowane (np. "Piwo 0_5l") — mapujemy je z powrotem na nazwy z menu,
+    // inaczej pozycje ze znakami . / # pokazywaly 0 zamiast stanu z chmury.
+    if(v){stock=stockFromCloud(v);ensureStock();saveStock();}
+    else{ensureStock();fbUpdateStock(null);} // inicjalizacja pustego stock
     if(curV==='w')renderStock();
   }).catch(function(){});
   // Zmiany przyrostowe po inicjalizacji
@@ -3751,19 +3753,61 @@ function getAllMenuItems(){
   return all;
 }
 
-// Bezpieczny klucz Firebase dla nazwy produktu (Firebase nie pozwala na . # $ / [ ] w kluczach)
-function encodeStockKey(name){return String(name).replace(/[.#$\[\]]/g,'_').slice(0,60)||'_';}
-// Aktualizuj stock w Firebase: per-pozycja (oszczednosc transferu).
-// Gdy names=null -> caly obiekt (reset, init). Gdy names=tablica -> tylko te pozycje.
-function fbUpdateStock(names){
+// Bezpieczny klucz Firebase dla nazwy produktu (Firebase nie pozwala na . # $ / [ ] w kluczach).
+// '/' tez musi byc zamieniony — inaczej "Frytki 1/2" tworzylo w chmurze zagniezdzony smiec.
+function encodeStockKey(name){return String(name).replace(/[.#$\/\[\]]/g,'_').slice(0,60)||'_';}
+// Zapisz w chmurze WARTOSCI BEZWZGLEDNE wybranych pol pozycji (reczne ustawienie stanu, reset).
+// names=null -> wszystkie pozycje menu. Zawsze osobne sciezki per pole z zakodowanym kluczem:
+// nigdy nie nadpisujemy calego wezla stock lokalna kopia (kasowaloby to sprzedaz z innych tabletow,
+// a nazwa z kropka, np. "Piwo 0.5l", powodowala blad zapisu calego magazynu).
+function fbUpdateStock(names,fields){
   if(!fbReady)return;
-  if(!names){
-    fbBg(fbDB.ref('stock').set(stock)); // reset/init - caly obiekt (jednorazowo)
-    return;
-  }
+  fields=fields||['init','current'];
+  if(!names)names=getAllMenuItems().map(function(it){return it.name;});
   var upd={};
-  names.forEach(function(n){if(stock[n])upd['stock/'+encodeStockKey(n)]=stock[n];});
+  names.forEach(function(n){
+    var s=stock[n];if(!s)return;
+    fields.forEach(function(f){upd['stock/'+encodeStockKey(n)+'/'+f]=s[f]===undefined?null:s[f];});
+  });
   if(Object.keys(upd).length)fbBg(fbDB.ref().update(upd));
+}
+// Zmien stan biezacy o roznice (name -> +/- sztuk). W chmurze ATOMOWY przyrost (increment):
+// dwa tablety sprzedajace jednoczesnie ten sam produkt odejma oba zamowienia. Wczesniej kazdy
+// zapisywal "moj stan minus moje sztuki", wiec jedna sprzedaz przepadala (ostatni zapis wygrywal).
+function stockAdjust(deltas){
+  ensureStock();
+  var upd={},changed=false;
+  Object.keys(deltas).forEach(function(n){
+    var d=+deltas[n]||0;
+    if(!d||!stock[n])return;
+    stock[n].current=(stock[n].current||0)+d;
+    upd['stock/'+encodeStockKey(n)+'/current']=d;
+    changed=true;
+  });
+  if(!changed)return;
+  saveStock();
+  if(fbReady){
+    try{
+      var inc=firebase.database.ServerValue.increment;
+      Object.keys(upd).forEach(function(p){upd[p]=inc(upd[p]);});
+      fbBg(fbDB.ref().update(upd));
+    }catch(e){console.warn('stockAdjust:',e);}
+  }
+  if(curV==='w')renderStock();
+}
+function _qtyByName(items,sign,acc){
+  acc=acc||{};
+  (items||[]).forEach(function(it){if(it&&it.name)acc[it.name]=(acc[it.name]||0)+sign*(+it.qty||0);});
+  return acc;
+}
+// Stan z chmury (klucze zakodowane) -> lokalny magazyn (klucze = nazwy z menu).
+function stockFromCloud(v){
+  var out={};
+  getAllMenuItems().forEach(function(it){
+    var rec=v[encodeStockKey(it.name)]||v[it.name];
+    if(rec&&typeof rec==='object')out[it.name]=rec;
+  });
+  return out;
 }
 function ensureStock(){
   // Upewnij sie ze kazda pozycja menu ma wpis w stock
@@ -3935,48 +3979,14 @@ function resetStock(){
   };
 }
 
-// Odejmij sprzedane przy zlozeniu zamowienia
-function deductStock(items){
-  ensureStock();
-  var changed=false;
-  items.forEach(function(it){
-    if(stock[it.name]){
-      // NIE obcinamy do zera. Gdyby obciac, sprzedaz ponad stan (czesta, gdy licznik
-      // nie jest na biezaco) gubilaby informacje o nadwyzce — a pozniejsze anulowanie
-      // tego zamowienia dopisywaloby do magazynu sztuki, ktorych nigdy nie bylo.
-      // Wartosc ujemna zyje tylko wewnetrznie; widok Magazynu i tak pokazuje min. 0.
-      stock[it.name].current=(stock[it.name].current||0)-it.qty;
-      changed=true;
-    }
-  });
-  if(changed){
-    saveStock();
-    var changedNames=items.map(function(it){return it.name;});
-    if(fbReady)fbUpdateStock(changedNames); // tylko zmienione pozycje (per-pozycja)
-    if(curV==='w')renderStock();
-  }
-}
-
-// Zwroc pozycje na stan (np. po anulowaniu zamowienia). Nie przekracza stanu poczatkowego.
-function restoreStock(items){
-  if(!items||!items.length)return;
-  ensureStock();
-  var changed=false;
-  items.forEach(function(it){
-    if(stock[it.name]){
-      var back=(stock[it.name].current||0)+it.qty;
-      var cap=stock[it.name].init||0;
-      stock[it.name].current=cap>0?Math.min(cap,back):back;
-      changed=true;
-    }
-  });
-  if(changed){
-    saveStock();
-    var restoredNames=items.map(function(it){return it.name;});
-    if(fbReady)fbUpdateStock(restoredNames); // tylko przywrocone pozycje
-    if(curV==='w')renderStock();
-  }
-}
+// Odejmij sprzedane przy zlozeniu zamowienia.
+// NIE obcinamy do zera: sprzedaz ponad stan zostaje jako wartosc ujemna (widok pokazuje min. 0),
+// dzieki czemu pozniejsze anulowanie zwraca dokladnie tyle, ile odjeto.
+function deductStock(items){stockAdjust(_qtyByName(items,-1));}
+// Zwroc pozycje na stan (anulowanie, edycja). Dokladnie tyle, ile odjeto — bez obcinania do
+// stanu poczatkowego: obcinanie psulo symetrie (np. po recznym przeliczeniu stanu w trakcie dnia
+// anulowane zamowienie nie wracalo na polke) i nie da sie go wykonac atomowo w chmurze.
+function restoreStock(items){if(items&&items.length)stockAdjust(_qtyByName(items,1));}
 
 function openEditOrder(id){
   var o=orders[id];
@@ -4328,7 +4338,7 @@ function saveSnapshot(label,ids,captureStock){
     arcPrev[id]=archive[id]?JSON.parse(JSON.stringify(archive[id])):null;
   });
   var snap={label:label,ids:ids,ordPrev:ordPrev,arcPrev:arcPrev,ts:Date.now()};
-  if(captureStock)snap.stock=JSON.parse(JSON.stringify(stock)); // pelny magazyn tylko dla akcji go zmieniajacych
+  if(captureStock)snap.stock=true; // akcja zmienia magazyn — cofniecie odwroci jej wplyw (roznica pozycji)
   _undoStack.push(snap);
   if(_undoStack.length>10)_undoStack.shift();
   showUndoBtn(label);
@@ -4355,6 +4365,9 @@ function undoLastAction(){
   }
   var snap=_undoStack.pop();
   var ids=snap.ids||[];
+  // Stan zamowien PO akcji (przed cofnieciem) — potrzebny do wyliczenia wplywu akcji na magazyn.
+  snap.ordCur={};
+  ids.forEach(function(id){var c=orders[id]||archive[id];snap.ordCur[id]=c?JSON.parse(JSON.stringify(c)):null;});
   // ZAMOWIENIA — przywracamy TYLKO dotkniete id (nie nadpisujemy calego wezla,
   // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
   ids.forEach(function(id){
@@ -4390,12 +4403,17 @@ function undoLastAction(){
     });
     saveArc();
   }
-  // MAGAZYN — pelny stan, ale tylko jesli akcja go zmieniala (tworzenie/anulowanie/dodanie)
+  // MAGAZYN — tylko jesli akcja go zmieniala (tworzenie/anulowanie/edycja/dodanie).
+  // Cofamy WYLACZNIE wplyw tej akcji: roznica pozycji zamowienia po i przed akcja.
+  // Wczesniej przywracano caly zapamietany magazyn, co kasowalo sprzedaz z innych tabletow
+  // (i z tego tabletu) dokonana od czasu akcji.
   if(snap.stock){
-    stock=snap.stock;
-    saveStock();
-    if(fbReady)fbUpdateStock(null); // cofniecie - zapisz caly stan
-    if(curV==='w')renderStock();
+    var sd={};
+    (snap.ids||[]).forEach(function(id){
+      _qtyByName(snap.ordCur&&snap.ordCur[id]?snap.ordCur[id].items:null,1,sd);   // zdejmij skutek stanu po akcji
+      _qtyByName(snap.ordPrev[id]?snap.ordPrev[id].items:null,-1,sd);             // przywroc skutek stanu sprzed akcji
+    });
+    stockAdjust(sd);
   }
   onDataImmediate();
   toast('Cofnieto: '+esc(snap.label),'#f5a623');
@@ -4597,7 +4615,7 @@ function resetSold(){
         stock[it.name].init=Math.max(0,Math.round(stock[it.name].current)||0);
       });
       saveStock();
-      if(fbReady)fbUpdateStock(null); // pelny reset sprzedazy
+      if(fbReady)fbUpdateStock(null,['init']); // tylko stan poczatkowy — nie nadpisuj biezacej sprzedazy z innych tabletow
       renderStock();
       toast('Sprzedaz zresetowana','#27ae60');
     };
