@@ -546,7 +546,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.46</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.47</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -1363,31 +1363,61 @@ function fetchArchiveRange(fromTs,toTs,cb,noLimit){
 // sprzedane pozycje i srednie czasy dla DOWOLNEGO okresu (nawet calej historii) laduja sie zawsze
 // w ulamku sekundy — niezaleznie od limitu 5 MB, ktory dotyczy tylko szczegolow.
 function statKey(name){return String(name).replace(/[.#$\/\[\]]/g,'_').slice(0,60)||'_';}
-function bumpDailyStats(o,sign){
-  if(!fbReady||!fbDB||!o||!o.ts)return;
-  sign=sign||1;
+// ── Liczenie sum dziennych BEZ PODWOJEN ──
+// Wczesniej kazde "Wydane" dodawalo zamowienie do sum przyrostem (ServerValue.increment), ktory
+// nie jest idempotentny: gdy to samo zamowienie wydaly/zamknely dwa tablety (np. kuchnia i kelner,
+// albo automatyczne zamykanie o 23:00 na kazdym tablecie), przychod liczyl sie podwojnie.
+// Teraz dla kazdego zamowienia trzymamy w chmurze jego AKTUALNY wklad: statsCounted/{id}.
+// Zmiana wkladu idzie przez transakcje na tym jednym rekordzie, a do sum dnia dodajemy wylacznie
+// ROZNICE (nowy wklad - stary wklad). Drugi tablet robiacy to samo widzi juz zapisany wklad,
+// wiec roznica wynosi 0 — kazde zamowienie liczy sie dokladnie raz, rowniez przy edycji i anulowaniu.
+function _statEmoji(e){return (typeof e==='string'&&e.length<=16)?e:null;} // bez obrazkow base64
+function statsContrib(o){
+  if(!o||o.status!=='done'||!o.ts)return null;
+  var c={d:_dateKey(o.ts),rev:Math.round((+o.total||0)*100)/100,items:{}};
+  (o.items||[]).forEach(function(it){
+    var k=statKey(it.name),r=c.items[k]||(c.items[k]={n:it.name,q:0,r:0});
+    var e=_statEmoji(it.emoji);if(e)r.e=e;
+    r.q+=+it.qty||0;r.r=Math.round((r.r+(+it.price||0)*(+it.qty||0))*100)/100;
+  });
+  if(o.cookingTs&&o.doneTs&&o.doneTs>o.cookingTs){var f=Math.round((o.doneTs-o.cookingTs)/1000);if(f>0&&f<7200)c.fry=f;}
+  if(o.ts&&o.doneTs&&o.doneTs>o.ts){var s=Math.round((o.doneTs-o.ts)/60000);if(s>0&&s<480)c.srv=s;}
+  return c;
+}
+// Dopisz do `nums` przyrosty sum dnia (sciezka -> liczba) dla wkladu c pomnozonego przez sign,
+// a do `sets` nazwy/emoji pozycji.
+function _statsIncr(nums,sets,c,sign){
+  if(!c)return;
+  var b='statsDaily/'+c.d;
+  function add(p,v){if(v)nums[p]=(nums[p]||0)+v;}
+  add(b+'/rev',sign*(+c.rev||0));add(b+'/cnt',sign);
+  if(c.fry){add(b+'/frySum',sign*c.fry);add(b+'/fryCnt',sign);}
+  if(c.srv){add(b+'/srvSum',sign*c.srv);add(b+'/srvCnt',sign);}
+  Object.keys(c.items||{}).forEach(function(k){
+    var it=c.items[k];
+    add(b+'/items/'+k+'/q',sign*(+it.q||0));add(b+'/items/'+k+'/r',sign*(+it.r||0));
+    if(sign>0){sets[b+'/items/'+k+'/n']=it.n;if(it.e)sets[b+'/items/'+k+'/e']=it.e;}
+  });
+}
+// Uzgodnij wklad zamowienia `id` do sum dziennych: prev = stan przed zmiana, next = stan po zmianie
+// (null = zamowienie anulowane/usuniete ze statystyk).
+function statsSync(id,prev,next){
+  if(!fbReady||!fbDB||!id)return;
+  var nextC=statsContrib(next),oldC=null;
   try{
-    var inc=firebase.database.ServerValue.increment;
-    var b='statsDaily/'+_dateKey(o.ts),upd={};
-    upd[b+'/rev']=inc(sign*(+o.total||0));
-    upd[b+'/cnt']=inc(sign);
-    (o.items||[]).forEach(function(it){
-      var k=statKey(it.name);
-      upd[b+'/items/'+k+'/q']=inc(sign*(+it.qty||0));
-      upd[b+'/items/'+k+'/r']=inc(sign*((+it.price||0)*(+it.qty||0)));
-      upd[b+'/items/'+k+'/n']=it.name;
-      if(it.emoji!==undefined)upd[b+'/items/'+k+'/e']=it.emoji;
-    });
-    if(o.cookingTs&&o.doneTs&&o.doneTs>o.cookingTs){
-      var fs_=Math.round((o.doneTs-o.cookingTs)/1000);
-      if(fs_>0&&fs_<7200){upd[b+'/frySum']=inc(sign*fs_);upd[b+'/fryCnt']=inc(sign);}
-    }
-    if(o.ts&&o.doneTs&&o.doneTs>o.ts){
-      var sm=Math.round((o.doneTs-o.ts)/60000);
-      if(sm>0&&sm<480){upd[b+'/srvSum']=inc(sign*sm);upd[b+'/srvCnt']=inc(sign);}
-    }
-    fbBg(fbDB.ref().update(upd));
-  }catch(e){}
+    fbDB.ref('statsCounted/'+id).transaction(function(cur){
+      // Brak zapisanego wkladu, a zamowienie bylo juz wydane = policzyla je poprzednia wersja
+      // aplikacji (bez statsCounted) — przyjmij, ze jego wklad to stan sprzed zmiany.
+      oldC=(cur!=null)?cur:statsContrib(prev);
+      return nextC; // null usuwa rekord
+    },undefined,false).then(function(r){
+      if(!r.committed||stableStr(oldC)===stableStr(nextC))return;
+      var nums={},upd={},inc=firebase.database.ServerValue.increment;
+      _statsIncr(nums,upd,oldC,-1);_statsIncr(nums,upd,nextC,1);
+      Object.keys(nums).forEach(function(p){var v=Math.round(nums[p]*100)/100;if(v)upd[p]=inc(v);});
+      if(Object.keys(upd).length)return fbDB.ref().update(upd);
+    }).then(function(){_genCache=null;_wkdayCache=null;}).catch(function(e){console.warn('statsSync:',e);});
+  }catch(e){console.warn('statsSync:',e);}
 }
 // Pobierz dzienne sumy dla zakresu dat (klucze RRRR-MM-DD sortuja sie naturalnie — bez indeksu).
 function fetchDailyStats(fromTs,toTs,cb){
@@ -1436,14 +1466,18 @@ function rebuildDailyStats(){
   toast('Pobieranie pelnej historii...','#1278a8');
   fetchArchiveRange(null,null,function(err,data){
     if(err){toast('Blad pobierania historii','#e85c3a');return;}
-    var byDay={};
+    var byDay={},counted={};
     Object.keys(data||{}).forEach(function(k){
       var o=data[k];
-      if(o&&o.status==='done'&&o.ts)(byDay[_dateKey(o.ts)]||(byDay[_dateKey(o.ts)]=[])).push(o);
+      if(o&&o.status==='done'&&o.ts){
+        (byDay[_dateKey(o.ts)]||(byDay[_dateKey(o.ts)]=[])).push(o);
+        counted[k]=statsContrib(o); // wklad kazdego zamowienia — kolejne zmiany licza sie od niego
+      }
     });
     var days={};
     Object.keys(byDay).forEach(function(d){days[d]=buildAggFromOrders(byDay[d]);});
-    fbBg(fbDB.ref('statsDaily').set(days));
+    // Jedna atomowa aktualizacja: sumy dni i wklady zamowien zawsze do siebie pasuja.
+    fbBg(fbDB.ref().update({statsDaily:days,statsCounted:counted}));
     _genCache=null;
     toast('Przeliczono '+Object.keys(days).length+' dni','#27ae60');
     loadGeneralStats();
@@ -1784,6 +1818,7 @@ function subAll(){
     savePending();
     purgeEmptyOrders();
     autoClearOldOrders();
+    pushSessionArchive();
     onData();
   },3000);
 
@@ -1822,8 +1857,10 @@ function subAll(){
   // przez fbUpdateStock (echo suppression juz dziala per-sciezka przez _localEcho).
   fbDB.ref('stock').once('value').then(function(snap){
     var v=snap.val();
-    if(v){stock=v;ensureStock();saveStock();}
-    else{ensureStock();fbBg(fbDB.ref('stock').set(stock));} // inicjalizacja pustego stock
+    // Klucze w chmurze sa zakodowane (np. "Piwo 0_5l") — mapujemy je z powrotem na nazwy z menu,
+    // inaczej pozycje ze znakami . / # pokazywaly 0 zamiast stanu z chmury.
+    if(v){stock=stockFromCloud(v);ensureStock();saveStock();}
+    else{ensureStock();fbUpdateStock(null);} // inicjalizacja pustego stock
     if(curV==='w')renderStock();
   }).catch(function(){});
   // Zmiany przyrostowe po inicjalizacji
@@ -1877,22 +1914,11 @@ function subAll(){
     if(curV==='b')renderBar();
   });
 
-  // Powrót internetu - dopisz tylko ŚWIEŻE lokalne do chmury (nie stare zalegające).
-  _fbOnlineHandler=function(){
-    if(!fbReady||!fbAuthReady)return;
-    toast('Internet — synchronizacja...','#27ae60');
-    // Aktywne zamowienia: dopisz brakujace (to swieze dane, bezpieczne)
-    fbDB.ref('orders').once('value').then(function(snap){
-      var fbOrders=snap.val()||{};
-      // Dopisz WYLACZNIE zamowienia oznaczone jako niewyslane (pending).
-      // Bez tego zamowienia usuniete na innym urzadzeniu wracalyby do chmury.
-      Object.keys(orders).forEach(function(k){
-        if(!fbOrders[k] && _pendingOrders[k])fbPushOrder(k);
-      });
-    });
-    // Archiwum: chmura jest NADRZEDNA. Dopisujemy WYLACZNIE wpisy wydane w tej sesji
-    // (nowsze niz start aplikacji). Porownujemy tylko z OKNEM 24h — swieze wpisy sesji
-    // zawsze sie w nim mieszcza, a nie sciagamy niepotrzebnie pelnej historii.
+  // Archiwum: chmura jest NADRZEDNA. Dopisujemy WYLACZNIE wpisy wydane w tej sesji
+  // (nowsze niz start aplikacji), ktorych brakuje w chmurze — np. wydane bez internetu.
+  // Wywolywane po powrocie internetu ORAZ po polaczeniu z chmura: tablet uruchomiony bez
+  // internetu nie dostaje pozniej zdarzenia 'online', wiec jego wydania nie trafialy do chmury.
+  function pushSessionArchive(){
     fbDB.ref('archive').orderByChild('ts').startAt(arcWindowCutoff()).once('value').then(function(snap){
       var fbArc=snap.val()||{};
       var missing={};
@@ -1906,11 +1932,27 @@ function subAll(){
           var _mo={}; for(var _mk in missing[k])_mo[_mk]=missing[k][_mk];
           _mo.items=stripItemsForCloud(missing[k].items);
           markEcho('archive/'+k,missing[k]);fbBg(fbDB.ref('archive/'+k).set(_mo));
-          bumpDailyStats(missing[k]); // wydane OFFLINE — sumy nie zostaly jeszcze podbite
+          statsSync(k,null,missing[k]); // wydane OFFLINE — dolicz do sum (bez ryzyka podwojenia)
         });
         toast('Dopisano '+Object.keys(missing).length+' wpisow z tej sesji','#27ae60');
       }
     });
+  }
+
+  // Powrót internetu - dopisz tylko ŚWIEŻE lokalne do chmury (nie stare zalegające).
+  _fbOnlineHandler=function(){
+    if(!fbReady||!fbAuthReady)return;
+    toast('Internet — synchronizacja...','#27ae60');
+    // Aktywne zamowienia: dopisz brakujace (to swieze dane, bezpieczne)
+    fbDB.ref('orders').once('value').then(function(snap){
+      var fbOrders=snap.val()||{};
+      // Dopisz WYLACZNIE zamowienia oznaczone jako niewyslane (pending).
+      // Bez tego zamowienia usuniete na innym urzadzeniu wracalyby do chmury.
+      Object.keys(orders).forEach(function(k){
+        if(!fbOrders[k] && _pendingOrders[k])fbPushOrder(k);
+      });
+    });
+    pushSessionArchive();
     sendHeartbeat();
   };
   window.addEventListener('online',_fbOnlineHandler);
@@ -2601,6 +2643,9 @@ document.addEventListener('click',function(e){
   handleDataAction(btn);
 });
 function setStatus(id,status){
+  // Ten sam status ponownie (np. "Wydane" kliknięte na dwóch tabletach) — nic nie zmieniaj:
+  // inaczej nadpisalby sie czas wydania, a zamowienie trafiloby ponownie do archiwum.
+  if(orders[id]&&orders[id].status===status)return;
   var ts=Date.now(); // jeden wspolny timestamp dla lokalnego zapisu, archiwum i chmury
   if(orders[id])saveSnapshot('Status: '+(SL[status]||status),id);
   if(orders[id]){
@@ -2616,7 +2661,7 @@ function setStatus(id,status){
         _ao.items=stripItemsForCloud(orders[id].items);
         markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(_ao));
       }
-      bumpDailyStats(orders[id]); // statystyki ogolne: +przychod, +pozycje, +czasy
+      statsSync(id,null,orders[id]); // statystyki ogolne: +przychod, +pozycje, +czasy (raz na zamowienie)
     }
     saveOrds();onData();
   }
@@ -2981,15 +3026,20 @@ function confirmDeleteOrders(ids){
 function delOrder(id){
   saveSnapshot('Usunieto: '+(orders[id]?'Stolik '+orders[id].table:id),id);
   if(orders[id]){
-    var wasCounted=orders[id].status==='done'; // setStatus('done') juz podbil sumy
+    // Juz wydane = juz policzone w sumach (takze przez starsza wersje, bez statsCounted).
+    var statPrev=orders[id].status==='done'?JSON.parse(JSON.stringify(orders[id])):null;
     if(!orders[id].doneTs)orders[id].doneTs=Date.now();
+    // Usuniete zamowienie trafia do historii jako WYDANE. Wczesniej niewydane zamowienie
+    // bylo doliczane do sum ogolnych, ale w archiwum zostawalo z innym statusem, wiec
+    // szczegolowe statystyki (licza tylko 'done') go nie widzialy — obie sumy sie rozjezdzaly.
+    orders[id].status='done';
     archive[id]=orders[id];saveArc();
     if(fbReady){
       var _dao={}; for(var _k in orders[id])_dao[_k]=orders[id][_k];
       _dao.items=stripItemsForCloud(orders[id].items);
       markEcho('archive/'+id,orders[id]);fbBg(fbDB.ref('archive/'+id).set(_dao));
     }
-    if(!wasCounted)bumpDailyStats(orders[id]); // licz do obrotow tylko jesli jeszcze nie policzone
+    statsSync(id,statPrev,orders[id]); // juz policzone przy "Wydane" — wtedy roznica wynosi 0
   }
   delete orders[id];clearPending(id);
   saveOrds();
@@ -3007,7 +3057,7 @@ function cancelOrder(id){
   // Zamowienie juz WYDANE zostalo policzone w sumach dziennych i trafilo do archiwum
   // (zrodlo statystyk). Anulowanie musi cofnac oba, inaczej przychod zostaje na zawsze.
   if(cancelled&&cancelled.status==='done'){
-    bumpDailyStats(cancelled,-1);
+    statsSync(id,cancelled,null);
     if(archive[id]){delete archive[id];saveArc();}
     if(fbReady){markEcho('archive/'+id,null);fbBg(fbDB.ref('archive/'+id).remove());}
   }
@@ -3567,6 +3617,11 @@ function setSF(f){
 }
 // Granice czasowe dociagania dla biezacego filtra statystyk.
 // Zwraca null gdy okres miesci sie w lokalnym oknie 24h (godzina/dzis) — nic nie pobieramy.
+// Poczatek okresu "ostatnie N dni" liczony PELNYMI dniami kalendarzowymi (dzis + N-1 poprzednich,
+// od polnocy). Sumy ogolne (statsDaily) sa zapisywane per dzien, wiec szczegoly musza liczyc
+// tak samo — wczesniej "Tydzien" w szczegolach to bylo 7x24h od teraz, a w sumach ogolnych
+// 8 dni kalendarzowych, przez co te same statystyki pokazywaly rozne kwoty.
+function periodStart(days){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-(days-1));return d.getTime();}
 function statsFetchBounds(){
   var now=Date.now();
   if(sfilt==='yesterday'){
@@ -3575,8 +3630,8 @@ function statsFetchBounds(){
     var yt=new Date(y.getFullYear(),y.getMonth(),y.getDate(),23,59,59,999);
     return {from:yf.getTime(),to:yt.getTime()};
   }
-  if(sfilt==='week')return {from:now-7*24*3600*1000,to:null};
-  if(sfilt==='month')return {from:now-30*24*3600*1000,to:null};
+  if(sfilt==='week')return {from:periodStart(7),to:null};
+  if(sfilt==='month')return {from:periodStart(30),to:null};
   if(sfilt==='all')return {from:null,to:null};
   if(sfilt==='range'){
     var from=null,to=null;
@@ -3698,19 +3753,61 @@ function getAllMenuItems(){
   return all;
 }
 
-// Bezpieczny klucz Firebase dla nazwy produktu (Firebase nie pozwala na . # $ / [ ] w kluczach)
-function encodeStockKey(name){return String(name).replace(/[.#$\[\]]/g,'_').slice(0,60)||'_';}
-// Aktualizuj stock w Firebase: per-pozycja (oszczednosc transferu).
-// Gdy names=null -> caly obiekt (reset, init). Gdy names=tablica -> tylko te pozycje.
-function fbUpdateStock(names){
+// Bezpieczny klucz Firebase dla nazwy produktu (Firebase nie pozwala na . # $ / [ ] w kluczach).
+// '/' tez musi byc zamieniony — inaczej "Frytki 1/2" tworzylo w chmurze zagniezdzony smiec.
+function encodeStockKey(name){return String(name).replace(/[.#$\/\[\]]/g,'_').slice(0,60)||'_';}
+// Zapisz w chmurze WARTOSCI BEZWZGLEDNE wybranych pol pozycji (reczne ustawienie stanu, reset).
+// names=null -> wszystkie pozycje menu. Zawsze osobne sciezki per pole z zakodowanym kluczem:
+// nigdy nie nadpisujemy calego wezla stock lokalna kopia (kasowaloby to sprzedaz z innych tabletow,
+// a nazwa z kropka, np. "Piwo 0.5l", powodowala blad zapisu calego magazynu).
+function fbUpdateStock(names,fields){
   if(!fbReady)return;
-  if(!names){
-    fbBg(fbDB.ref('stock').set(stock)); // reset/init - caly obiekt (jednorazowo)
-    return;
-  }
+  fields=fields||['init','current'];
+  if(!names)names=getAllMenuItems().map(function(it){return it.name;});
   var upd={};
-  names.forEach(function(n){if(stock[n])upd['stock/'+encodeStockKey(n)]=stock[n];});
+  names.forEach(function(n){
+    var s=stock[n];if(!s)return;
+    fields.forEach(function(f){upd['stock/'+encodeStockKey(n)+'/'+f]=s[f]===undefined?null:s[f];});
+  });
   if(Object.keys(upd).length)fbBg(fbDB.ref().update(upd));
+}
+// Zmien stan biezacy o roznice (name -> +/- sztuk). W chmurze ATOMOWY przyrost (increment):
+// dwa tablety sprzedajace jednoczesnie ten sam produkt odejma oba zamowienia. Wczesniej kazdy
+// zapisywal "moj stan minus moje sztuki", wiec jedna sprzedaz przepadala (ostatni zapis wygrywal).
+function stockAdjust(deltas){
+  ensureStock();
+  var upd={},changed=false;
+  Object.keys(deltas).forEach(function(n){
+    var d=+deltas[n]||0;
+    if(!d||!stock[n])return;
+    stock[n].current=(stock[n].current||0)+d;
+    upd['stock/'+encodeStockKey(n)+'/current']=d;
+    changed=true;
+  });
+  if(!changed)return;
+  saveStock();
+  if(fbReady){
+    try{
+      var inc=firebase.database.ServerValue.increment;
+      Object.keys(upd).forEach(function(p){upd[p]=inc(upd[p]);});
+      fbBg(fbDB.ref().update(upd));
+    }catch(e){console.warn('stockAdjust:',e);}
+  }
+  if(curV==='w')renderStock();
+}
+function _qtyByName(items,sign,acc){
+  acc=acc||{};
+  (items||[]).forEach(function(it){if(it&&it.name)acc[it.name]=(acc[it.name]||0)+sign*(+it.qty||0);});
+  return acc;
+}
+// Stan z chmury (klucze zakodowane) -> lokalny magazyn (klucze = nazwy z menu).
+function stockFromCloud(v){
+  var out={};
+  getAllMenuItems().forEach(function(it){
+    var rec=v[encodeStockKey(it.name)]||v[it.name];
+    if(rec&&typeof rec==='object')out[it.name]=rec;
+  });
+  return out;
 }
 function ensureStock(){
   // Upewnij sie ze kazda pozycja menu ma wpis w stock
@@ -3882,48 +3979,14 @@ function resetStock(){
   };
 }
 
-// Odejmij sprzedane przy zlozeniu zamowienia
-function deductStock(items){
-  ensureStock();
-  var changed=false;
-  items.forEach(function(it){
-    if(stock[it.name]){
-      // NIE obcinamy do zera. Gdyby obciac, sprzedaz ponad stan (czesta, gdy licznik
-      // nie jest na biezaco) gubilaby informacje o nadwyzce — a pozniejsze anulowanie
-      // tego zamowienia dopisywaloby do magazynu sztuki, ktorych nigdy nie bylo.
-      // Wartosc ujemna zyje tylko wewnetrznie; widok Magazynu i tak pokazuje min. 0.
-      stock[it.name].current=(stock[it.name].current||0)-it.qty;
-      changed=true;
-    }
-  });
-  if(changed){
-    saveStock();
-    var changedNames=items.map(function(it){return it.name;});
-    if(fbReady)fbUpdateStock(changedNames); // tylko zmienione pozycje (per-pozycja)
-    if(curV==='w')renderStock();
-  }
-}
-
-// Zwroc pozycje na stan (np. po anulowaniu zamowienia). Nie przekracza stanu poczatkowego.
-function restoreStock(items){
-  if(!items||!items.length)return;
-  ensureStock();
-  var changed=false;
-  items.forEach(function(it){
-    if(stock[it.name]){
-      var back=(stock[it.name].current||0)+it.qty;
-      var cap=stock[it.name].init||0;
-      stock[it.name].current=cap>0?Math.min(cap,back):back;
-      changed=true;
-    }
-  });
-  if(changed){
-    saveStock();
-    var restoredNames=items.map(function(it){return it.name;});
-    if(fbReady)fbUpdateStock(restoredNames); // tylko przywrocone pozycje
-    if(curV==='w')renderStock();
-  }
-}
+// Odejmij sprzedane przy zlozeniu zamowienia.
+// NIE obcinamy do zera: sprzedaz ponad stan zostaje jako wartosc ujemna (widok pokazuje min. 0),
+// dzieki czemu pozniejsze anulowanie zwraca dokladnie tyle, ile odjeto.
+function deductStock(items){stockAdjust(_qtyByName(items,-1));}
+// Zwroc pozycje na stan (anulowanie, edycja). Dokladnie tyle, ile odjeto — bez obcinania do
+// stanu poczatkowego: obcinanie psulo symetrie (np. po recznym przeliczeniu stanu w trakcie dnia
+// anulowane zamowienie nie wracalo na polke) i nie da sie go wykonac atomowo w chmurze.
+function restoreStock(items){if(items&&items.length)stockAdjust(_qtyByName(items,1));}
 
 function openEditOrder(id){
   var o=orders[id];
@@ -4105,9 +4168,8 @@ function openEditOrder(id){
           if(!confirm('Nowa suma ('+newTotal.toFixed(2)+' zl) jest nizsza niz juz wplacona kwota ('+paidAmt.toFixed(2)+' zl).\nZamowienie zostanie oznaczone jako w pelni oplacone. Kontynuowac?'))return;
         }
 
-        // Cofnij stary wklad tego zamowienia do statystyk, jesli bylo juz wydane —
-        // inaczej edycja wydanego zamowienia rozjechalaby sumy dzienne.
-        if(wasDone)bumpDailyStats(ord,-1);
+        // Stan sprzed edycji — do uzgodnienia sum dziennych (stary wklad -> nowy wklad).
+        var statPrev=wasDone?JSON.parse(JSON.stringify(ord)):null;
 
         saveSnapshot('Edycja #'+ord.seq,id,true);
 
@@ -4165,7 +4227,7 @@ function openEditOrder(id){
             markEcho('archive/'+id,archive[id]||ord);
             fbBg(fbDB.ref('archive/'+id).update(cloudUpd));
           }
-          bumpDailyStats(ord,1);
+          statsSync(id,statPrev,ord); // do sum trafia tylko roznica starej i nowej kwoty
         }
 
         onData();
@@ -4276,7 +4338,7 @@ function saveSnapshot(label,ids,captureStock){
     arcPrev[id]=archive[id]?JSON.parse(JSON.stringify(archive[id])):null;
   });
   var snap={label:label,ids:ids,ordPrev:ordPrev,arcPrev:arcPrev,ts:Date.now()};
-  if(captureStock)snap.stock=JSON.parse(JSON.stringify(stock)); // pelny magazyn tylko dla akcji go zmieniajacych
+  if(captureStock)snap.stock=true; // akcja zmienia magazyn — cofniecie odwroci jej wplyw (roznica pozycji)
   _undoStack.push(snap);
   if(_undoStack.length>10)_undoStack.shift();
   showUndoBtn(label);
@@ -4303,6 +4365,9 @@ function undoLastAction(){
   }
   var snap=_undoStack.pop();
   var ids=snap.ids||[];
+  // Stan zamowien PO akcji (przed cofnieciem) — potrzebny do wyliczenia wplywu akcji na magazyn.
+  snap.ordCur={};
+  ids.forEach(function(id){var c=orders[id]||archive[id];snap.ordCur[id]=c?JSON.parse(JSON.stringify(c)):null;});
   // ZAMOWIENIA — przywracamy TYLKO dotkniete id (nie nadpisujemy calego wezla,
   // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
   ids.forEach(function(id){
@@ -4313,8 +4378,7 @@ function undoLastAction(){
     // cofniecie EDYCJI juz wydanego zamowienia (gdzie oba stany sa 'done',
     // ale roznia sie kwota — wczesniej statystyki zostawaly z nowa wartoscia).
     var curO=orders[id]||archive[id];
-    if(curO&&curO.status==='done')bumpDailyStats(curO,-1);
-    if(prev&&prev.status==='done')bumpDailyStats(prev,1);
+    statsSync(id,curO,prev);
     if(prev){
       orders[id]=prev;markPending(id);fbPushOrder(id);
     } else {
@@ -4339,12 +4403,17 @@ function undoLastAction(){
     });
     saveArc();
   }
-  // MAGAZYN — pelny stan, ale tylko jesli akcja go zmieniala (tworzenie/anulowanie/dodanie)
+  // MAGAZYN — tylko jesli akcja go zmieniala (tworzenie/anulowanie/edycja/dodanie).
+  // Cofamy WYLACZNIE wplyw tej akcji: roznica pozycji zamowienia po i przed akcja.
+  // Wczesniej przywracano caly zapamietany magazyn, co kasowalo sprzedaz z innych tabletow
+  // (i z tego tabletu) dokonana od czasu akcji.
   if(snap.stock){
-    stock=snap.stock;
-    saveStock();
-    if(fbReady)fbUpdateStock(null); // cofniecie - zapisz caly stan
-    if(curV==='w')renderStock();
+    var sd={};
+    (snap.ids||[]).forEach(function(id){
+      _qtyByName(snap.ordCur&&snap.ordCur[id]?snap.ordCur[id].items:null,1,sd);   // zdejmij skutek stanu po akcji
+      _qtyByName(snap.ordPrev[id]?snap.ordPrev[id].items:null,-1,sd);             // przywroc skutek stanu sprzed akcji
+    });
+    stockAdjust(sd);
   }
   onDataImmediate();
   toast('Cofnieto: '+esc(snap.label),'#f5a623');
@@ -4546,7 +4615,7 @@ function resetSold(){
         stock[it.name].init=Math.max(0,Math.round(stock[it.name].current)||0);
       });
       saveStock();
-      if(fbReady)fbUpdateStock(null); // pelny reset sprzedazy
+      if(fbReady)fbUpdateStock(null,['init']); // tylko stan poczatkowy — nie nadpisuj biezacej sprzedazy z innych tabletow
       renderStock();
       toast('Sprzedaz zresetowana','#27ae60');
     };
@@ -4843,8 +4912,8 @@ function _statsFilterMatch(o){
     var y=new Date();y.setDate(y.getDate()-1);
     return new Date(o.ts).toLocaleDateString('pl-PL')===y.toLocaleDateString('pl-PL');
   }
-  if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
-  if(sfilt==='month')return (now-o.ts)<30*24*3600*1000;
+  if(sfilt==='week')return o.ts>=periodStart(7);
+  if(sfilt==='month')return o.ts>=periodStart(30);
   if(sfilt==='range'){
     var d=new Date(o.ts),ok=true;
     if(sDateFrom){var from=new Date(sDateFrom);from.setHours(0,0,0,0);ok=ok&&d>=from;}
@@ -5682,8 +5751,8 @@ function renderStats(){
     if(sfilt==='hour')return (now-o.ts)<3600*1000;
     if(sfilt==='today')return new Date(o.ts).toLocaleDateString('pl-PL')===tod;
     if(sfilt==='yesterday')return new Date(o.ts).toLocaleDateString('pl-PL')===yest;
-    if(sfilt==='week')return (now-o.ts)<7*24*3600*1000;
-    if(sfilt==='month')return (now-o.ts)<30*24*3600*1000;
+    if(sfilt==='week')return o.ts>=periodStart(7);
+    if(sfilt==='month')return o.ts>=periodStart(30);
     if(sfilt==='range'){
       var d=new Date(o.ts);
       var ok=true;
@@ -6036,7 +6105,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.46',
+    v:'v3.47',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -6670,7 +6739,7 @@ function doClrOrders(){
 // Zamowienia, ktore zostaly zlozone ale nikt nie oznaczyl ich jako "Wydano" (np. zapomniano
 // kliknac), o godzinie 23:00 kazdego dnia sa automatycznie oznaczane jako wydane. Uzywamy do tego
 // TEJ SAMEJ funkcji setStatus('done'), ktorej uzywa recznie personel — dzieki temu zamowienie
-// trafia do archiwum I do statystyk (bumpDailyStats) dokladnie tak samo jak przy normalnym
+// trafia do archiwum I do statystyk (statsSync) dokladnie tak samo jak przy normalnym
 // wydaniu. To naprawia problem, w ktorym zamowienia niezamkniete do 6:00 byly po cichu
 // przenoszone do archiwum przez autoClearOldOrders() BEZ doliczenia ich do statystyk.
 var AUTOCLOSE_HOUR=23;
@@ -6730,9 +6799,8 @@ function autoClearOldOrders(){
     // Fallback: jeśli brak did (stara wersja <v3.37) → KAŻDY zapisuje do archive,
     // bo lepiej 3× ten sam wpis niż utrata danych.
     var isOwner=!o.did||!!_pendingOrders[id]||(o.did===DID);
-    // Sumy dzienne podbija wylacznie wlasciciel — inaczej kazdy tablet doliczylby
-    // ten sam przychod osobno (ServerValue.increment nie jest idempotentny).
-    if(!wasCounted&&isOwner)bumpDailyStats(o);
+    // Sumy dzienne uzgadnia wlasciciel (statsSync i tak liczy kazde zamowienie tylko raz).
+    if(!wasCounted&&isOwner)statsSync(id,null,o);
     archive[id]=o; // zachowaj lokalnie zawsze
     if(fbReady){
       if(isOwner){
@@ -6900,6 +6968,7 @@ function doClrStats(){
         if(fbReady){
           fbBg(fbDB.ref('archive').remove());
           fbBg(fbDB.ref('statsDaily').remove());
+          fbBg(fbDB.ref('statsCounted').remove());
           setTimeout(subArchiveWindow,800);
         }
       } else {
