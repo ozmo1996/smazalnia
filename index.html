@@ -187,7 +187,10 @@ body{font-family:'Nunito',sans-serif;background:var(--bg);color:#111;min-height:
 .tkt.tw.tr{background:#0d6b2a!important;}
 .tkt.tw .tktbl{color:#4ade80!important;}
 .tkh{padding:6px 9px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:2px 8px;background:rgba(0,0,0,.3);border-bottom:1px solid rgba(255,255,255,.06)}
-.tktbl{font-family:'Playfair Display',serif;color:#fff;font-size:1.1rem;font-weight:700;flex:1 1 auto;min-width:0}.tkm{text-align:right;margin-left:auto;flex-shrink:0}
+/* v3.45: numer stolika na bilecie kuchni/baru — Nunito zamiast Playfair Display.
+   W kroju szeryfowym cyfry 3 i 5 mialy bardzo podobny ksztalt i myliy sie na
+   dystans; bezszeryfowy Nunito 900 + lekkie rozstrzelenie sa czytelne z daleka. */
+.tktbl{font-family:'Nunito',sans-serif;color:#fff;font-size:1.22rem;font-weight:900;letter-spacing:.03em;font-variant-numeric:lining-nums tabular-nums;flex:1 1 auto;min-width:0}.tkm{text-align:right;margin-left:auto;flex-shrink:0}
 .tktmr{font-size:.97rem;font-weight:900}.tktmr.warm{color:var(--gr)}.tktmr.hot{color:var(--a)}.tktmr.over{color:var(--e)}
 .tkct{font-size:.75rem;font-weight:900;margin-top:1px;color:rgba(255,255,255,.7)}
 .tksc{color:rgba(255,255,255,.35);font-size:.71rem}
@@ -543,7 +546,7 @@ button:disabled{cursor:not-allowed}
 
 <div id="app" style="display:none">
 <header class="hdr">
-  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.43</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
+  <div class="logo"><span class="logo-f">&#x1F41F;</span><div class="logo-t">Smazalnia<br><em>Pstraga</em></div><span style="font-size:.6rem;color:rgba(255,255,255,.3);font-weight:700;margin-left:2px;align-self:flex-end;padding-bottom:2px;">v3.46</span><span id="vacCd" class="vac-cd" title="Do konca wakacji" style="display:none;"></span><span id="fbd" class="fbd" title="Status polaczenia"></span></div>
   <nav class="nav">
     <button class="nb on" id="nb-o" onclick="gv('o')">&#x1F6D2; Zamow</button>
     <button class="nb" id="nb-l" onclick="gv('l')">&#x1F4CB; Lista</button>
@@ -564,7 +567,7 @@ button:disabled{cursor:not-allowed}
   <div class="op">
     <div class="oph"><span class="opht">Zamowienie</span><span class="ophs" id="ophs">wybierz stolik</span></div>
     <div class="onr" style="display:flex;gap:8px;align-items:center;">
-      <input class="on2" id="onote" placeholder="Uwagi (np. bez osci...)" style="flex:1">
+      <input class="on2" id="onote" placeholder="Uwagi (np. bez osci...)" autocomplete="off" name="order-note" style="flex:1">
       <label id="wynos-lbl" style="display:flex;align-items:center;gap:5px;cursor:pointer;background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;white-space:nowrap;user-select:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;" onclick="toggleWynos()">
         <span id="wynos-icon" style="font-size:1.1rem;">&#x1F6CD;</span>
         <span style="color:rgba(255,255,255,.7);font-size:.78rem;font-weight:800;" id="wynos-txt">Na wynos</span>
@@ -703,6 +706,11 @@ button:disabled{cursor:not-allowed}
       <input type="checkbox" id="setVacCd">
       <span>&#x1F3D6;&#xFE0F; Pokaz licznik do konca wakacji przy logo</span>
     </label>
+    <div style="margin-top:8px;">
+      <label style="font-size:.8rem;color:rgba(255,255,255,.6);display:block;margin-bottom:4px;">Data i godzina, do ktorej liczy licznik:</label>
+      <input type="datetime-local" id="setVacDate" step="1" style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;">
+      <div class="set-hint">Domyslnie 31 sierpnia biezacego roku, 23:59:59. Zmien wedlug wlasnego terminu — po zapisaniu licznik bedzie odliczal do podanej chwili.</div>
+    </div>
 
     <button class="set-save" onclick="saveSettingsFromUI()">&#x1F4BE; Zapisz ustawienia</button>
   </div>
@@ -843,7 +851,23 @@ function sha256(msg){
 }
 
 function lsGet(k){try{return localStorage.getItem(lsKey(k));}catch(e){return null;}}
-function lsSet(k,v){try{localStorage.setItem(lsKey(k),v);}catch(e){}}
+// Zapis do localStorage. Przepelnienie pamieci (QuotaExceededError) bylo dotad polykane
+// po cichu — zamowienia przestawaly zapisywac sie lokalnie bez zadnego sygnalu, co przy
+// pracy offline oznacza realna utrate danych. Teraz ostrzegamy (raz na sesje, bez spamu).
+var _lsQuotaWarned=false;
+function lsSet(k,v){
+  try{localStorage.setItem(lsKey(k),v);}
+  catch(e){
+    var isQuota=e&&(e.name==='QuotaExceededError'||e.name==='NS_ERROR_DOM_QUOTA_REACHED'||e.code===22||e.code===1014);
+    if(isQuota&&!_lsQuotaWarned){
+      _lsQuotaWarned=true;
+      console.warn('localStorage pelny — zapis lokalny nieudany:',k);
+      try{setTimeout(function(){
+        toast('\u26A0\uFE0F Pamiec urzadzenia pelna — dane zapisuja sie tylko w chmurze. Wyczysc stare statystyki.','#e85c3a');
+      },0);}catch(e2){}
+    }
+  }
+}
 function cloneObj(o){return JSON.parse(JSON.stringify(o));}
 function safeObj(v){return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}
 function readObj(k){try{var r=lsGet(k);return r?safeObj(JSON.parse(r)):{};}catch(e){return {};}}
@@ -996,6 +1020,13 @@ var archive={};
 // Automatycznie synchronizujemy z chmura TYLKO wpisy z ostatnich 24h (male, swieze okno).
 // Starsze okresy pobieraja sie na zadanie w Statystykach (przycisk "Pokaz statystyki").
 var _statsCloud={};                       // dane pobrane na zadanie do statystyk — TYLKO w pamieci, nie zapisywane
+var _dayRankCache=null;                   // bufor rankingu dni (dayAgg/dayKeys) do okienka showDayRankingModal
+var _wkdayCache=null;                     // bufor sredniej sprzedazy wg dnia tygodnia (cala historia)
+var _statSubTab='overview';               // podzakladka Statystyk: 'overview' | 'calendar'
+var _calMonth=null;                       // wybrany miesiac kalendarza, format 'RRRR-MM' (domyslnie biezacy)
+var _calMetric='rev';                     // metryka kalendarza: 'rev' (przychod), 'cnt' (zamowienia), 'items' (suma wybranych pozycji)
+var _calItemKeys=[];                      // klucze pozycji zliczanych razem, gdy _calMetric==='items'
+var _calCache=null;                       // {month, days} — bufor pobranych statsDaily dla wyswietlanego miesiaca
 var ARC_WINDOW_MS=8*3600*1000;            // szerokosc automatycznego okna archiwum (8h = czas pracy restauracji)
 var _arcWindowStart=0;                    // poczatek biezacego okna (ts)
 var _arcQuery=null;                       // aktywne zapytanie nasluchu archiwum (do odpinania)
@@ -1024,7 +1055,7 @@ var _lth=0;
 var _la=0;
 
 // ── USTAWIENIA APLIKACJI ──
-var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null,vacationCountdown:true};
+var SETTINGS_DEF={czkRate:6.2,confirmDelete:true,lowStockPct:20,startView:'o',countItems:null,brandLine1:'Smazalnia',brandLine2:'Pstraga',brandLogo:'\uD83D\uDC1F',customEmojis:[],holdMs:100,requireTable:true,countSides:null,countOrder:null,vacationCountdown:true,vacationEndDate:null,calGroups:[]};
 var appSettings=loadSettings();
 function loadSettings(){
   var s=cloneObj(SETTINGS_DEF);
@@ -1088,11 +1119,19 @@ function applyProfileUI(){
 // ── LICZNIK DO KONCA WAKACJI (przy logo) ──
 var _vacCdTimer=null;
 function vacationEndDate(){
+  if(appSettings&&appSettings.vacationEndDate){
+    var custom=new Date(appSettings.vacationEndDate);
+    if(!isNaN(custom.getTime()))return custom;
+  }
   var now=new Date();
   var y=now.getFullYear();
   var end=new Date(y,7,31,23,59,59,0); // 31 sierpnia, 23:59:59
   if(now.getTime()>end.getTime()){end=new Date(y+1,7,31,23,59,59,0);}
   return end;
+}
+function pad2(n){return (n<10?'0':'')+n;}
+function dateToLocalInputVal(d){
+  return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())+'T'+pad2(d.getHours())+':'+pad2(d.getMinutes())+':'+pad2(d.getSeconds());
 }
 function tickVacationCountdown(){
   var el=document.getElementById('vacCd');if(!el)return;
@@ -1701,6 +1740,15 @@ function subAll(){
     // Przywroc emoji base64 z lokalnego menu jeśli byly zastapione przez "__img__"
     if(val.items)val.items=restoreItemsEmoji(val.items);
     orders[id]=val;
+    // Numeracja zamowien (seq) jest liczona lokalnie na kazdym urzadzeniu, wiec dwa
+    // urzadzenia moglyby wystawic dwa zamowienia z tym samym numerem. Gdy widzimy
+    // zamowienie z chmury o numerze >= naszego licznika, przesuwamy licznik nad nie —
+    // numery zbiegaja sie same, bez dodatkowej komunikacji.
+    var rs=parseInt(val.seq,10);
+    if(!isNaN(rs)&&rs>=ordSeq){
+      ordSeq=rs+1;
+      lsSet('sp_seq',ordSeq);
+    }
   }
   ordRef.on('child_added',function(snap){
     var id=snap.key;
@@ -2581,9 +2629,11 @@ function setStatus(id,status){
   }
 }
 function setPaidGroup(mainId,ids){
-  // Jeden modal dla calej grupy
+  // Jeden modal dla calej grupy — kwota to TYLKO to, co jeszcze zostalo do zaplaty
+  // (jesli wczesniej zarejestrowano czesciowe wplaty przez "Podziel rachunek", ich
+  // kwota jest juz odjeta od sumy ponizej — nie placi sie dwa razy za to samo).
   var o=orders[mainId];if(!o)return;
-  var total=ids.reduce(function(s,id){return s+(orders[id]?orders[id].total||0:0);},0);
+  var total=ids.reduce(function(s,id){var ord=orders[id];if(!ord)return s;return s+Math.max(0,(ord.total||0)-(ord.paidAmt||0));},0);
   var rate=getCZK();
   var czkTotal=Math.round(total*rate);
 
@@ -2608,7 +2658,7 @@ function setPaidGroup(mainId,ids){
     ids.forEach(function(id){
       if(!orders[id])return;
       var czkAmt=currency==='CZK'?Math.round((orders[id].total||0)*rate):0;
-      var upd={paid:true,currency:currency,czkAmount:czkAmt,czkRate:currency==='CZK'?rate:0};
+      var upd={paid:true,currency:currency,czkAmount:czkAmt,czkRate:currency==='CZK'?rate:0,paidAmt:orders[id].total||0};
       Object.assign(orders[id],upd);
       markEcho('orders/'+id,orders[id]);
       if(fbReady)fbBg(fbDB.ref('orders/'+id).update(upd));
@@ -2632,6 +2682,226 @@ function setPaidGroup(mainId,ids){
   document.getElementById('spg_CZK').onclick=function(){
     showChangeModal(total,'CZK',rate,function(){doPay('CZK');});
   };
+}
+
+// ── PODZIAL RACHUNKU (czesciowe wplaty, gdy kilka osob placi osobno) ──
+// Kazde zamowienie moze miec pole paidAmt = ile PLN juz na nie wplacono czesciowo.
+// Gdy paidAmt osiaga pelna wartosc total, zamowienie oznaczane jest jako paid=true
+// (dokladnie tak samo jak przy zwyklym "Oplacono"). Dzieki temu w kazdej chwili widac
+// ile z rachunku zostalo juz zaplacone, a ile jeszcze zostalo — niezaleznie od tego,
+// ile osob placi i w ilu ratach.
+function registerSplitPayment(table,amtPLN,currency,rate){
+  var ordsArr=Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
+    .sort(function(a,b){return a.ts-b.ts;});
+  var left=amtPLN;
+  saveSnapshot('Wplata czesciowa: '+tlabel(table),ordsArr.map(function(o){return o.id;}));
+  for(var i=0;i<ordsArr.length&&left>0.004;i++){
+    var o=ordsArr[i];
+    var remain=Math.max(0,(o.total||0)-(o.paidAmt||0));
+    if(remain<=0.004)continue;
+    var take=Math.min(remain,left);
+    var newPaidAmt=Math.round(((o.paidAmt||0)+take)*100)/100;
+    // Koncowka groszowa: przy podziale 1/N kwoty niepodzielnej (np. 100 zl / 3 = 33,33)
+    // zostawaloby 1 gr i rachunek nigdy by sie nie domknal. Reszte ponizej 5 gr
+    // traktujemy jako zaplacona — to ponizej najmniejszej realnie uzywanej monety.
+    if((o.total||0)-newPaidAmt<0.05)newPaidAmt=o.total||0;
+    var upd={paidAmt:newPaidAmt};
+    if(newPaidAmt>=(o.total||0)-0.004){
+      upd.paid=true;
+      upd.currency=currency;
+      upd.czkAmount=currency==='CZK'?Math.round((o.total||0)*rate):0;
+      upd.czkRate=currency==='CZK'?rate:0;
+    }
+    Object.assign(orders[o.id],upd);
+    markEcho('orders/'+o.id,orders[o.id]);
+    if(fbReady)fbBg(fbDB.ref('orders/'+o.id).update(upd));
+    if(archive[o.id]){
+      Object.assign(archive[o.id],upd);
+      if(fbReady){markEcho('archive/'+o.id,archive[o.id]);fbBg(fbDB.ref('archive/'+o.id).update(upd));}
+    }
+    left-=take;
+  }
+  saveOrds();saveArc();onDataImmediate();
+}
+
+// Oznacza KONKRETNE pozycje (np. "3 zestawy") jako juz opłacone na poziomie pojedynczych
+// sztuk (pole it.pq = ile sztuk danej pozycji juz rozliczono w ramach podzialu rachunku).
+// Dzieki temu przy kolejnym otwarciu okna "Podziel" te sztuki znikaja z listy do wyboru —
+// nie da sie ich przypadkiem oznaczyc do zaplaty po raz drugi.
+function markItemsPaid(table,selMap){
+  var need={};
+  for(var k in selMap){if(selMap[k]>0)need[k]=selMap[k];}
+  if(!Object.keys(need).length)return;
+  var ordsArr=Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
+    .sort(function(a,b){return a.ts-b.ts;});
+  ordsArr.forEach(function(o){
+    var changed=false;
+    (o.items||[]).forEach(function(it){
+      var k=it.name+'|'+(!!it.wynos);
+      if(need[k]>0){
+        var avail=Math.max(0,(it.qty||0)-(it.pq||0));
+        var take=Math.min(avail,need[k]);
+        if(take>0){
+          it.pq=(it.pq||0)+take;
+          need[k]-=take;
+          changed=true;
+        }
+      }
+    });
+    if(changed){
+      var newItems=stripItemsForCloud(o.items);
+      var upd={items:newItems};
+      markEcho('orders/'+o.id,orders[o.id]);
+      if(fbReady)fbBg(fbDB.ref('orders/'+o.id).update(upd));
+      if(archive[o.id]){
+        archive[o.id].items=newItems;
+        if(fbReady){markEcho('archive/'+o.id,archive[o.id]);fbBg(fbDB.ref('archive/'+o.id).update({items:newItems}));}
+      }
+    }
+  });
+  saveOrds();saveArc();
+}
+
+function openSplitBill(table){
+  function liveUnpaidOrders(){
+    return Object.values(orders).filter(function(o){return String(o.table)===String(table)&&o.paid===false;})
+      .sort(function(a,b){return a.ts-b.ts;});
+  }
+  function remainingTotal(ordsArr){
+    return ordsArr.reduce(function(s,o){return s+Math.max(0,(o.total||0)-(o.paidAmt||0));},0);
+  }
+  function itemKey(it){return it.name+'|'+(!!it.wynos);}
+  // Agreguje pozycje ze wszystkich nieoplaconych zamowien stolika, ale liczy TYLKO
+  // sztuki jeszcze nie oznaczone jako oplacone (qty - pq). Pozycje w calosci juz
+  // rozliczone (np. 1 z 3 zestawow oplacony wczesniej) pokazuja pozostala ilosc,
+  // a gdy caly item jest juz oplacony — znika z listy do wyboru.
+  function aggItems(ordsArr){
+    var out=[];
+    ordsArr.forEach(function(o){
+      (o.items||[]).forEach(function(it){
+        var remQty=Math.max(0,(it.qty||0)-(it.pq||0));
+        if(remQty<=0)return;
+        var k=itemKey(it),found=null;
+        for(var i=0;i<out.length;i++){if(itemKey(out[i])===k){found=out[i];break;}}
+        if(found){found.qty+=remQty;found.origQty+=(it.qty||0);}
+        else out.push({name:it.name,emoji:it.emoji,price:it.price,qty:remQty,origQty:(it.qty||0),wynos:!!it.wynos});
+      });
+    });
+    return out;
+  }
+
+  var m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;';
+  document.body.appendChild(m);
+
+  var rate=getCZK();
+  var sel={}; // itemKey -> wybrana ilosc dla tej wplaty
+  var curItems=[];
+
+  function selAmount(){
+    var s=0;
+    for(var k in sel){
+      var qty=sel[k];if(!qty)continue;
+      for(var i=0;i<curItems.length;i++){if(itemKey(curItems[i])===k){s+=curItems[i].price*qty;break;}}
+    }
+    return s;
+  }
+
+  function render(){
+    var ordsArr=liveUnpaidOrders();
+    if(!ordsArr.length){
+      m.remove();
+      toast('Caly rachunek juz oplacony!','#27ae60');
+      renderList();
+      return;
+    }
+    curItems=aggItems(ordsArr);
+    var remain=remainingTotal(ordsArr);
+    var selAmt=selAmount();
+
+    var rows=curItems.map(function(it){
+      var k=itemKey(it);
+      var cur=sel[k]||0;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.08);">'+
+        '<span style="font-size:1.1rem;">'+emo(it.emoji,'1.1rem')+'</span>'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div style="color:#fff;font-size:.85rem;font-weight:700;">'+esc(it.name)+(it.wynos?' <span style="color:var(--a);font-size:.65rem;">(na wynos)</span>':'')+'</div>'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.7rem;">'+(+it.price).toFixed(2)+' zl/szt &bull; '+(it.qty!==it.origQty?'pozostalo '+it.qty+' z '+it.origQty+' szt.':'razem '+it.qty+' szt.')+'</div>'+
+        '</div>'+
+        '<button class="spstep" data-k="'+esc(k)+'" data-d="-1" style="width:30px;height:30px;border-radius:8px;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:1.1rem;font-weight:900;touch-action:manipulation;">-</button>'+
+        '<span style="min-width:22px;text-align:center;color:#e7c06b;font-weight:900;">'+cur+'</span>'+
+        '<button class="spstep" data-k="'+esc(k)+'" data-d="1" style="width:30px;height:30px;border-radius:8px;border:none;background:rgba(255,255,255,.12);color:#fff;font-size:1.1rem;font-weight:900;touch-action:manipulation;">+</button>'+
+      '</div>';
+    }).join('');
+
+    m.innerHTML=
+      '<div style="background:#132430;border-radius:16px;padding:20px;max-width:380px;width:100%;max-height:88vh;overflow:auto;">'+
+        '<div style="font-family:\'Playfair Display\',serif;font-size:1.15rem;font-weight:700;color:#fff;margin-bottom:2px;">&#x1F9FE; Podziel rachunek &mdash; '+tlabel(table)+'</div>'+
+        '<div style="color:rgba(255,255,255,.55);font-size:.78rem;margin-bottom:14px;">Pozostalo do zaplaty: <b style="color:#ffb1a1;">'+remain.toFixed(2)+' zl</b></div>'+
+        '<div style="color:rgba(255,255,255,.7);font-size:.75rem;font-weight:700;margin-bottom:4px;">Zaznacz co placi ta osoba (kalkulator kwoty):</div>'+
+        '<div id="spItems">'+rows+'</div>'+
+        '<div style="margin:12px 0;padding:10px;background:rgba(255,255,255,.05);border-radius:10px;text-align:center;">'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.68rem;">Kwota tej wplaty (zl)</div>'+
+          '<input id="spAmt" type="number" step="0.01" min="0" value="'+selAmt.toFixed(2)+'" style="width:100%;text-align:center;background:transparent;border:none;color:#e7c06b;font-size:1.6rem;font-weight:900;font-family:Nunito,sans-serif;outline:none;">'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">'+
+          '<input id="spN" type="number" min="2" step="1" placeholder="podziel po rowno na ilu?" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.8rem;">'+
+          '<button id="spEq" style="padding:8px 12px;border-radius:8px;border:none;background:rgba(231,192,107,.18);color:#e7c06b;font-weight:800;font-size:.75rem;white-space:nowrap;touch-action:manipulation;">1 / N</button>'+
+        '</div>'+
+        '<div style="display:flex;gap:8px;margin-bottom:8px;">'+
+          '<button id="spPLN" style="flex:1;padding:12px;border-radius:10px;border:2px solid #27ae60;background:#f0fff4;color:#27ae60;font-weight:900;touch-action:manipulation;">&#x1F1F5;&#x1F1F1; PLN</button>'+
+          '<button id="spCZK" style="flex:1;padding:12px;border-radius:10px;border:2px solid #1278a8;background:#f0f8ff;color:#1278a8;font-weight:900;touch-action:manipulation;">&#x1F1E8;&#x1F1FF; CZK</button>'+
+        '</div>'+
+        '<button id="spClose" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.6);font-weight:700;touch-action:manipulation;">Zamknij</button>'+
+      '</div>';
+
+    Array.prototype.forEach.call(m.querySelectorAll('.spstep'),function(btn){
+      btn.onclick=function(){
+        var k=btn.getAttribute('data-k');
+        var d=parseInt(btn.getAttribute('data-d'),10);
+        var item=null;
+        for(var i=0;i<curItems.length;i++){if(itemKey(curItems[i])===k){item=curItems[i];break;}}
+        if(!item)return;
+        var cur=sel[k]||0;
+        cur=Math.max(0,Math.min(item.qty,cur+d));
+        sel[k]=cur;
+        render();
+      };
+    });
+
+    document.getElementById('spEq').onclick=function(){
+      var n=parseInt(document.getElementById('spN').value,10)||0;
+      if(n<2){toast('Podaj liczbe osob (min. 2)','#f5a623');return;}
+      var amt=remain/n;
+      document.getElementById('spAmt').value=amt.toFixed(2);
+    };
+
+    document.getElementById('spClose').onclick=function(){m.remove();};
+
+    function doConfirm(currency){
+      var amt=parseFloat(document.getElementById('spAmt').value)||0;
+      if(amt<=0){toast('Podaj kwote wplaty','#f5a623');return;}
+      if(amt>remain+0.01){toast('Kwota wieksza niz pozostalo do zaplaty','#f5a623');return;}
+      var selSnapshot={};for(var k in sel)selSnapshot[k]=sel[k];
+      // Pozycje oznaczamy jako oplacone TYLKO gdy wplacana kwota faktycznie im odpowiada.
+      // Jesli kelner zmienil kwote recznie albo uzyl "1/N", zaznaczenie przestaje pasowac
+      // do platnosci — wtedy liczymy sama kwote, a sztuki zostaja dostepne dla innych osob.
+      var selAmtNow=selAmount();
+      var itemsMatchAmount=(selAmtNow>0&&Math.abs(selAmtNow-amt)<0.01);
+      showChangeModal(amt,currency,rate,function(){
+        registerSplitPayment(table,amt,currency,rate);
+        if(itemsMatchAmount)markItemsPaid(table,selSnapshot);
+        sel={};
+        toast('Wplata zarejestrowana: '+(currency==='CZK'?Math.round(amt*rate)+' CZK':amt.toFixed(2)+' zl'),'#27ae60');
+        render();
+      });
+    }
+    document.getElementById('spPLN').onclick=function(){doConfirm('PLN');};
+    document.getElementById('spCZK').onclick=function(){doConfirm('CZK');};
+  }
+
+  render();
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
 }
 
 function setPaid(id){
@@ -2734,6 +3004,13 @@ function cancelOrder(id){
   var cancelled=orders[id];
   // Zwroc pozycje na stan (zamowienie odjelo je przy zlozeniu)
   if(cancelled&&cancelled.items)restoreStock(cancelled.items);
+  // Zamowienie juz WYDANE zostalo policzone w sumach dziennych i trafilo do archiwum
+  // (zrodlo statystyk). Anulowanie musi cofnac oba, inaczej przychod zostaje na zawsze.
+  if(cancelled&&cancelled.status==='done'){
+    bumpDailyStats(cancelled,-1);
+    if(archive[id]){delete archive[id];saveArc();}
+    if(fbReady){markEcho('archive/'+id,null);fbBg(fbDB.ref('archive/'+id).remove());}
+  }
   delete orders[id];clearPending(id);saveOrds();onDataImmediate();
   if(fbReady){
     markEcho('orders/'+id,null);
@@ -2771,19 +3048,25 @@ function renderList(){
 
   if(!arr.length){el.innerHTML='<div class="ni">'+(q?'Brak wynikow dla "'+esc(q)+'"':'Brak zamowien')+'</div>';return;}
 
-  // Grupuj zamówienia z tego samego stolika, dopoki sa niewydane (bez wzgledu na odstep czasu
-  // miedzy nimi — dosiadanie sie do stolika po 20-30 min tez ma zostac polaczone w jedna pozycje).
+  // Grupuj zamówienia z tego samego stolika — dopoki sa NIEOPLACONE (bez wzgledu na
+  // odstep czasu miedzy nimi — dosiadanie sie do stolika po 20-30 min, czy dodatkowe
+  // zamowienie po tym jak poprzednie zostalo juz wydane, tez ma zostac polaczone w jedna
+  // pozycje, zeby rachunek dalo sie latwo podliczyc w calosci). Gdy caly stolik jest juz
+  // oplacony, zamowienia moga sie rozdzielic — nie ma wtedy potrzeby ich scalac.
+  function canGroup(o){
+    return String(o.table)!=='okienko'&&o.table!=='my'&&(o.status!=='done'||o.paid===false);
+  }
   var grouped=[];
   var used={};
   for(var i=0;i<arr.length;i++){
     if(used[arr[i].id])continue;
     var o=arr[i];
     var group=[o];
-    if(o.status!=='done'&&String(o.table)!=='okienko'&&o.table!=='my'){ // "okienko" i nienazwane "my" (sprzedaz bez stolika) nie laczymy
+    if(canGroup(o)){
       for(var j=i+1;j<arr.length;j++){
         var o2=arr[j];
         if(used[o2.id])continue;
-        if(o2.status!=='done'&&String(o2.table)===String(o.table)){ // String() - odporna na type mismatch (liczba vs string)
+        if(canGroup(o2)&&String(o2.table)===String(o.table)){
           group.push(o2);used[o2.id]=true;
         }
       }
@@ -2834,6 +3117,13 @@ function renderList(){
     // Wydane zamowienia nie powinny miec "Anuluj" (anulowanie bledne zwracaloby towar na magazyn)
     var allDone=grp.every(function(o){return o.status==='done';});
 
+    // Ile juz wplacono na poczet tej grupy (przez czesciowe platnosci / podzial rachunku)
+    // + ile jeszcze zostalo do zaplaty. paidAmt na zamowieniu = kwota wplacona czesciowo
+    // (rejestrowana przez "Podziel rachunek"), niezalezna od pelnego oznaczenia paid=true.
+    var paidSoFar=grp.reduce(function(s,o){return s+(o.paid?(o.total||0):Math.min(o.paidAmt||0,o.total||0));},0);
+    var remainAmt=Math.max(0,totalSum-paidSoFar);
+    var isPartial=hasUnpaid&&paidSoFar>0.004;
+
     // Helper - dodaje onclick + touchend na przycisku
     function tb(el,fn){
       el.onclick=fn;
@@ -2844,7 +3134,10 @@ function renderList(){
     // Przyciski statusu
     var idsStr=grp.map(function(o){return o.id;}).join(',');
     var nx=null;
-    var idsArr=grp.map(function(o){return o.id;});
+    // Uwaga: idsArr obejmuje tylko zamowienia w grupie ktore faktycznie maja status
+    // rowny mainO.status — dzieki temu przycisk "nastepny etap" nie cofa juz wydanych
+    // (done) pozycji, ktore moga teraz byc w tej samej grupie (bo sa nieoplacone).
+    var idsArr=grp.filter(function(o){return o.status===mainO.status;}).map(function(o){return o.id;});
     if(mainO.status==='pending'){
       nx=tb(document.createElement('button'),
         (function(ids){return function(){for(var i=0;i<ids.length;i++)setStatus(ids[i],'cooking');};})(idsArr));
@@ -2869,16 +3162,33 @@ function renderList(){
           setPaidGroup(mainId,ids);
         };})(mainO.id,unpaidIds2));
       payBtnEl2.className='ba';payBtnEl2.style.cssText='background:var(--gr);color:#fff;min-width:90px;';
-      payBtnEl2.innerHTML='&#x1F4B0; Oplacono';
+      payBtnEl2.innerHTML='&#x1F4B0; '+(isPartial?'Doplac reszte':'Oplacono');
+    }
+
+    // Przycisk Podziel rachunek — pozwala zarejestrowac czesciowa wplate (np. gdy kilka
+    // osob placi osobno za swoja czesc), zeby zawsze bylo widac ile juz wplacono i ile zostalo.
+    var splitBtnEl=null;
+    if(hasUnpaid){
+      splitBtnEl=tb(document.createElement('button'),
+        (function(tbl){return function(){openSplitBill(tbl);};})(mainO.table));
+      splitBtnEl.className='ba';
+      splitBtnEl.style.cssText='background:rgba(18,120,168,.15);color:#7ec8e3;border:1.5px solid rgba(18,120,168,.3);min-width:90px;';
+      splitBtnEl.innerHTML='&#x1F9FE; Podziel';
     }
 
     var allIds=grp.map(function(o){return o.id;}).join(',');
+    // Anuluj powinno dotyczyc TYLKO jeszcze niewydanych pozycji w grupie — wydane (done)
+    // pozycje moga teraz trafic do tej samej grupy (bo sa nieoplacone), a ich anulowanie
+    // bledne zwracaloby na magazyn juz zjedzony/podany towar.
+    var cancellableIds=grp.filter(function(o){return o.status!=='done';}).map(function(o){return o.id;});
 
     // Znaczki
     var mergedBadge=isMerged?'<span style="background:var(--s);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">POLACZONE</span>':'';
-    var paidBadge=hasUnpaid
-      ?'<span style="background:var(--e);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">NIEOPLACONE</span>'
-      :'<span style="background:var(--gr);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">OPLACONE</span>';
+    var paidBadge=!hasUnpaid
+      ?'<span style="background:var(--gr);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">OPLACONE</span>'
+      :(isPartial
+        ?'<span style="background:#c9852b;color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">CZESCIOWO OPLACONE</span>'
+        :'<span style="background:var(--e);color:#fff;font-size:.62rem;font-weight:900;padding:2px 6px;border-radius:6px;margin-left:5px;">NIEOPLACONE</span>');
 
     // Wiersze pozycji
     var rows='';
@@ -2900,7 +3210,9 @@ function renderList(){
         (allDone?'':'<button class="cancelBtn" style="background:rgba(0,0,0,.25);border:1.5px solid rgba(255,255,255,.18);color:rgba(255,255,255,.55);border-radius:8px;padding:5px 10px;font-family:Nunito,sans-serif;font-weight:800;font-size:.72rem;cursor:pointer;touch-action:manipulation;flex-shrink:0;white-space:nowrap;">&#x274C; Anuluj</button>')+
         '<span class="spl '+mainO.status+'" style="flex-shrink:0;">'+SL[mainO.status]+'</span>'+
       '</div>'+
-      '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+'</div>'+
+      '<div class="ocb">'+rows+(notes.length?'<div class="ocnt">&#x1F4AC; '+notes.map(esc).join(' | ')+'</div>':'')+
+        (isPartial?'<div style="margin-top:6px;padding:6px 8px;background:rgba(201,133,43,.12);border:1px solid rgba(201,133,43,.35);border-radius:8px;font-size:.72rem;color:rgba(255,255,255,.8);">&#x1F9FE; Wplacono: <b style="color:#8fd19e;">'+paidSoFar.toFixed(2)+' zl</b> &bull; Zostalo: <b style="color:#ffb1a1;">'+remainAmt.toFixed(2)+' zl</b> z '+totalSum.toFixed(2)+' zl</div>':'')+
+      '</div>'+
       '<div class="ocf" style="flex-wrap:wrap;gap:5px;"></div>';
 
     el.appendChild(c);
@@ -2914,20 +3226,28 @@ function renderList(){
     // Przycisk Oplacono
     if(payBtnEl2)footer.appendChild(payBtnEl2);
 
-    // Przycisk Dodaj
+    // Przycisk Podziel rachunek
+    if(splitBtnEl)footer.appendChild(splitBtnEl);
+
+    // Przycisk Dozamow — tworzy NOWY bilet dla kuchni na ten sam stolik
+    // (dolaczy sie do rachunku grupy). Odrozniamy go od "Edytuj", ktore zmienia
+    // pozycje w juz istniejacym zamowieniu.
     var addBtnEl=tb(document.createElement('button'),
       (function(tbl){return function(){openAddToOrder(tbl);};})(mainO.table));
     addBtnEl.className='ba';
     addBtnEl.style.cssText='background:rgba(39,174,96,.15);color:#27ae60;border:1.5px solid rgba(39,174,96,.3);';
-    addBtnEl.innerHTML='&#x2795; Dodaj';
+    addBtnEl.innerHTML='&#x2795; Dozamow';
+    addBtnEl.title='Nowe pozycje dla tego stolika (nowy bilet w kuchni)';
     footer.appendChild(addBtnEl);
 
-    // Przycisk Edytuj
+    // Przycisk Edytuj — poprawia pozycje w konkretnym zamowieniu.
+    // W grupie polaczonej pokazujemy numer, zeby bylo wiadomo ktore jest edytowane.
     var editBtnEl=tb(document.createElement('button'),
       (function(oid){return function(){openEditOrder(oid);};})(mainO.id));
     editBtnEl.className='ba';
     editBtnEl.style.cssText='background:rgba(18,120,168,.15);color:#7ec8e3;border:1.5px solid rgba(18,120,168,.3);';
-    editBtnEl.innerHTML='&#x270F; Edytuj';
+    editBtnEl.innerHTML='&#x270F; Edytuj'+(isMerged?' #'+mainO.seq:'');
+    editBtnEl.title='Popraw pozycje w zamowieniu #'+mainO.seq;
     footer.appendChild(editBtnEl);
 
     // Przycisk Usun
@@ -2961,7 +3281,7 @@ function renderList(){
           document.getElementById('canOk').onclick=function(){modal.parentNode.removeChild(modal);for(var i=0;i<ids.length;i++)cancelOrder(ids[i]);};
           document.getElementById('canNo').onclick=function(){modal.parentNode.removeChild(modal);};
         };
-      })(allIds.split(','));
+      })(cancellableIds);
     }
   }
 }
@@ -3402,7 +3722,9 @@ function ensureStock(){
       changed=true;
     } else {
       var init=Math.max(0,Math.round(stock[it.name].init)||0);
-      var current=Math.max(0,Math.round(stock[it.name].current)||0);
+      // current moze byc chwilowo ujemny (sprzedaz ponad stan) — nie obcinamy go tutaj,
+      // bo to psuloby symetrie odejmowania i zwracania na stan. Widoki i tak clampuja do 0.
+      var current=Math.round(stock[it.name].current)||0;
       if(stock[it.name].emoji!==it.emoji||stock[it.name].init!==init||stock[it.name].current!==current)changed=true;
       stock[it.name].emoji=it.emoji;
       stock[it.name].init=init;
@@ -3566,7 +3888,11 @@ function deductStock(items){
   var changed=false;
   items.forEach(function(it){
     if(stock[it.name]){
-      stock[it.name].current=Math.max(0,(stock[it.name].current||0)-it.qty);
+      // NIE obcinamy do zera. Gdyby obciac, sprzedaz ponad stan (czesta, gdy licznik
+      // nie jest na biezaco) gubilaby informacje o nadwyzce — a pozniejsze anulowanie
+      // tego zamowienia dopisywaloby do magazynu sztuki, ktorych nigdy nie bylo.
+      // Wartosc ujemna zyje tylko wewnetrznie; widok Magazynu i tak pokazuje min. 0.
+      stock[it.name].current=(stock[it.name].current||0)-it.qty;
       changed=true;
     }
   });
@@ -3607,7 +3933,9 @@ function openEditOrder(id){
   if(old)old.parentNode.removeChild(old);
 
   // Kopia danych
-  var items=JSON.parse(JSON.stringify(o.items));
+  var items=JSON.parse(JSON.stringify(o.items||[]));
+  var noteVal=o.note||'';           // trzymane w zmiennej, zeby NIE ginelo przy przebudowie modala
+  var wasDone=(o.status==='done');  // edycja wydanego zamowienia musi odswiezyc archiwum i statystyki
 
   function getHTML(){
     var rows=items.map(function(it,i){
@@ -3624,11 +3952,21 @@ function openEditOrder(id){
         '</td>'+
       '</tr>';
     }).join('');
+    // Wyprzedane pozycje pomijamy — tak samo jak w oknie "Dodaj", zeby oba dzialaly identycznie.
     var opts=[];
-    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+(+it.price||0).toFixed(2)+'zl)</option>');});});
+    catKeys().forEach(function(s){(menu[s]||[]).forEach(function(it){
+      if(it.unavailable)return;
+      opts.push('<option value="'+it.id+'">'+emoText(it.emoji)+' '+esc(it.name)+' ('+(+it.price||0).toFixed(2)+'zl)</option>');
+    });});
+    var liveTotal=items.reduce(function(s,x){return s+(x.price||0)*x.qty;},0);
+    var paidAmt=+o.paidAmt||0;
     return '<div style="background:#fff;border-radius:14px;padding:18px;width:90vw;max-width:400px;max-height:85vh;overflow-y:auto;">'+
-      '<div style="font-weight:900;font-size:1rem;margin-bottom:12px;color:#0b1e28;">✏ Edytuj — '+tlabel(o.table)+'</div>'+
+      '<div style="font-weight:900;font-size:1rem;margin-bottom:2px;color:#0b1e28;">✏ Edytuj zamowienie #'+o.seq+'</div>'+
+      '<div style="font-size:.75rem;color:#888;margin-bottom:12px;">'+esc(tlabel(o.table))+' &bull; '+esc(o.timeStr||'')+' &bull; '+esc(SL[o.status]||o.status||'')+'</div>'+
+      (wasDone?'<div style="background:#fff3e6;border:1.5px solid #e8821e;border-radius:9px;padding:8px 10px;font-size:.75rem;color:#8a4b00;margin-bottom:10px;">&#x26A0;&#xFE0F; To zamowienie jest juz wydane i policzone w statystykach. Zmiany zostana w nich uwzglednione.</div>':'')+
+      (paidAmt>0?'<div style="background:#e9f7ef;border:1.5px solid #27ae60;border-radius:9px;padding:8px 10px;font-size:.75rem;color:#1a6b3c;margin-bottom:10px;">&#x1F9FE; Na to zamowienie wplacono juz <b>'+paidAmt.toFixed(2)+' zl</b>. Nie zmniejszaj sumy ponizej tej kwoty.</div>':'')+
       '<table style="width:100%;border-collapse:collapse;">'+rows+'</table>'+
+      (items.length?'':'<div style="color:#e85c3a;font-size:.82rem;text-align:center;padding:10px;font-weight:700;">Brak pozycji — dodaj cos ponizej lub anuluj cale zamowienie.</div>')+
       '<div style="font-size:.72rem;color:#999;margin-top:4px;">Dotknij \uD83C\uDF7D\uFE0F / \uD83E\uDD61 przy pozycji, aby przelaczyc na miejscu / na wynos.</div>'+
       '<div style="margin-top:10px;display:flex;gap:8px;">'+
         '<select id="eadd_sel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.82rem;">'+opts.join('')+'</select>'+
@@ -3636,11 +3974,11 @@ function openEditOrder(id){
       '</div>'+
       '<div style="margin-top:8px;">'+
         '<div style="font-size:.78rem;color:#666;margin-bottom:4px;">Uwagi:</div>'+
-        '<input id="enote" value="'+esc(o.note||'')+'" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.85rem;box-sizing:border-box;">'+
+        '<input id="enote" value="'+esc(noteVal)+'" autocomplete="off" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-size:.85rem;box-sizing:border-box;">'+
       '</div>'+
-      '<div style="margin-top:14px;display:flex;gap:8px;">'+
+      '<div style="margin-top:10px;text-align:right;font-weight:900;font-size:1rem;color:#0b1e28;">Razem: '+liveTotal.toFixed(2)+' zl</div>'+
+      '<div style="margin-top:12px;display:flex;gap:8px;">'+
         '<button id="esave" style="flex:1;padding:13px;border:none;border-radius:10px;background:#1278a8;color:#fff;font-size:1rem;font-weight:900;cursor:pointer;">✔ Zapisz zmiany</button>'+
-        '<button id="erefresh" style="padding:13px 14px;border:1.5px solid #ccc;border-radius:10px;background:#fff;color:#555;font-size:1.2rem;cursor:pointer;" title="Odswiez">&#x21BB;</button>'+
         '<button id="ecanc" style="padding:13px 16px;border:1.5px solid #ccc;border-radius:10px;background:#fff;color:#666;font-weight:700;cursor:pointer;">Anuluj</button>'+
       '</div>'+
     '</div>';
@@ -3652,7 +3990,14 @@ function openEditOrder(id){
   m.innerHTML=getHTML();
   document.body.appendChild(m);
 
+  // Zapamietaj wpisana tresc uwag PRZED przebudowa modala, inaczej znika przy kazdej
+  // zmianie pozycji (usuniecie, przelaczenie na wynos, dodanie).
+  function captureNote(){
+    var el=document.getElementById('enote');
+    if(el)noteVal=el.value;
+  }
   function rebuildModal(){
+    captureNote();
     m.innerHTML=getHTML();
     bindEvents();
   }
@@ -3674,13 +4019,13 @@ function openEditOrder(id){
       if(bm)bm.onclick=function(e){
         e.preventDefault();
         it.qty=Math.max(1,it.qty-1);
-        qs.textContent=it.qty;
+        rebuildModal(); // przelicz sume "Razem" na zywo
       };
 
       if(bp)bp.onclick=function(e){
         e.preventDefault();
         it.qty++;
-        qs.textContent=it.qty;
+        rebuildModal();
       };
 
       if(bx)bx.onclick=function(e){
@@ -3705,8 +4050,10 @@ function openEditOrder(id){
 
       if(!found)return;
 
+      // Dokladamy do istniejacego wiersza tylko gdy zgadza sie nazwa ORAZ tryb (na miejscu).
+      // Wczesniej pozycja istniejaca wylacznie "na wynos" tworzyla mylacy duplikat.
       var ex=items.filter(function(x){
-        return x.name===found.name && !x.wynos; // dokladaj tylko do pozycji "na miejscu"
+        return x.name===found.name && !x.wynos;
       })[0];
 
       if(ex){
@@ -3731,13 +4078,6 @@ function openEditOrder(id){
       if(m && m.parentNode)m.parentNode.removeChild(m);
     };
 
-    var brefresh=document.getElementById('erefresh');
-    if(brefresh)brefresh.onclick=function(e){
-      e.preventDefault();
-      if(m&&m.parentNode)m.parentNode.removeChild(m);
-      onData();
-    };
-
     var bsave=document.getElementById('esave');
     if(bsave){
       bsave.disabled=false;
@@ -3748,6 +4088,28 @@ function openEditOrder(id){
 
         var ord=orders[id];
         if(!ord)return;
+        captureNote();
+
+        // Puste zamowienie nie ma sensu — zamiast zapisywac "duch" z suma 0 zl,
+        // zaproponuj anulowanie calego zamowienia (zwroci tez pozycje na magazyn).
+        if(!items.length){
+          if(!confirm('Usunieto wszystkie pozycje.\nAnulowac cale zamowienie #'+ord.seq+'?'))return;
+          if(m&&m.parentNode)m.parentNode.removeChild(m);
+          cancelOrder(id);
+          return;
+        }
+
+        var newTotal=items.reduce(function(s,x){return s+(x.price||0)*x.qty;},0);
+        var paidAmt=+ord.paidAmt||0;
+        if(paidAmt>newTotal+0.004){
+          if(!confirm('Nowa suma ('+newTotal.toFixed(2)+' zl) jest nizsza niz juz wplacona kwota ('+paidAmt.toFixed(2)+' zl).\nZamowienie zostanie oznaczone jako w pelni oplacone. Kontynuowac?'))return;
+        }
+
+        // Cofnij stary wklad tego zamowienia do statystyk, jesli bylo juz wydane —
+        // inaczej edycja wydanego zamowienia rozjechalaby sumy dzienne.
+        if(wasDone)bumpDailyStats(ord,-1);
+
+        saveSnapshot('Edycja #'+ord.seq,id,true);
 
         // Skoryguj magazyn o roznice miedzy starym a nowym zamowieniem
         var oldItems=ord.items||[];
@@ -3765,26 +4127,49 @@ function openEditOrder(id){
         if(toRestore.length)restoreStock(toRestore);
 
         ord.items=JSON.parse(JSON.stringify(items));
-        ord.note=(document.getElementById('enote')||{}).value||'';
-        ord.total=ord.items.reduce(function(s,x){
-          return s+(x.price||0)*x.qty;
-        },0);
+        ord.note=noteVal;
+        ord.total=newTotal;
         ord.wynos=ord.items.some(function(x){return !!x.wynos;}); // przelicz flage zbiorcza (bilet WYNOS)
+        // Czesciowe wplaty nie moga przekroczyc nowej sumy (np. po usunieciu pozycji).
+        if(paidAmt>newTotal-0.004&&paidAmt>0){
+          ord.paidAmt=newTotal;
+          ord.paid=true;
+        }
 
         saveOrds();
 
+        var cloudUpd={
+          items:stripItemsForCloud(ord.items), // strip badge/bc/e i base64 emoji
+          note:ord.note,
+          total:ord.total,
+          wynos:ord.wynos
+        };
+        if(ord.paidAmt!==undefined)cloudUpd.paidAmt=ord.paidAmt;
+        if(ord.paid!==undefined)cloudUpd.paid=ord.paid;
+
         if(fbReady){
           markEcho('orders/'+id,ord);
-          fbBg(fbDB.ref('orders/'+id).update({
-            items:stripItemsForCloud(ord.items), // strip badge/bc/e i base64 emoji
-            note:ord.note,
-            total:ord.total,
-            wynos:ord.wynos
-          }));
+          fbBg(fbDB.ref('orders/'+id).update(cloudUpd));
+        }
+
+        // Wydane zamowienie zyje rowniez w archiwum (zrodlo statystyk) — zaktualizuj je
+        // i doloz nowy wklad do sum dziennych, zeby wszystko sie zgadzalo.
+        if(wasDone){
+          if(archive[id]){
+            Object.assign(archive[id],{items:ord.items,note:ord.note,total:ord.total,wynos:ord.wynos});
+            if(ord.paidAmt!==undefined)archive[id].paidAmt=ord.paidAmt;
+            if(ord.paid!==undefined)archive[id].paid=ord.paid;
+            saveArc();
+          }
+          if(fbReady){
+            markEcho('archive/'+id,archive[id]||ord);
+            fbBg(fbDB.ref('archive/'+id).update(cloudUpd));
+          }
+          bumpDailyStats(ord,1);
         }
 
         onData();
-        toast('Zaktualizowano zamowienie!','#27ae60');
+        toast('Zaktualizowano zamowienie #'+ord.seq,'#27ae60');
         try{if(m&&m.parentNode)m.parentNode.removeChild(m);}catch(err){}
       };
     }
@@ -3922,9 +4307,14 @@ function undoLastAction(){
   // wiec cofniecie nie skasuje zamowien zlozonych w tym czasie na innych urzadzeniach).
   ids.forEach(function(id){
     var prev=snap.ordPrev?snap.ordPrev[id]:null;
-    // Cofamy WYDANIE? Odejmij to, co bumpDailyStats dodal przy wydaniu (statystyki ogolne).
+    // Uzgodnienie sum dziennych: zdejmij wklad stanu OBECNEGO (jesli byl wydany)
+    // i dodaj wklad stanu PRZYWRACANEGO (jesli byl wydany). Obsluguje wszystkie
+    // przypadki jednakowo — cofniecie wydania, cofniecie usuniecia, a takze
+    // cofniecie EDYCJI juz wydanego zamowienia (gdzie oba stany sa 'done',
+    // ale roznia sie kwota — wczesniej statystyki zostawaly z nowa wartoscia).
     var curO=orders[id]||archive[id];
-    if(curO&&curO.status==='done'&&(!prev||prev.status!=='done'))bumpDailyStats(curO,-1);
+    if(curO&&curO.status==='done')bumpDailyStats(curO,-1);
+    if(prev&&prev.status==='done')bumpDailyStats(prev,1);
     if(prev){
       orders[id]=prev;markPending(id);fbPushOrder(id);
     } else {
@@ -4008,15 +4398,20 @@ function openAddToOrder(table){
     if(!keys.length)return '<div style="color:#aaa;font-size:.83rem;text-align:center;padding:10px;">Brak pozycji — wybierz z listy ponizej</div>';
     return keys.map(function(k){
       var it=newItems[k];
-      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #eee;">'+
+      var wy=!!it.wynos;
+      return '<div style="display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #eee;">'+
         '<span style="font-size:1.2rem;">'+emo(it.emoji,'1.2rem')+'</span>'+
-        '<span style="flex:1;font-size:.85rem;font-weight:700;color:#0b1e28;">'+esc(it.name)+'</span>'+
+        '<span style="flex:1;font-size:.85rem;font-weight:700;color:#0b1e28;min-width:0;overflow:hidden;text-overflow:ellipsis;">'+esc(it.name)+'</span>'+
+        '<button id="atow_'+k+'" data-k="'+k+'" class="atow" title="'+(wy?'Na wynos':'Na miejscu')+'" style="width:38px;height:30px;font-size:.95rem;border:1.5px solid '+(wy?'#e8821e':'#ccc')+';border-radius:6px;background:'+(wy?'#fff3e6':'#f4f4f4')+';cursor:pointer;">'+(wy?'\uD83E\uDD61':'\uD83C\uDF7D\uFE0F')+'</button>'+
         '<button id="atom_'+k+'" data-k="'+k+'" class="atobm" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">-</button>'+
         '<span id="atoq_'+k+'" style="min-width:24px;text-align:center;font-weight:900;">'+it.qty+'</span>'+
         '<button id="atobp_'+k+'" data-k="'+k+'" class="atobp" style="width:30px;height:30px;border-radius:6px;border:none;background:#eee;font-weight:900;cursor:pointer;">+</button>'+
         '<button id="atox_'+k+'" data-k="'+k+'" class="atox" style="width:30px;height:30px;border-radius:6px;border:none;background:#fde8e3;color:#e85c3a;cursor:pointer;">&#x2715;</button>'+
       '</div>';
     }).join('');
+  }
+  function atoTotal(){
+    return Object.keys(newItems).reduce(function(s,k){return s+(newItems[k].price||0)*newItems[k].qty;},0);
   }
 
   // Menu opcje
@@ -4033,15 +4428,18 @@ function openAddToOrder(table){
   m.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px;';
   m.innerHTML=
     '<div style="background:#fff;border-radius:14px;padding:18px;max-width:420px;width:100%;max-height:90vh;overflow-y:auto;">'+
-      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:12px;">&#x2795; Dodaj do — '+esc(tblLabel)+'</div>'+
-      '<div id="atoRows" style="margin-bottom:10px;min-height:40px;">'+getItemsHTML()+'</div>'+
+      '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:2px;">&#x2795; Dozamow do — '+esc(tblLabel)+'</div>'+
+      '<div style="font-size:.73rem;color:#888;margin-bottom:12px;">Powstanie nowy bilet dla kuchni, ale na Liscie polaczy sie z rachunkiem tego stolika.</div>'+
+      '<div id="atoRows" style="margin-bottom:6px;min-height:40px;">'+getItemsHTML()+'</div>'+
+      '<div id="atoTot" style="text-align:right;font-weight:900;font-size:.95rem;color:#0b1e28;margin-bottom:10px;">Razem: '+atoTotal().toFixed(2)+' zl</div>'+
       '<div style="display:flex;gap:8px;margin-bottom:10px;">'+
         '<select id="atoSel" style="flex:1;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.82rem;">'+opts+'</select>'+
         '<button id="atoAddBtn" style="padding:8px 14px;border-radius:8px;border:none;background:#1278a8;color:#fff;font-weight:900;cursor:pointer;">+ Dodaj</button>'+
       '</div>'+
+      '<div style="font-size:.72rem;color:#999;margin-bottom:8px;">Dotknij \uD83C\uDF7D\uFE0F / \uD83E\uDD61 przy pozycji, aby przelaczyc na miejscu / na wynos.</div>'+
       '<div style="margin-bottom:10px;">'+
         '<label style="font-size:.78rem;color:#666;font-weight:700;">Uwagi:</label>'+
-        '<input id="atoNote" placeholder="np. bez lodu..." style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.83rem;margin-top:4px;box-sizing:border-box;">'+
+        '<input id="atoNote" placeholder="np. bez lodu..." autocomplete="off" style="width:100%;padding:8px;border-radius:8px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.83rem;margin-top:4px;box-sizing:border-box;">'+
       '</div>'+
       '<div style="display:flex;gap:8px;">'+
         '<button id="atoSend" style="flex:1;padding:12px;border-radius:9px;border:none;background:linear-gradient(135deg,#1a8a45,#27ae60);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.95rem;cursor:pointer;">&#x2705; Wyslij do kuchni</button>'+
@@ -4052,15 +4450,18 @@ function openAddToOrder(table){
 
   function rebuildRows(){
     document.getElementById('atoRows').innerHTML=getItemsHTML();
+    var totEl=document.getElementById('atoTot');
+    if(totEl)totEl.textContent='Razem: '+atoTotal().toFixed(2)+' zl';
     // Podepnij przyciski wierszy
     Object.keys(newItems).forEach(function(k){
       var bm=document.getElementById('atom_'+k);
       var bp=document.getElementById('atobp_'+k);
       var bx=document.getElementById('atox_'+k);
-      var qs=document.getElementById('atoq_'+k);
-      if(bm)bm.onclick=function(){newItems[k].qty=Math.max(1,newItems[k].qty-1);qs.textContent=newItems[k].qty;};
-      if(bp)bp.onclick=function(){newItems[k].qty++;qs.textContent=newItems[k].qty;};
+      var bw=document.getElementById('atow_'+k);
+      if(bm)bm.onclick=function(){newItems[k].qty=Math.max(1,newItems[k].qty-1);rebuildRows();};
+      if(bp)bp.onclick=function(){newItems[k].qty++;rebuildRows();};
       if(bx)bx.onclick=function(){delete newItems[k];rebuildRows();};
+      if(bw)bw.onclick=function(){newItems[k].wynos=!newItems[k].wynos;rebuildRows();};
     });
   }
 
@@ -4071,7 +4472,7 @@ function openAddToOrder(table){
     allItems.forEach(function(it){if(it.id===sel.value)found=it;});
     if(!found)return;
     if(newItems[found.id]){newItems[found.id].qty++;}
-    else{newItems[found.id]={id:found.id,name:found.name,emoji:found.emoji,price:found.price,qty:1};}
+    else{newItems[found.id]={id:found.id,name:found.name,emoji:found.emoji,price:found.price,qty:1,wynos:false};}
     rebuildRows();
   };
 
@@ -4089,7 +4490,7 @@ function openAddToOrder(table){
     var order={
       id:id,seq:ordSeq++,table:(!isNaN(+table)&&typeof table!=='boolean')?+table:table,
       items:items,total:tot,note:note,
-      status:'pending',paid:false,wynos:false,barDone:false,
+      status:'pending',paid:false,wynos:items.some(function(it){return !!it.wynos;}),barDone:false,
       currency:'PLN',czkAmount:0,czkRate:getCZK(),
       did:DID,
       timeStr:new Date().toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'}),
@@ -4163,7 +4564,7 @@ function openStats(){
       '<div style="font-size:2rem;margin-bottom:6px;">&#x1F4CA;</div>'+
       '<div style="font-family:\'Playfair Display\',serif;font-size:1.1rem;font-weight:700;color:#0b1e28;margin-bottom:4px;">Statystyki</div>'+
       '<div style="color:#888;font-size:.8rem;margin-bottom:12px;">Wpisz haslo aplikacji</div>'+
-      '<input id="statsPwInp" type="password" placeholder="Haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.95rem;outline:none;margin-bottom:6px;text-align:center;">'+
+      '<input id="statsPwInp" type="password" placeholder="Haslo" autocomplete="off" name="stats-pw-'+Date.now()+'" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.95rem;outline:none;margin-bottom:6px;text-align:center;">'+
       '<div id="statsPwErr" style="color:#e85c3a;font-size:.78rem;font-weight:800;min-height:16px;margin-bottom:8px;"></div>'+
       '<button id="statsPwOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:linear-gradient(135deg,#0d4a6a,#1278a8);color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Wejdz</button>'+
       '<button id="statsPwCancel" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
@@ -4659,6 +5060,157 @@ function showHourOrders(dayKey,hour){
   var cb=document.getElementById('hoClose');if(cb)cb.addEventListener('click',close);
 }
 
+// Osobne okienko z rankingiem dni (oddzielone od glownego widoku statystyk).
+// Dane licza sie raz w renderStats() i sa buforowane w _dayRankCache — to okienko
+// tylko je wyswietla i pozwala kliknac dzien, by zobaczyc showDayDetail.
+function showDayRankingModal(){
+  if(!_dayRankCache||!_dayRankCache.dayKeys.length){toast('Brak danych do rankingu','#f5a623');return;}
+  var dayAgg=_dayRankCache.dayAgg,dayKeys=_dayRankCache.dayKeys,periodLbl=_dayRankCache.label;
+  var maxDayRev=dayAgg[dayKeys[0]].rev||1;
+  var rows='';
+  for(var i=0;i<dayKeys.length;i++){
+    var dk=dayKeys[i],dv=dayAgg[dk];
+    var ddd=new Date(dk+'T12:00');
+    var wd=ddd.toLocaleDateString('pl-PL',{weekday:'short'});
+    var dstr=ddd.toLocaleDateString('pl-PL',{day:'numeric',month:'short'});
+    var medal=i===0?'&#x1F947;':i===1?'&#x1F948;':i===2?'&#x1F949;':(i+1)+'.';
+    var barW=Math.round((dv.rev||0)/Math.max(maxDayRev,1)*110);
+    rows+='<tr onclick="showDayDetail(\''+dk+'\')" style="cursor:pointer;">'+
+      '<td>'+medal+'</td>'+
+      '<td style="text-transform:capitalize;">'+esc(wd)+' '+esc(dstr)+'</td>'+
+      '<td><b>'+(dv.rev||0).toFixed(0)+' zl</b></td>'+
+      '<td>'+(dv.n||0)+' zam.</td>'+
+      '<td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:linear-gradient(90deg,var(--a),var(--gr))"></div></div></td>'+
+    '</tr>';
+  }
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML=
+    '<div style="background:#1a1d24;width:100%;max-width:520px;max-height:82vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+      '<div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+        '<div>'+
+          '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.1rem;">&#x1F3C6; Ranking dni</div>'+
+          '<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;">wg przychodu &bull; okres: '+esc(periodLbl)+' &bull; kliknij dzien, by zobaczyc szczegoly</div>'+
+        '</div>'+
+        '<button id="drClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">&#x2715;</button>'+
+      '</div>'+
+      '<div style="overflow-y:auto;padding:10px 16px 16px;flex:1;">'+
+        '<table class="stbl"><tr><th></th><th>Dzien</th><th>Przychod</th><th>Zamowien</th><th></th></tr>'+rows+'</table>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function close(){if(modal.parentNode)modal.parentNode.removeChild(modal);}
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  var cb=document.getElementById('drClose');if(cb)cb.addEventListener('click',close);
+}
+
+// Szczegoly konkretnego dnia — otwierane klikniecie w wiersz "Rankingu dni".
+// Pokazuje: sume/liczbe zamowien/dan, top pozycje dnia, rozklad godzinowy (klikalny
+// do showHourOrders) i pelna liste zamowien z tego dnia.
+function showDayDetail(dayKey){
+  var all0=Object.values(Object.assign({},_statsCloud,archive,orders));
+  var has=all0.some(function(o){return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey;});
+  if(has||!(fbReady&&fbAuthReady)){renderDayDetailModal(dayKey);return;}
+  // Dane w kalendarzu/rankingu licza sie z lekkich sum statsDaily, wiec surowe zamowienia
+  // z tego konkretnego dnia moga jeszcze nie byc zaladowane lokalnie — dociagnij je z
+  // archiwum w chmurze (tylko za ten dzien, wiec szybko), zanim pokazesz szczegoly.
+  toast('Ladowanie danych dnia...','#1278a8');
+  var from=new Date(dayKey+'T00:00:00').getTime();
+  var to=new Date(dayKey+'T23:59:59').getTime();
+  fetchArchiveRange(from,to,function(err,data){
+    if(!err&&data){
+      Object.keys(data).forEach(function(k){_statsCloud[k]=data[k];});
+    }
+    renderDayDetailModal(dayKey);
+  });
+}
+function renderDayDetailModal(dayKey){
+  var all=Object.values(Object.assign({},_statsCloud,archive,orders));
+  var list=all.filter(function(o){return o&&o.status==='done'&&o.ts&&_dateKey(o.ts)===dayKey;}).sort(function(a,b){return a.ts-b.ts;});
+
+  var dd=new Date(dayKey+'T12:00');
+  var dateLabel=dd.toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  var totalRev=list.reduce(function(s,o){return s+(o.total||0);},0);
+  var totalQty=list.reduce(function(s,o){return s+(o.items||[]).reduce(function(ss,i){return ss+(i.qty||0);},0);},0);
+  var avgOrd=list.length?totalRev/list.length:0;
+
+  var w=weatherForDay(dayKey);
+  var wInfo=w?wmoToInfo(w.code):null;
+  var wStr=wInfo?(wInfo[0]+' '+wInfo[1]+(w.temp!=null?', '+w.temp+'\u00B0C':'')+(w.precip>0.2?' \u2022 '+w.precip.toFixed(1)+'mm deszczu':'')):'';
+
+  // Top pozycje dnia
+  var im={};
+  list.forEach(function(o){(o.items||[]).forEach(function(it){if(!im[it.name])im[it.name]={name:it.name,emoji:it.emoji,qty:0,rev:0};im[it.name].qty+=(it.qty||0);im[it.name].rev+=(it.qty||0)*(it.price||0);});});
+  var top=Object.values(im).sort(function(a,b){return b.qty-a.qty;});
+  var topRows='';
+  for(var i=0;i<Math.min(top.length,10);i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+'</b> szt.</td><td>'+it.rev.toFixed(2)+' zl</td></tr>';}
+
+  // Rozklad godzinowy — kazdy wiersz klikalny, otwiera juz istniejacy widok showHourOrders
+  var byHour=aggregateSalesByHour(list,dayKey);
+  var hKeys=Object.keys(byHour).filter(function(h){return byHour[h].n>0;}).sort(function(a,b){return +a-+b;});
+  var maxH=Math.max.apply(null,hKeys.map(function(h){return byHour[h].rev||0;}).concat([1]));
+  var hourRows='';
+  for(var i=0;i<hKeys.length;i++){
+    var hh=hKeys[i],hv=byHour[hh];
+    var bw=Math.round((hv.rev||0)/maxH*110);
+    hourRows+='<tr style="cursor:pointer;" onclick="showHourOrders(\''+dayKey+'\','+hh+')"><td>'+String(hh).padStart(2,'0')+':00</td><td>'+(hv.rev||0).toFixed(0)+' zl</td><td>'+hv.n+' zam.</td><td><div class="sbw"><div class="sbar" style="width:'+bw+'px"></div></div></td></tr>';
+  }
+
+  var ordersRows='';
+  if(!list.length){
+    ordersRows='<div style="color:rgba(255,255,255,.4);text-align:center;padding:16px;">Brak zamowien</div>';
+  }else{
+    list.forEach(function(o){
+      var t=new Date(o.ts);
+      var tStr=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+      var items=(o.items||[]).map(function(it){return emoText(it.emoji)+esc(it.name)+' x'+(it.qty||0);}).join(', ');
+      var cur=o.currency==='CZK'?' <span style="color:#7ec8e3;">(CZK)</span>':'';
+      var wynos=o.wynos?' <span style="color:#7ec8e3;font-size:.65rem;">WYNOS</span>':'';
+      ordersRows+=
+        '<div style="background:rgba(255,255,255,.04);border-radius:9px;padding:9px 11px;margin-bottom:6px;">'+
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'+
+            '<span style="font-weight:800;color:#fff;font-size:.82rem;">'+tlabel(o.table)+' #'+o.seq+cur+wynos+'</span>'+
+            '<span style="color:rgba(255,255,255,.5);font-size:.7rem;">'+tStr+'</span>'+
+          '</div>'+
+          '<div style="color:rgba(255,255,255,.65);font-size:.75rem;margin-bottom:3px;">'+items+'</div>'+
+          (o.note?'<div style="color:var(--a);font-size:.68rem;margin-bottom:3px;">&#x26A0;&#xFE0F; '+esc(o.note)+'</div>':'')+
+          '<div style="text-align:right;font-weight:900;color:var(--gr);font-size:.8rem;">'+(o.total||0).toFixed(2)+' zl</div>'+
+        '</div>';
+    });
+  }
+
+  var modal=document.createElement('div');
+  modal.style.cssText='position:fixed;inset:0;z-index:9600;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  modal.innerHTML=
+    '<div style="background:#1a1d24;width:100%;max-width:560px;max-height:88vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+      '<div style="padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,.08);">'+
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+          '<div>'+
+            '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;text-transform:capitalize;">'+dateLabel+'</div>'+
+            (wStr?'<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;">'+wStr+'</div>':'')+
+          '</div>'+
+          '<button id="ddClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">&#x2715;</button>'+
+        '</div>'+
+        '<div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;align-items:baseline;">'+
+          '<span style="color:var(--gr);font-size:1.05rem;font-weight:900;">'+totalRev.toFixed(2)+' zl</span>'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+list.length+'</b> zam.</span>'+
+          '<span style="color:#fff;font-size:.78rem;"><b>'+totalQty+'</b> dan</span>'+
+          '<span style="color:#fff;font-size:.78rem;">Sr. <b>'+avgOrd.toFixed(0)+'</b> zl</span>'+
+        '</div>'+
+      '</div>'+
+      '<div style="overflow-y:auto;padding:14px 16px;flex:1;">'+
+        (top.length?'<div class="ss2" style="margin-top:0;">Najczesciej zamawiane</div><table class="stbl"><tr><th>Pozycja</th><th>Ilosc</th><th>Przychod</th></tr>'+topRows+'</table>':'')+
+        (hourRows?'<div class="ss2">Rozklad godzinowy (kliknij godzine, by zobaczyc zamowienia)</div><table class="stbl"><tr><th>Godzina</th><th>Przychod</th><th>Zamowien</th><th></th></tr>'+hourRows+'</table>':'')+
+        '<div class="ss2">Wszystkie zamowienia</div>'+ordersRows+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(modal);
+  function close(){if(modal.parentNode)modal.parentNode.removeChild(modal);}
+  modal.addEventListener('click',function(e){if(e.target===modal)close();});
+  var cb=document.getElementById('ddClose');if(cb)cb.addEventListener('click',close);
+}
+
 // ── Panel "Statystyki ogolne" ──
 var _genReq=0;      // token najnowszego zadania (ignorujemy spoznione odpowiedzi)
 var _genCache=null; // {key,ts,agg} — cache 30 s, zeby czeste renderStats nie odpytywaly chmury
@@ -4737,6 +5289,340 @@ function genStatsHtml(a){
   return h;
 }
 
+// ── SREDNIA SPRZEDAZ WG DNIA TYGODNIA (cala historia, niezaleznie od filtra okresu) ──
+// Liczy sie z tych samych malych sum statsDaily co "Statystyki ogolne" — pobiera CALA
+// historie (fromTs=null, toTs=null) raz i grupuje po dniu tygodnia. Lekkie zapytanie,
+// bo statsDaily to jeden maly rekord na dzien, nie surowe zamowienia.
+function loadWeekdayStats(){
+  var box=document.getElementById('wkdayStats');if(!box)return;
+  if(_wkdayCache&&Date.now()-_wkdayCache.ts<60000){box.innerHTML=weekdayStatsHtml(_wkdayCache.agg);return;}
+  if(!(fbReady&&fbAuthReady)){box.innerHTML='<div class="ni">Brak polaczenia z chmura</div>';return;}
+  box.innerHTML='<div class="ni">Ladowanie...</div>';
+  fetchDailyStats(null,null,function(err,days){
+    var box2=document.getElementById('wkdayStats');if(!box2)return;
+    if(err){box2.innerHTML='<div class="ni">Blad pobierania</div>';return;}
+    var wk=[];for(var i=0;i<7;i++)wk.push({rev:0,cnt:0,days:0});
+    Object.keys(days||{}).forEach(function(dk){
+      var v=days[dk]||{};
+      if(!v.cnt)return; // pomin dni bez zadnej sprzedazy (np. jeszcze nieuzupelniona historia)
+      var wd=new Date(dk+'T12:00').getDay(); // 0=Nd..6=Sob
+      wk[wd].rev+=(+v.rev||0);
+      wk[wd].cnt+=(+v.cnt||0);
+      wk[wd].days+=1;
+    });
+    _wkdayCache={ts:Date.now(),agg:wk};
+    box2.innerHTML=weekdayStatsHtml(wk);
+  });
+}
+function weekdayStatsHtml(wk){
+  var names=['Niedziela','Poniedzialek','Wtorek','Sroda','Czwartek','Piatek','Sobota'];
+  var order=[1,2,3,4,5,6,0]; // Pon..Nd — czytelniejsze niz kalendarzowe Nd..Sob
+  if(!wk.some(function(d){return d.days>0;}))return '<div class="ni">Brak jeszcze danych historycznych</div>';
+  var maxAvg=0;
+  order.forEach(function(i){var a=wk[i].days?wk[i].rev/wk[i].days:0;if(a>maxAvg)maxAvg=a;});
+  var rows=order.map(function(i){
+    var d=wk[i];
+    var avg=d.days?d.rev/d.days:0;
+    var avgOrd=d.days?d.cnt/d.days:0;
+    var barW=maxAvg?Math.round(avg/maxAvg*110):0;
+    return '<tr><td>'+names[i]+'</td><td><b>'+avg.toFixed(0)+' zl</b></td><td>'+avgOrd.toFixed(1)+' zam.</td><td style="color:rgba(255,255,255,.45);">'+d.days+' dni</td><td><div class="sbw"><div class="sbar" style="width:'+barW+'px;background:linear-gradient(90deg,var(--a),var(--gr))"></div></div></td></tr>';
+  }).join('');
+  return '<table class="stbl"><tr><th>Dzien</th><th>Sr. przychod</th><th>Sr. zamowien</th><th>Probka</th><th></th></tr>'+rows+'</table>';
+}
+
+// ── KALENDARZ (podzakladka Statystyk) ──
+// Widok miesieczny z siatka dni, do latwego porownywania np. weekendow z calego
+// miesiaca. Dane z tych samych lekkich sum statsDaily co reszta statystyk.
+// Metryka jest personalizowana: przychod, liczba zamowien, albo dowolna pozycja z menu
+// (np. "ile sprzedano ryb danego dnia").
+function calMonthKey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
+
+function setStatSubTab(t){
+  _statSubTab=t;
+  renderStats();
+}
+
+function calNavMonth(delta){
+  var cur=_calMonth?new Date(_calMonth+'-01T12:00'):new Date();
+  cur.setMonth(cur.getMonth()+delta);
+  _calMonth=calMonthKey(cur);
+  _calCache=null;
+  renderCalendarView();
+}
+
+function setCalMetric(m){
+  if(!m)return;
+  _calMetric=m;
+  renderCalendarView(); // dane juz w _calCache — samo przerysowanie, bez ponownego pobierania
+}
+
+// Nazwa opisujaca aktualnie wybrana grupe pozycji (do przycisku i podsumowan).
+function calItemsLabel(){
+  if(!_calItemKeys.length)return 'Pozycje\u2026';
+  var days=(_calCache&&_calCache.days)||{};
+  var names=calItemOptions(days);
+  var byKey={};names.forEach(function(o){byKey[o.key]=o;});
+  if(_calItemKeys.length===1){
+    var o=byKey[_calItemKeys[0]];
+    return o?o.name:_calItemKeys[0];
+  }
+  // Sprawdz czy wybor odpowiada zapisanej grupie — wtedy pokaz jej nazwe
+  var saved=(appSettings.calGroups||[]);
+  for(var i=0;i<saved.length;i++){
+    var g=saved[i];
+    if(g.keys&&g.keys.length===_calItemKeys.length&&g.keys.every(function(k){return _calItemKeys.indexOf(k)>=0;}))return g.name;
+  }
+  return _calItemKeys.length+' pozycji razem';
+}
+
+// Modal wyboru pozycji do zsumowania (np. frytki + surowki jako jedna wartosc).
+// Pozwala tez zapisac wybor jako nazwana grupe, zeby nastepnym razem wybrac ja jednym kliknieciem.
+function openCalItemPicker(){
+  var days=(_calCache&&_calCache.days)||{};
+  var opts=calItemOptions(days);
+  if(!opts.length){toast('Brak pozycji w tym miesiacu','#f5a623');return;}
+  var sel={};_calItemKeys.forEach(function(k){sel[k]=true;});
+
+  var m=document.createElement('div');
+  m.style.cssText='position:fixed;inset:0;z-index:9700;background:rgba(0,0,0,.78);display:flex;align-items:flex-end;justify-content:center;';
+  document.body.appendChild(m);
+
+  function render(){
+    var saved=(appSettings.calGroups||[]);
+    var savedHtml=saved.length?(
+      '<div style="color:rgba(255,255,255,.5);font-size:.68rem;font-weight:900;letter-spacing:.5px;margin:2px 0 6px;">ZAPISANE GRUPY</div>'+
+      '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">'+
+        saved.map(function(g,i){
+          return '<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(231,192,107,.14);border:1.5px solid rgba(231,192,107,.4);border-radius:16px;padding:4px 6px 4px 10px;">'+
+            '<button class="cgUse" data-i="'+i+'" style="background:none;border:none;color:var(--a);font-family:Nunito,sans-serif;font-weight:800;font-size:.74rem;cursor:pointer;padding:0;">'+esc(g.name)+' <span style="opacity:.6;">('+(g.keys||[]).length+')</span></button>'+
+            '<button class="cgDel" data-i="'+i+'" title="Usun grupe" style="background:none;border:none;color:rgba(255,255,255,.4);font-size:.85rem;cursor:pointer;padding:0 2px;line-height:1;">&#x2715;</button>'+
+          '</span>';
+        }).join('')+
+      '</div>'
+    ):'';
+
+    var rows=opts.map(function(o){
+      var on=!!sel[o.key];
+      return '<label style="display:flex;align-items:center;gap:9px;padding:8px 2px;border-bottom:1px solid rgba(255,255,255,.07);cursor:pointer;">'+
+        '<input type="checkbox" class="cgChk" data-k="'+esc(o.key)+'"'+(on?' checked':'')+' style="width:19px;height:19px;flex-shrink:0;accent-color:#e7c06b;">'+
+        '<span style="font-size:1.05rem;flex-shrink:0;">'+emoText(o.emoji)+'</span>'+
+        '<span style="flex:1;color:#fff;font-size:.84rem;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(o.name)+'</span>'+
+        '<span style="color:rgba(255,255,255,.45);font-size:.72rem;flex-shrink:0;">'+o.qty+' szt.</span>'+
+      '</label>';
+    }).join('');
+
+    var selCount=Object.keys(sel).filter(function(k){return sel[k];}).length;
+
+    m.innerHTML=
+      '<div style="background:#1a1d24;width:100%;max-width:480px;max-height:86vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;overflow:hidden;">'+
+        '<div style="padding:16px 18px 10px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">'+
+          '<div>'+
+            '<div style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;">&#x1F37D;&#xFE0F; Wybierz pozycje</div>'+
+            '<div style="color:rgba(255,255,255,.5);font-size:.72rem;margin-top:2px;">Zaznacz kilka, by liczyc je razem jako jedna suma</div>'+
+          '</div>'+
+          '<button id="cgClose" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:32px;height:32px;font-size:1.1rem;cursor:pointer;flex-shrink:0;">&#x2715;</button>'+
+        '</div>'+
+        '<div style="overflow-y:auto;padding:12px 16px;flex:1;">'+savedHtml+
+          '<div style="display:flex;gap:6px;margin-bottom:8px;">'+
+            '<button id="cgAll" class="sf" style="flex:1;">Zaznacz wszystko</button>'+
+            '<button id="cgNone" class="sf" style="flex:1;">Odznacz wszystko</button>'+
+          '</div>'+
+          rows+
+        '</div>'+
+        '<div style="padding:12px 16px;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.2);">'+
+          (selCount>1?'<div style="display:flex;gap:6px;margin-bottom:8px;">'+
+            '<input id="cgName" placeholder="Nazwa grupy (np. Dodatki)" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.78rem;font-family:Nunito,sans-serif;">'+
+            '<button id="cgSave" style="padding:8px 12px;border-radius:8px;border:none;background:rgba(231,192,107,.2);color:var(--a);font-weight:800;font-size:.75rem;white-space:nowrap;cursor:pointer;">&#x1F4BE; Zapisz</button>'+
+          '</div>':'')+
+          '<button id="cgApply" style="width:100%;padding:12px;border-radius:10px;border:none;background:var(--a);color:#1a1205;font-family:Nunito,sans-serif;font-weight:900;font-size:.88rem;cursor:pointer;">Pokaz w kalendarzu ('+selCount+')</button>'+
+        '</div>'+
+      '</div>';
+
+    Array.prototype.forEach.call(m.querySelectorAll('.cgChk'),function(chk){
+      chk.onchange=function(){
+        var k=chk.getAttribute('data-k');
+        if(chk.checked)sel[k]=true;else delete sel[k];
+        render();
+      };
+    });
+    Array.prototype.forEach.call(m.querySelectorAll('.cgUse'),function(btn){
+      btn.onclick=function(){
+        var g=(appSettings.calGroups||[])[+btn.getAttribute('data-i')];
+        if(!g)return;
+        sel={};(g.keys||[]).forEach(function(k){sel[k]=true;});
+        render();
+      };
+    });
+    Array.prototype.forEach.call(m.querySelectorAll('.cgDel'),function(btn){
+      btn.onclick=function(){
+        var i=+btn.getAttribute('data-i');
+        var arr=(appSettings.calGroups||[]).slice();
+        arr.splice(i,1);
+        appSettings.calGroups=arr;saveSettings();
+        render();
+      };
+    });
+    var aBtn=document.getElementById('cgAll');if(aBtn)aBtn.onclick=function(){opts.forEach(function(o){sel[o.key]=true;});render();};
+    var nBtn=document.getElementById('cgNone');if(nBtn)nBtn.onclick=function(){sel={};render();};
+    var sBtn=document.getElementById('cgSave');
+    if(sBtn)sBtn.onclick=function(){
+      var nm=(document.getElementById('cgName')||{}).value;
+      nm=(nm||'').trim();
+      if(!nm){toast('Podaj nazwe grupy','#f5a623');return;}
+      var keys=Object.keys(sel).filter(function(k){return sel[k];});
+      var arr=(appSettings.calGroups||[]).slice();
+      arr.push({name:nm.slice(0,28),keys:keys});
+      appSettings.calGroups=arr;saveSettings();
+      toast('Grupa zapisana: '+nm,'#27ae60');
+      render();
+    };
+    document.getElementById('cgClose').onclick=function(){m.remove();};
+    document.getElementById('cgApply').onclick=function(){
+      var keys=Object.keys(sel).filter(function(k){return sel[k];});
+      if(!keys.length){toast('Zaznacz przynajmniej jedna pozycje','#f5a623');return;}
+      _calItemKeys=keys;
+      _calMetric='items';
+      m.remove();
+      renderCalendarView();
+    };
+  }
+  render();
+  m.addEventListener('click',function(e){if(e.target===m)m.remove();});
+}
+
+function calItemOptions(days){
+  var m={};
+  Object.keys(days||{}).forEach(function(dk){
+    var its=(days[dk]||{}).items||{};
+    Object.keys(its).forEach(function(k){
+      var it=its[k];
+      if(!m[k])m[k]={key:k,name:it.n||k,emoji:it.e,qty:0};
+      m[k].qty+=(+it.q||0);
+    });
+  });
+  return Object.values(m).sort(function(a,b){return b.qty-a.qty;});
+}
+
+function renderCalendarView(){
+  var box=document.getElementById('calBox');if(!box)return;
+  if(!_calMonth)_calMonth=calMonthKey(new Date());
+  var monthDate=new Date(_calMonth+'-01T12:00');
+  var monthLabel=monthDate.toLocaleDateString('pl-PL',{month:'long',year:'numeric'});
+
+  if(_calCache&&_calCache.month===_calMonth){
+    box.innerHTML=calGridHtml(_calCache.days,monthLabel);
+    return;
+  }
+  box.innerHTML='<div class="ni">Ladowanie...</div>';
+  if(!(fbReady&&fbAuthReady)){box.innerHTML='<div class="ni">Brak polaczenia z chmura</div>';return;}
+  var first=new Date(monthDate.getFullYear(),monthDate.getMonth(),1);
+  var last=new Date(monthDate.getFullYear(),monthDate.getMonth()+1,0,23,59,59);
+  fetchDailyStats(first.getTime(),last.getTime(),function(err,days){
+    var box2=document.getElementById('calBox');if(!box2)return;
+    if(err){box2.innerHTML='<div class="ni">Blad pobierania danych</div>';return;}
+    _calCache={month:_calMonth,days:days||{}};
+    box2.innerHTML=calGridHtml(days||{},monthLabel);
+  });
+}
+
+// Lista nazw aktualnie zsumowanych pozycji (podpis pod paskiem metryk).
+function calItemNamesList(){
+  var days=(_calCache&&_calCache.days)||{};
+  var byKey={};calItemOptions(days).forEach(function(o){byKey[o.key]=o;});
+  return _calItemKeys.map(function(k){return (byKey[k]&&byKey[k].name)||k;}).join(' + ');
+}
+
+function calGridHtml(days,monthLabel){
+
+  function valOf(dk){
+    var v=days[dk];if(!v)return null;
+    if(_calMetric==='rev')return +v.rev||0;
+    if(_calMetric==='cnt')return +v.cnt||0;
+    // 'items' — suma sztuk wszystkich wybranych pozycji (np. frytki + surowki razem)
+    var its=v.items||{},s=0;
+    for(var i=0;i<_calItemKeys.length;i++){
+      var it=its[_calItemKeys[i]];
+      if(it)s+=(+it.q||0);
+    }
+    return s;
+  }
+
+  var monthDate=new Date(_calMonth+'-01T12:00');
+  var y=monthDate.getFullYear(),mo=monthDate.getMonth();
+  var daysInMonth=new Date(y,mo+1,0).getDate();
+  var firstWeekday=(new Date(y,mo,1).getDay()+6)%7; // 0=Pon..6=Nd
+
+  var maxV=0,vals=[];
+  for(var d=1;d<=daysInMonth;d++){
+    var dk=y+'-'+String(mo+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var v=valOf(dk);
+    vals.push({d:d,dk:dk,v:v});
+    if(v!=null&&v>maxV)maxV=v;
+  }
+
+  // Porownanie weekendy vs dni robocze dla wybranej metryki — sedno tego widoku.
+  var wkEndSum=0,wkEndCnt=0,wkDaySum=0,wkDayCnt=0;
+  vals.forEach(function(item){
+    if(item.v==null)return;
+    var wd=new Date(item.dk+'T12:00').getDay();
+    if(wd===0||wd===6){wkEndSum+=item.v;wkEndCnt++;}
+    else{wkDaySum+=item.v;wkDayCnt++;}
+  });
+  var wkEndAvg=wkEndCnt?wkEndSum/wkEndCnt:0;
+  var wkDayAvg=wkDayCnt?wkDaySum/wkDayCnt:0;
+
+  var dayNames=['Pon','Wt','Sr','Czw','Pt','Sob','Nd'];
+  var headerCells=dayNames.map(function(n,i){
+    var isWknd=i>=5;
+    return '<div style="text-align:center;font-size:.65rem;font-weight:900;color:'+(isWknd?'var(--a)':'rgba(255,255,255,.5)')+';padding:4px 0;">'+n+'</div>';
+  }).join('');
+
+  var todayKey=_dateKey(Date.now());
+  var cells='';
+  for(var i=0;i<firstWeekday;i++)cells+='<div></div>';
+  vals.forEach(function(item){
+    var wd=new Date(item.dk+'T12:00').getDay();
+    var isWknd=(wd===0||wd===6);
+    var v=item.v;
+    var hasData=v!=null;
+    var intensity=hasData&&maxV>0?Math.min(1,v/maxV):0;
+    var bg=hasData?('rgba(231,192,107,'+(0.08+intensity*0.55).toFixed(2)+')'):'rgba(255,255,255,.03)';
+    var border=isWknd?'1.5px solid rgba(231,192,107,.35)':'1px solid rgba(255,255,255,.06)';
+    var valStr=(hasData&&v>0)?(_calMetric==='rev'?v.toFixed(0):v):'';
+    var isToday=item.dk===todayKey;
+    cells+='<div'+(hasData?' onclick="showDayDetail(\''+item.dk+'\')"':'')+' style="cursor:'+(hasData?'pointer':'default')+';background:'+bg+';border:'+border+';border-radius:8px;padding:5px 3px;min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;'+(isToday?'box-shadow:inset 0 0 0 2px var(--gr);':'')+'">'+
+      '<span style="font-size:.68rem;font-weight:800;color:'+(isWknd?'var(--a)':'rgba(255,255,255,.55)')+';">'+item.d+'</span>'+
+      (valStr?'<span style="font-size:.66rem;font-weight:900;color:#fff;margin-top:2px;">'+valStr+'</span>':'')+
+    '</div>';
+  });
+
+  var itemsOn=(_calMetric==='items');
+  var itemsBtnLabel=itemsOn?calItemsLabel():'Pozycje\u2026';
+
+  return (
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'+
+      '<button onclick="calNavMonth(-1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:34px;height:34px;font-size:1.1rem;cursor:pointer;">&#8249;</button>'+
+      '<span style="font-family:\'Playfair Display\',serif;font-weight:700;color:var(--a);font-size:1.05rem;text-transform:capitalize;">'+esc(monthLabel)+'</span>'+
+      '<button onclick="calNavMonth(1)" style="background:rgba(255,255,255,.1);border:none;color:#fff;border-radius:8px;width:34px;height:34px;font-size:1.1rem;cursor:pointer;">&#8250;</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">'+
+      '<button class="sf'+(_calMetric==='rev'?' on':'')+'" onclick="setCalMetric(\'rev\')">&#x1F4B0; Przychod</button>'+
+      '<button class="sf'+(_calMetric==='cnt'?' on':'')+'" onclick="setCalMetric(\'cnt\')">&#x1F4CB; Zamowienia</button>'+
+      '<button class="sf'+(itemsOn?' on':'')+'" onclick="openCalItemPicker()" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">&#x1F37D;&#xFE0F; '+esc(itemsBtnLabel)+' &#9662;</button>'+
+    '</div>'+
+    (itemsOn&&_calItemKeys.length>1?'<div style="margin:-4px 0 10px;color:rgba(255,255,255,.5);font-size:.7rem;">Sumowane razem: '+esc(calItemNamesList())+'</div>':'')+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px;">'+headerCells+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">'+cells+'</div>'+
+    '<div style="margin-top:12px;padding:10px 12px;background:rgba(255,255,255,.05);border-radius:10px;display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:8px;">'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. WEEKEND (Sob-Nd)</div><div style="color:var(--a);font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkEndAvg.toFixed(0)+' zl':wkEndAvg.toFixed(1)+(_calMetric==='items'?' szt.':''))+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SR. DZIEN ROBOCZY</div><div style="color:#fff;font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?wkDayAvg.toFixed(0)+' zl':wkDayAvg.toFixed(1)+(_calMetric==='items'?' szt.':''))+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">ROZNICA</div><div style="color:'+(wkEndAvg>=wkDayAvg?'var(--gr)':'var(--e)')+';font-weight:900;font-size:1rem;margin-top:2px;">'+(wkDayAvg>0?((wkEndAvg/wkDayAvg-1)*100).toFixed(0)+'%':'\u2014')+'</div></div>'+
+      '<div><div style="color:rgba(255,255,255,.5);font-size:.62rem;font-weight:800;">SUMA MIESIACA</div><div style="color:var(--gr);font-weight:900;font-size:1rem;margin-top:2px;">'+(_calMetric==='rev'?(wkEndSum+wkDaySum).toFixed(0)+' zl':(wkEndSum+wkDaySum)+(_calMetric==='items'?' szt.':''))+'</div></div>'+
+    '</div>'+
+    '<div class="set-hint" style="margin-top:8px;">Kliknij dzien z danymi, by zobaczyc szczegoly. Intensywnosc koloru komorki = wartosc wzgledem najlepszego dnia w miesiacu. Sobota i niedziela sa wyrozniane ramka.</div>'
+  );
+}
+
 // Ladna etykieta stolika/typu zamowienia (obsluguje tez zamowienie "przy okienku").
 function tlabel(t){
   if(t==='my')return '\uD83D\uDC6A MY';
@@ -4752,6 +5638,7 @@ function statControlsHtml(){
   // Karta "Statystyki ogolne" jest czescia naglowka, wiec widac ja ZAWSZE (takze przed
   // pobraniem szczegolow). Wypelnia ja loadGeneralStats() po wstawieniu HTML do DOM.
   setTimeout(loadGeneralStats,0);
+  setTimeout(loadWeekdayStats,0);
   return '<div class="sfr">'+b('hour','Godzina')+b('today','Dzis')+b('yesterday','Wczoraj')+b('week','Tydzien')+b('month','Miesiac')+b('all','Wszystko')+b('range','Od-Do')+'</div>'+
     (sfilt==='range'
       ?'<div class="sdr"><span class="sdlbl">Od:</span><input class="sdinp" id="sdf" type="date" value="'+dfVal+'"><span class="sdlbl">Do:</span><input class="sdinp" id="sdt" type="date" value="'+dtVal+'"></div>'
@@ -4763,14 +5650,27 @@ function statControlsHtml(){
       '</div>'+
       '<div class="genbody"><div class="ni">Ladowanie...</div></div>'+
     '</div>'+
+    '<div id="wkdayBox" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:10px 12px;margin:0 0 10px;">'+
+      '<div style="font-weight:900;color:#fff;font-size:.85rem;margin-bottom:7px;">\uD83D\uDCC5 Srednia sprzedaz wg dnia tygodnia <span style="color:rgba(255,255,255,.45);font-weight:700;font-size:.7rem;">(cala historia)</span></div>'+
+      '<div id="wkdayStats"><div class="ni">Ladowanie...</div></div>'+
+    '</div>'+
     '<button class="sf" onclick="showStats()" style="width:100%;margin:0 0 4px;background:var(--a);color:#1a1205;font-weight:900;border:none;padding:11px;font-size:.92rem;border-radius:10px;">&#x1F50D; Pokaz szczegolowe statystyki ('+(lbl[sfilt]||sfilt)+')</button>'+
     '<div class="set-hint" style="margin:0 2px 8px;">Ogolne (wyzej) licza sie z malych dziennych sum i dzialaja zawsze, dla calej historii. Szczegoly (wykresy, historia, godziny) pobieraja sie z chmury po kliknieciu — limit '+(STATS_FETCH_LIMIT_BYTES/1048576)+' MB, przy przekroczeniu zawez zakres dat.</div>'+
     '<button class="sf" onclick="exportStatsCSV()" style="width:100%;margin:0 0 14px;background:rgba(39,174,96,.14);border:1.5px solid rgba(39,174,96,.35);color:#27ae60;font-weight:800;padding:10px;border-radius:10px;">&#x1F4E5; Pobierz wszystkie statystyki (CSV / Excel)</button>';
 }
 function renderStats(){
   var wrap=document.getElementById('sw');if(!wrap)return;
+  var tabsHtml='<div class="sfr" style="margin-bottom:8px;">'+
+    '<button class="sf'+(_statSubTab==='overview'?' on':'')+'" onclick="setStatSubTab(\'overview\')">\uD83D\uDCCA Przeglad</button>'+
+    '<button class="sf'+(_statSubTab==='calendar'?' on':'')+'" onclick="setStatSubTab(\'calendar\')">\uD83D\uDCC5 Kalendarz</button>'+
+  '</div>';
+  if(_statSubTab==='calendar'){
+    wrap.innerHTML=tabsHtml+'<div id="calBox"></div>';
+    renderCalendarView();
+    return;
+  }
   if(!_statShown){
-    wrap.innerHTML=statControlsHtml()+'<div class="ni" style="margin-top:16px;text-align:center;line-height:1.5;">Wybierz okres powyzej i kliknij<br>&#x201E;Pokaz statystyki&#x201D;.</div>';
+    wrap.innerHTML=tabsHtml+statControlsHtml()+'<div class="ni" style="margin-top:16px;text-align:center;line-height:1.5;">Wybierz okres powyzej i kliknij<br>&#x201E;Pokaz statystyki&#x201D;.</div>';
     return;
   }
   var now=new Date(),tod=now.toLocaleDateString('pl-PL');
@@ -4816,6 +5716,14 @@ function renderStats(){
   for(var i=0;i<top.length;i++){var it=top[i];topRows+='<tr><td>'+emo(it.emoji,'1.1rem')+' '+esc(it.name)+'</td><td><b>'+it.qty+' szt.</b></td><td>'+it.rev.toFixed(2)+' zl</td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(it.qty/mq*110)+'px"></div></div></td></tr>';}
   var bhKeys=Object.keys(bh).sort(function(a,b){return +a-+b;});
   var bhRows='';for(var i=0;i<bhKeys.length;i++){var hh=bhKeys[i],c=bh[hh];bhRows+='<tr><td>'+String(hh).padStart(2,'0')+':00</td><td><b>'+c+'</b></td><td><div class="sbw"><div class="sbar" style="width:'+Math.round(c/mh*130)+'px;background:linear-gradient(90deg,var(--w),var(--gr))"></div></div></td></tr>';}
+
+  // Ranking dni wg przychodu (w obrebie wybranego okresu) — obliczony tutaj i
+  // zbuforowany, ale wyswietlany w OSOBNYM okienku (showDayRankingModal), nie wprost
+  // w glownym widoku statystyk.
+  var _rankLbl={hour:'ostatnia godzina',today:'dzis',yesterday:'wczoraj',week:'tydzien',month:'miesiac',all:'wszystko',range:'zakres'};
+  var dayAgg=aggregateSalesByDay(done);
+  var dayKeys=Object.keys(dayAgg).sort(function(a,b){return dayAgg[b].rev-dayAgg[a].rev;});
+  _dayRankCache={dayAgg:dayAgg,dayKeys:dayKeys,label:(_rankLbl[sfilt]||sfilt)};
   var histRows='';
   var doneSorted=done.slice().reverse();
   var _histCap=Math.min(doneSorted.length,300);
@@ -4890,6 +5798,7 @@ function renderStats(){
     hourRows+='<tr><td>'+String(hh2).padStart(2,'0')+':00</td><td><b>'+avg2+' min</b></td><td>'+cnt2+' zam.</td><td><div class="sbw"><div class="sbar" style="width:'+bw+'px;background:'+col2+'"></div></div></td></tr>';
   }
   wrap.innerHTML=
+    tabsHtml+
     statControlsHtml()+
     '<div id="weatherPanel"></div>'+
     '<div class="sbs">'+
@@ -4921,6 +5830,7 @@ function renderStats(){
         '</div>'+
       '</div>'+
     '</div>':'')+ 
+    (dayKeys.length?'<button class="sf" onclick="showDayRankingModal()" style="width:100%;margin:2px 0 4px;background:rgba(231,192,107,.14);border:1.5px solid rgba(231,192,107,.4);color:var(--a);font-weight:900;padding:10px;border-radius:10px;">&#x1F3C6; Ranking dni ('+dayKeys.length+') &mdash; zobacz</button>':'')+
     (top.length?'<div class="ss2">Najczesciej zamawiane</div><table class="stbl"><tr><th>Pozycja</th><th>Ilosc</th><th>Przychod</th><th>Popularnosc</th></tr>'+topRows+'</table>':'')+
     (bhKeys.length?'<div class="ss2">Ruch wg godziny</div><table class="stbl"><tr><th>Godzina</th><th>Zamowien</th><th>Ruch</th></tr>'+bhRows+'</table>':'')+
     (timeRows
@@ -5126,7 +6036,7 @@ function sendHeartbeat(){
   var info={
     did:DID,
     ts:Date.now(),
-    v:'v3.43',
+    v:'v3.46',
     view:curV||'o',
     orders:Object.keys(orders).length,
     ua:navigator.userAgent.slice(0,60)
@@ -5229,6 +6139,7 @@ function renderCloud(){
   var sD=document.getElementById('setConfDel');if(sD)sD.checked=!!appSettings.confirmDelete;
   var sR=document.getElementById('setReqTbl');if(sR)sR.checked=(appSettings.requireTable!==false);
   var sVc=document.getElementById('setVacCd');if(sVc)sVc.checked=(appSettings.vacationCountdown!==false);
+  var sVd=document.getElementById('setVacDate');if(sVd)sVd.value=dateToLocalInputVal(vacationEndDate());
   _catsEdit=null; // odswiez z aktualnego stanu
   renderCatEditor();
   renderCountItems();
@@ -5534,6 +6445,7 @@ function saveSettingsFromUI(){
   var d=(document.getElementById('setConfDel')||{}).checked;
   var rt=(document.getElementById('setReqTbl')||{}).checked;
   var vc=(document.getElementById('setVacCd')||{}).checked;
+  var vd=(document.getElementById('setVacDate')||{}).value;
   var h=parseInt((document.getElementById('setHold')||{}).value);
   if(c>0&&c<=50)appSettings.czkRate=c;
   if(l>=1&&l<=100)appSettings.lowStockPct=l;
@@ -5541,6 +6453,10 @@ function saveSettingsFromUI(){
   appSettings.confirmDelete=!!d;
   appSettings.requireTable=!!rt;
   appSettings.vacationCountdown=!!vc;
+  if(vd){
+    var vdParsed=new Date(vd);
+    if(!isNaN(vdParsed.getTime()))appSettings.vacationEndDate=vdParsed.toISOString();
+  }
   if(h>=50&&h<=1000)appSettings.holdMs=h;
   saveSettings();
   // Zastosuj kurs od razu w polu zamowienia
@@ -5801,7 +6717,12 @@ function autoClearOldOrders(){
     var id=ks[i],o=orders[id];
     if(!o||typeof o.ts!=='number'||o.ts>=cutoff)continue;
     if(!o.doneTs)o.doneTs=Date.now();
-    archive[id]=o; // zachowaj lokalnie zawsze
+    // Zamowienie zlozone PO nocnym domknieciu (23:00) dozywa tu z statusem innym niz
+    // 'done'. Trafialo do archiwum, ale nie bylo NIGDY policzone w sumach dziennych
+    // ani widoczne w szczegolach dnia (te filtruja po status==='done'). Domykamy je
+    // teraz formalnie i doliczamy — inaczej nocna sprzedaz znikala ze statystyk.
+    var wasCounted=(o.status==='done');
+    if(!wasCounted)o.status='done';
     // Do Firebase zapisuje TYLKO urządzenie które jest właścicielem zamówienia
     // (stworzyło je lub wysłało offline). Pozostałe tablety tylko czyszczą lokalny stan.
     // Zapobiega to 3× zapisowi tego samego wpisu do archive przez 3 tablety.
@@ -5809,6 +6730,10 @@ function autoClearOldOrders(){
     // Fallback: jeśli brak did (stara wersja <v3.37) → KAŻDY zapisuje do archive,
     // bo lepiej 3× ten sam wpis niż utrata danych.
     var isOwner=!o.did||!!_pendingOrders[id]||(o.did===DID);
+    // Sumy dzienne podbija wylacznie wlasciciel — inaczej kazdy tablet doliczylby
+    // ten sam przychod osobno (ServerValue.increment nie jest idempotentny).
+    if(!wasCounted&&isOwner)bumpDailyStats(o);
+    archive[id]=o; // zachowaj lokalnie zawsze
     if(fbReady){
       if(isOwner){
         var _co={}; for(var _k in o)_co[_k]=o[_k];
@@ -5851,7 +6776,7 @@ function confirmClearStats(){
       '</div>'+
       '<div id="clrRangeInfo" style="color:#1278a8;font-size:.78rem;font-weight:800;min-height:16px;margin-bottom:10px;"></div>'+
       '<div style="color:#666;font-size:.83rem;margin-bottom:6px;">Wpisz haslo do aplikacji aby potwierdzic.</div>'+
-      '<input id="clearStatsPw" type="password" placeholder="Haslo" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
+      '<input id="clearStatsPw" type="password" placeholder="Haslo" autocomplete="off" name="clear-pw-'+Date.now()+'" style="width:100%;padding:10px 12px;border-radius:9px;border:1.5px solid #ddd;font-family:Nunito,sans-serif;font-size:.9rem;outline:none;margin-bottom:6px;text-align:center;">'+
       '<div id="clearStatsErr" style="color:#e85c3a;font-size:.8rem;font-weight:800;min-height:18px;margin-bottom:8px;"></div>'+
       '<button id="clrStOk" style="width:100%;padding:11px;border-radius:9px;border:none;background:#e85c3a;color:#fff;font-family:Nunito,sans-serif;font-weight:900;font-size:.9rem;cursor:pointer;margin-bottom:7px;">Dalej</button>'+
       '<button id="clrStNo" style="width:100%;padding:9px;border-radius:9px;border:1.5px solid #ddd;background:#fff;color:#888;font-family:Nunito,sans-serif;font-weight:700;font-size:.83rem;cursor:pointer;">Anuluj</button>'+
@@ -6106,6 +7031,12 @@ applyProfileUI();
   function makeIcon(size){return drawIcon(size);}
 
   function buildIconsAndManifest(){
+    // Cala ta sekcja jest KOSMETYCZNA (ikona PWA + manifest). Gdyby canvas byl
+    // niedostepny albo toDataURL zablokowane (tryb prywatny, starszy WebView),
+    // wyjatek przerwalby dalsze wykonanie tego bloku — a zaraz za nim rejestruje sie
+    // Service Worker odpowiedzialny za prace OFFLINE. Dlatego lapiemy blad tutaj:
+    // brak ladnej ikony jest akceptowalny, brak trybu offline w restauracji nie jest.
+    try{
     var icon192=makeIcon(192);
     var icon512=makeIcon(512);
     var appleIcon=document.getElementById('pwa-icon');
@@ -6135,6 +7066,7 @@ applyProfileUI();
     var mUrl=URL.createObjectURL(mBlob);
     var mLink=document.getElementById('pwa-manifest');
     if(mLink)mLink.href=mUrl;
+    }catch(e){console.warn('PWA ikona/manifest pominiete:',e);}
   }
 
   if(logoIsImg){
